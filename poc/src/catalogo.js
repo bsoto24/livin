@@ -1,0 +1,63 @@
+// src/catalogo.js
+export const TIPOS = ['sala', 'comedor', 'cocina', 'bano', 'lavanderia', 'mascota', 'dormitorio', 'oficina'];
+
+export const ETIQUETAS = {
+  sala: 'Sala', comedor: 'Comedor', cocina: 'Cocina', bano: 'Baño',
+  lavanderia: 'Lavandería', mascota: 'Espacio de mascota',
+  dormitorio: 'Dormitorio', oficina: 'Oficina',
+};
+
+export const LIMITES = {
+  sala: { min: 1, max: 1 }, comedor: { min: 0, max: 1 }, cocina: { min: 1, max: 2 },
+  lavanderia: { min: 0, max: 2 }, mascota: { min: 0, max: 2 },
+  dormitorio: { min: 1, max: 4 }, oficina: { min: 0, max: 2 },
+  // bano: min 1, max dinámico = 1 + dormitorios + oficinas (ver hogar.js)
+};
+
+export const ZONA_SERVICIO = ['cocina', 'bano', 'lavanderia', 'mascota'];
+export const ZONA_PRIVADA = ['dormitorio', 'oficina'];
+export const ADMITE_BANO = ['dormitorio', 'oficina'];
+
+// Leyenda: '#' pared, '.' piso, '*' aparición (piso). Mobiliario (bloquea):
+// B cama, n velador, S sofá, T mesa de centro, M mesa comedor, s silla comedor,
+// K cocina, R refrigeradora, L lavadero, W inodoro, w lavamanos, U ducha,
+// E escritorio, e silla de escritorio, V lavadora, P cama de mascota, o plato.
+export const TRANSITABLE = new Set(['.', '*']);
+
+// Piezas de zona lateral: puerta en la pared que mira al centro, en la fila `puerta`.
+export const PIEZAS = {
+  cocina: { filas: ['########', '#KLR...#', '#......#', '#......#', '#......#', '########'], puerta: 2 },
+  bano: { filas: ['########', '#WwU...#', '#......#', '#......#', '########'], puerta: 2 },
+  lavanderia: { filas: ['########', '#VV....#', '#......#', '#......#', '########'], puerta: 2 },
+  mascota: { filas: ['########', '#P.o...#', '#......#', '#......#', '########'], puerta: 2 },
+  dormitorio: {
+    filas: ['#########', '#.....nB#', '#......B#', '#.......#', '#.......#', '#.......#', '#########'],
+    puerta: 3,
+    conBano: {
+      filas: ['#########', '#Bn..#WU#', '#B.....w#', '#....#..#', '#....####', '#.......#', '#########'],
+      banoRect: { x: 5, y: 0, w: 4, h: 5 },
+    },
+  },
+  oficina: {
+    filas: ['#########', '#....EE.#', '#....e..#', '#.......#', '#.......#', '#########'],
+    puerta: 3,
+    conBano: {
+      filas: ['#########', '#EE..#WU#', '#e.....w#', '#....#..#', '#....####', '#########'],
+      banoRect: { x: 5, y: 0, w: 4, h: 5 },
+    },
+  },
+};
+
+// Columna central (ancho 10). El comedor no tiene pared inferior: forma un solo
+// espacio con la sala. La sala se estira repitiendo `salaEstirable`.
+export const CENTRO = {
+  ancho: 10,
+  paredSuperior: '##########',
+  comedor: ['##########', '#........#', '#..MMMM..#', '#..ssss..#', '#........#', '#........#'],
+  sala: ['#........#', '#..SSSS..#', '#........#', '#...TT...#', '#....*...#'],
+  salaEstirable: '#........#',
+  paredInferior: '##########',
+};
+
+export const ANCHO_PASILLO = 3;
+export const FILA_PUERTA_PASILLO = 2;
