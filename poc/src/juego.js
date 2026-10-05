@@ -21,7 +21,16 @@ const COLOR_PARED = 0x5b4a3f;
 
 const $ = (id) => document.getElementById(id);
 const almacen = crearAlmacen(window.localStorage);
-const ctx = { cuentaId: crypto.randomUUID(), nuevoId: () => crypto.randomUUID(), ahora: () => new Date().toISOString() };
+// crypto.randomUUID solo existe en contextos seguros (https/localhost); por http en la red local se usa getRandomValues.
+function nuevoUuid() {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40; // versión 4
+  b[8] = (b[8] & 0x3f) | 0x80; // variante RFC 4122
+  const h = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+const ctx = { cuentaId: nuevoUuid(), nuevoId: nuevoUuid, ahora: () => new Date().toISOString() };
 const inicio = iniciarSesion(almacen, ctx);
 let estado = inicio.estado;
 ctx.cuentaId = estado.cuentas[0].id;
