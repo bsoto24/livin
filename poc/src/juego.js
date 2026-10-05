@@ -47,6 +47,7 @@ let posGuardada = almacen.cargarPosicion();
 let jugador = resolverPosicion(distribucion, posGuardada);
 let modo = 'exploracion';
 let moviendo = false;
+let posicionSinGuardar = false;
 let direccionTactil = null;
 let ultimaRegeneracionMs = 0;
 
@@ -64,6 +65,7 @@ function guardarEstado() {
 
 function guardarPosicion() {
   posGuardada = posicionRelativa(distribucion, jugador.x, jugador.y, jugador.direccion);
+  posicionSinGuardar = false;
   if (!almacen.guardarPosicion(posGuardada).ok) avisar('No se pudo guardar la posición.');
 }
 
@@ -153,21 +155,20 @@ class Escena extends Phaser.Scene {
     if (moviendo || modo !== 'exploracion') return;
     const r = paso(distribucion, jugador, direccion);
     jugador = { x: r.x, y: r.y, direccion: r.direccion };
+    posicionSinGuardar = true;
     if (!r.movio) { this.colocarPersonaje(); return; }
     moviendo = true;
     this.personaje.setAngle({ abajo: 0, izquierda: 90, arriba: 180, derecha: 270 }[direccion]);
     this.tweens.add({
       targets: this.personaje, x: r.x * TILE + TILE / 2, y: r.y * TILE + TILE / 2, duration: MS_POR_CASILLA, ease: 'Linear',
-      onComplete: () => {
-        moviendo = false;
-        if (this.direccionActual() === null) guardarPosicion(); // se detuvo tras caminar (FR-10)
-      },
+      onComplete: () => { moviendo = false; },
     });
   }
 
   update() {
     const dir = this.direccionActual();
     if (dir) this.mover(dir);
+    if (!dir && !moviendo && posicionSinGuardar && modo === 'exploracion') guardarPosicion(); // en reposo tras caminar (FR-10)
     $('depuracion').textContent = `${Math.round(this.game.loop.actualFps)} fps · regen ${ultimaRegeneracionMs.toFixed(1)} ms`;
   }
 }
