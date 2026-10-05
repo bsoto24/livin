@@ -1,6 +1,6 @@
 # Implementation Plan: Mapa y editor del hogar
 
-**Spec:** docs/specs/001-mapa-editor-hogar/spec.md (v1.0.0)
+**Spec:** docs/specs/001-mapa-editor-hogar/spec.md (v1.1.0; las Fases 0 a 5 implementan la v1.0.0 y la Fase 6 se agregó en la v1.1.0)
 **Decisions:** docs/adr/001-generador-distribucion-piezas-reglas.md, docs/adr/001-modelo-datos-local-first-multiusuario.md
 **Created:** 2026-10-04
 
@@ -17,6 +17,7 @@
 - PoC desechable en web con Phaser 3 (pinned 3.80.1, cargado desde cdnjs). Sin dependencias npm: pruebas con el runner integrado de Node (`node:test`, Node ≥ 20).
 - Arte de marcador original (rectángulos de color); sin recursos de terceros con copyright.
 - El modelo, el generador y la lógica de posición no importan Phaser ni el DOM (ADR del generador: capas portables).
+- *(v1.1.0)* Las etiquetas de nombre del mapa (FR-12) se calculan en una función pura, sin Phaser ni DOM; la capa de presentación solo las dibuja.
 
 **Pre-implementation gates:**
 - *Simplicity:* 3 componentes: dominio (`catalogo.js`, `hogar.js`, `almacen.js`), generador (`distribucion.js`, `posicion.js`) y presentación (`juego.js`, `index.html`). Una sola dependencia externa (Phaser, decidida en el PRD). ✓
@@ -38,6 +39,7 @@ Estructura de archivos (bajo `poc/`):
 | `src/hogar.js` | Estado del hogar y sus operaciones puras (crear, agregar, quitar, eliminar, renombrar, consultas) |
 | `src/distribucion.js` | Generador puro: estado → cuadrícula, espacios por casilla, puertas, pasillos, aparición |
 | `src/posicion.js` | Posición relativa del personaje y paso de movimiento |
+| `src/etiquetas.js` | *(v1.1.0)* Cálculo puro de las etiquetas de nombre de los espacios sobre el mapa |
 | `src/almacen.js` | Persistencia local y arranque de sesión |
 | `src/juego.js` | Escena Phaser, cruceta, modo edición, fichas y avisos |
 | `index.html` | Estructura de la página, estilos y carga de scripts |
@@ -1607,6 +1609,193 @@ if (inicio.aviso) avisar(inicio.aviso);
 
 ---
 
+## Phase 6 (added v1.1.0): Etiquetas de nombre en el mapa
+
+**Implements:** FR-12, Story 9 | **Satisfies:** AC-9.1, AC-9.2, AC-9.3, AC-9.4, AC-9.5 (y el lado visible de AC-6.1 y AC-6.6)
+**Files:** `poc/src/etiquetas.js`, `poc/test/etiquetas.test.js`, `poc/src/juego.js`
+**Interfaces:** Consumes: de `hogar.js`: `espaciosActivos`, `nombreVisible` (y en las pruebas `crearHogarInicial`, `agregarEspacio`, `eliminarEspacio`, `renombrarEspacio`, `espaciosDeTipo`, `banoDe`); de `distribucion.js`: `generarDistribucion`, `esTransitable` y la forma de la distribución (`rects`, `espacioEn`, `aparicion`); `crearCtx()` (Fase 0). Produces: `etiquetasDeEspacios(estado, distribucion, jugador, vista, medir?)` → `{ clave, texto, x, y, actual }[]`, una por espacio activo, con `x`/`y` en coordenadas de mapa medidas en casillas (pueden ser fraccionarias), `actual: true` solo para el espacio que contiene la casilla del personaje; `jugador` es `{ x, y }` o `null`; `vista` es `{ x, y, w, h }` en casillas o `null` cuando se ve todo el hogar; `medir(texto)` → `{ w, h }` (tamaño de la etiqueta en casillas; por defecto `{ w: 0, h: 0 }`).
+
+> **Complexity note:** la lógica con reglas de la spec (qué etiquetas existen, qué texto llevan y cómo se desplaza la del espacio actual para seguir visible) queda en una función pura con pruebas automáticas; `etiquetas.js` pertenece a la capa del generador (sin Phaser ni DOM) y no agrega componentes. El dibujo de los textos en Phaser no tiene pruebas automáticas, igual que la Fase 4, y se verifica a mano.
+
+Las etiquetas se calculan a partir del estado ya guardado y de la distribución; no se guardan (FR-12). Los pasillos no tienen nombre y no llevan etiqueta. Si el personaje está en un pasillo, ninguna etiqueta es la actual.
+
+- [ ] Escribir las pruebas de la función pura:
+```js
+// test/etiquetas.test.js
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { crearHogarInicial, agregarEspacio, eliminarEspacio, renombrarEspacio, espaciosDeTipo, banoDe } from '../src/hogar.js';
+import { generarDistribucion, esTransitable } from '../src/distribucion.js';
+import { etiquetasDeEspacios } from '../src/etiquetas.js';
+import { crearCtx } from './ayuda.js';
+
+const agregar = (estado, ctx, ...tipos) => tipos.reduce((e, t) => agregarEspacio(e, t, ctx), estado);
+const centro = (r) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
+const medir = () => ({ w: 3, h: 1 }); // etiqueta de 3 × 1 casillas
+
+function casillaDe(d, clave) {
+  for (let y = 0; y < d.alto; y++) for (let x = 0; x < d.ancho; x++) {
+    if (d.espacioEn[y][x] === clave && esTransitable(d, x, y)) return { x, y };
+  }
+  return null;
+}
+
+test('AC-9.1: una etiqueta por espacio activo, centrada en su área', () => {
+  const e = crearHogarInicial(crearCtx());
+  const d = generarDistribucion(e);
+  const etiquetas = etiquetasDeEspacios(e, d, null, null);
+  assert.deepEqual(etiquetas.map((t) => t.texto).sort(), ['Baño 1', 'Cocina 1', 'Dormitorio 1', 'Sala 1']);
+  for (const t of etiquetas) {
+    assert.deepEqual({ x: t.x, y: t.y }, centro(d.rects[t.clave]));
+    assert.equal(t.actual, false);
+  }
+});
+
+test('AC-9.1: muestra el nombre personalizado en lugar del automático', () => {
+  const ctx = crearCtx();
+  let e = crearHogarInicial(ctx);
+  const sala = espaciosDeTipo(e, 'sala')[0];
+  e = renombrarEspacio(e, sala.id, 'Living', ctx).estado;
+  const t = etiquetasDeEspacios(e, generarDistribucion(e), null, null).find((x) => x.clave === sala.id);
+  assert.equal(t.texto, 'Living');
+});
+
+test('AC-9.3: tras renumerar y eliminar, las etiquetas son las vigentes y no hay etiquetas de espacios eliminados', () => {
+  const ctx = crearCtx();
+  let e = agregar(crearHogarInicial(ctx), ctx, 'dormitorio', 'dormitorio');
+  const [d1, d2, d3] = espaciosDeTipo(e, 'dormitorio');
+  e = eliminarEspacio(e, d2.id, ctx);
+  const etiquetas = etiquetasDeEspacios(e, generarDistribucion(e), null, null);
+  assert.equal(etiquetas.some((t) => t.clave === d2.id), false);
+  assert.deepEqual([d1.id, d3.id].map((id) => etiquetas.find((t) => t.clave === id).texto), ['Dormitorio 1', 'Dormitorio 2']);
+  assert.equal(etiquetas.length, 5); // sala, cocina, baño común y los dos dormitorios restantes
+});
+
+test('AC-9.2: la etiqueta del espacio actual se desplaza para seguir visible en la vista', () => {
+  const e = crearHogarInicial(crearCtx());
+  const d = generarDistribucion(e);
+  const salaId = espaciosDeTipo(e, 'sala')[0].id;
+  const sala = d.rects[salaId];
+  // El centro de la sala cae dentro de la vista, pero la etiqueta centrada se saldría por la derecha.
+  const vista = { x: sala.x, y: sala.y, w: 6, h: 8 };
+  const etiquetas = etiquetasDeEspacios(e, d, d.aparicion, vista, medir);
+  const actual = etiquetas.filter((t) => t.actual);
+  assert.deepEqual(actual.map((t) => t.clave), [salaId]);
+  assert.ok(actual[0].x - 1.5 >= vista.x && actual[0].x + 1.5 <= vista.x + vista.w, 'etiqueta fuera de la vista en x');
+  assert.ok(actual[0].y - 0.5 >= vista.y && actual[0].y + 0.5 <= vista.y + vista.h, 'etiqueta fuera de la vista en y');
+  const otra = etiquetas.find((t) => !t.actual);
+  assert.deepEqual({ x: otra.x, y: otra.y }, centro(d.rects[otra.clave])); // las demás no se mueven
+});
+
+test('AC-9.2: si la etiqueta cabe en la vista no se mueve', () => {
+  const e = crearHogarInicial(crearCtx());
+  const d = generarDistribucion(e);
+  const sala = d.rects[espaciosDeTipo(e, 'sala')[0].id];
+  const vista = { x: 0, y: 0, w: d.ancho, h: d.alto };
+  const actual = etiquetasDeEspacios(e, d, d.aparicion, vista, medir).find((t) => t.actual);
+  assert.deepEqual({ x: actual.x, y: actual.y }, centro(sala));
+});
+
+test('AC-9.2: dentro de un baño interno la etiqueta actual es la del baño', () => {
+  const ctx = crearCtx();
+  const e = agregarEspacio(crearHogarInicial(ctx), 'bano', ctx);
+  const d = generarDistribucion(e);
+  const bano = banoDe(e, espaciosDeTipo(e, 'dormitorio')[0].id);
+  const casilla = casillaDe(d, bano.id);
+  assert.ok(casilla, 'el baño interno tiene casillas transitables');
+  const actuales = etiquetasDeEspacios(e, d, casilla, null).filter((t) => t.actual);
+  assert.deepEqual(actuales.map((t) => t.clave), [bano.id]);
+});
+
+test('AC-9.2: en un pasillo ninguna etiqueta es la actual (los pasillos no tienen nombre)', () => {
+  const ctx = crearCtx();
+  const e = agregar(crearHogarInicial(ctx), ctx, 'dormitorio', 'oficina');
+  const d = generarDistribucion(e);
+  const casilla = casillaDe(d, 'pasillo:der');
+  assert.ok(casilla, 'hay un pasillo derecho transitable');
+  const etiquetas = etiquetasDeEspacios(e, d, casilla, null);
+  assert.equal(etiquetas.length, 6);
+  assert.ok(etiquetas.every((t) => !t.actual));
+});
+
+test('etiquetasDeEspacios es pura y determinista', () => {
+  const e = crearHogarInicial(crearCtx());
+  const d = generarDistribucion(e);
+  const vista = { x: 8, y: 0, w: 6, h: 8 };
+  const copia = structuredClone({ e, d });
+  const a = etiquetasDeEspacios(e, d, d.aparicion, vista, medir);
+  const b = etiquetasDeEspacios(e, d, d.aparicion, vista, medir);
+  assert.deepEqual(a, b);
+  assert.deepEqual({ e, d }, copia); // no muta sus entradas
+});
+```
+
+- [ ] Run: `cd poc && node --test test/etiquetas.test.js` — expect: FAIL (`ERR_MODULE_NOT_FOUND` para `src/etiquetas.js`)
+- [ ] Implementar la función pura:
+```js
+// src/etiquetas.js
+import { espaciosActivos, nombreVisible } from './hogar.js';
+
+const SIN_MEDIDA = () => ({ w: 0, h: 0 });
+
+// Centro de una etiqueta de tamaño `tam` ajustado al tramo visible [inicio, fin] de un espacio.
+function ajustarEje(centro, inicio, fin, tam) {
+  if (fin - inicio <= tam) return (inicio + fin) / 2;
+  return Math.min(Math.max(centro, inicio + tam / 2), fin - tam / 2);
+}
+
+// Etiqueta de nombre de cada espacio activo (FR-12), en coordenadas de mapa medidas en casillas.
+// La del espacio que contiene al personaje se desplaza, si hace falta, hacia la parte visible de ese espacio.
+export function etiquetasDeEspacios(estado, distribucion, jugador, vista, medir = SIN_MEDIDA) {
+  const claveActual = jugador ? (distribucion.espacioEn[jugador.y]?.[jugador.x] ?? null) : null;
+  return espaciosActivos(estado).map((espacio) => {
+    const r = distribucion.rects[espacio.id];
+    const texto = nombreVisible(estado, espacio);
+    const actual = espacio.id === claveActual;
+    let x = r.x + r.w / 2;
+    let y = r.y + r.h / 2;
+    if (actual && vista) {
+      const { w, h } = medir(texto);
+      const x0 = Math.max(r.x, vista.x);
+      const x1 = Math.min(r.x + r.w, vista.x + vista.w);
+      const y0 = Math.max(r.y, vista.y);
+      const y1 = Math.min(r.y + r.h, vista.y + vista.h);
+      if (x1 > x0 && y1 > y0) { // si el espacio no se ve en absoluto, no hay nada que ajustar
+        x = ajustarEje(x, x0, x1, w);
+        y = ajustarEje(y, y0, y1, h);
+      }
+    }
+    return { clave: espacio.id, texto, x, y, actual };
+  });
+}
+```
+- [ ] Run: `cd poc && node --test test/etiquetas.test.js` — expect: PASS (`# pass 8`, `# fail 0`)
+- [ ] Run: `cd poc && npm test` — expect: PASS (los 44 existentes más los 8 nuevos: `# pass 52`, `# fail 0`)
+- [ ] Commit: `feat: add pure map label computation`
+
+Capa de presentación (`poc/src/juego.js`). Verificación previa (falla esperada): en `http://localhost:8080`, en modo exploración no se ve ninguna etiqueta de espacio ni el nombre del personaje (hoy `dibujarEtiquetas` sale en seco fuera del modo edición y el personaje no tiene etiqueta).
+
+- [ ] Reemplazar la creación de textos de `dibujarEtiquetas()` para que:
+  - dibuje las etiquetas en **ambos modos** (quitar la salida anticipada `if (modo !== 'edicion') return;`) usando `etiquetasDeEspacios(estado, distribucion, jugadorEnCasilla, vista, medir)`; guarda los objetos de texto por `clave` para poder moverlos sin recrearlos;
+  - mantenga un tamaño de texto legible constante en pantalla (`12 / zoom` px, como hoy) y vuelva a dibujarlas cuando cambia el zoom (al entrar a exploración con `seguirPersonaje()`, al encuadrar con `encuadrarHogar()`) o cambian los espacios o los nombres (`redibujar()`);
+  - los textos sean solo visuales: **sin** `setInteractive()` y sin capturar entrada (AC-9.5).
+- [ ] En `update()`, en modo exploración, recalcular cada fotograma la posición de la etiqueta actual: `vista` = `cam.worldView` convertido a casillas (dividir entre `TILE`), `jugadorEnCasilla` = `{ x: jugador.x, y: jugador.y }`, `medir(texto)` = ancho y alto del objeto de texto en píxeles de mundo entre `TILE`. Solo reposicionar objetos existentes (`setPosition`), sin crear ni destruir textos por fotograma. En modo edición `vista = null` (se ve todo el hogar) y no se reposiciona.
+- [ ] Agregar la etiqueta del personaje: un texto con `estado.miembros[0].nombre`, origen `(0.5, 1)`, colocado justo encima del contenedor del personaje (`personaje.x`, `personaje.y - TILE * 0.75`) y actualizado en cada fotograma para que siga el movimiento del tween; se ve en exploración y en edición, con el mismo tamaño legible (`12 / zoom`); su texto se actualiza en `redibujar()` (que `aplicar()` ya invoca tras renombrar al personaje).
+- [ ] Run: `cd poc && node --check src/juego.js && npm test` — expect: sin errores de sintaxis; `# pass 52`, `# fail 0`
+- [ ] Verificación manual en el navegador de escritorio con el viewport de un teléfono (375 × 812): recorrer la sala y el dormitorio por la puerta; la etiqueta del espacio actual permanece visible siempre (AC-9.2); el nombre del personaje lo sigue (AC-9.4); renombrar un espacio y tocar **Listo** actualiza la etiqueta (AC-9.3); caminar sigue a 60 fps y la cruceta responde igual (AC-9.5).
+- [ ] Verificación en el Android: recorrer todos los espacios sin entrar al modo edición y comprobar que siempre se ve en qué espacio estás; los fps del indicador se mantienen en 60 o más.
+- [ ] Commit: `feat: show space and character name labels on the map`
+
+---
+
+## Plan Changelog
+
+| Version | Phase | Change |
+|---------|-------|--------|
+| 1.1.0 | Phase 6 | Added: implements FR-12 y Story 9 (etiquetas de nombre de espacios y personaje sobre el mapa, en exploración y en edición); nuevo módulo puro `src/etiquetas.js` |
+
+---
+
 ## Quickstart Validation
 
 1. `cd poc && npm test` → `# pass 40`, `# fail 0`.
@@ -1616,3 +1805,4 @@ if (inicio.aviso) avisar(inicio.aviso);
 5. + en Baños: el baño aparece dentro de "Dormitorio 1" y la pista indica "Siguiente: Dormitorio 2".
 6. Tocar "Dormitorio 2" → renombrar a "Cuarto de Bryam" → Eliminar → confirmar.
 7. **Listo**, recargar la página: el hogar, los nombres y la posición del personaje se mantienen.
+8. *(v1.1.0)* Sin entrar al modo edición, caminar de la sala al dormitorio: el nombre del espacio donde estás está siempre visible y el nombre del personaje lo acompaña.
