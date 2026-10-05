@@ -1,2 +1,2 @@
-- [Livin project state](livin-project-state.md) — feature 001 merged locally, no remote; Android checks + AC-6.6 label question pending
+- [Livin project state](livin-project-state.md) — feature 001 merged locally, no remote; verified on Android (S23 Ultra); AC-6.6 label question open
 - [Docs in Spanish](docs-in-spanish.md) — specs/ADRs/foundation and domain vocabulary are Spanish; chat is English
