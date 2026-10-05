@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   crearHogarInicial, espaciosDeTipo, espaciosActivos, contar, puedeAgregar, puedeQuitar, puedeEliminar,
   agregarEspacio, quitarUltimo, eliminarEspacio, requiereConfirmacion, siguienteDestinoBano, banoDe,
-  nombreVisible, renombrarEspacio, renombrarMiembro, buscarEspacio,
+  nombreVisible, banoComun, banosInternos, cuartosEnOrden, renombrarEspacio, renombrarMiembro, buscarEspacio,
 } from '../src/hogar.js';
 import { crearCtx } from './ayuda.js';
 
@@ -117,6 +117,38 @@ test('AC-4.8: agregar o eliminar otros espacios no mueve los baños', () => {
   e = eliminarEspacio(e, espaciosDeTipo(e, 'lavanderia')[0].id, ctx);
   assert.equal(banoDe(e, d1.id).id, b1);
   assert.equal(banoDe(e, d3.id).id, b3);
+});
+
+test('FR-4: nombres automáticos de baños', () => {
+  const ctx = crearCtx();
+  const inicial = crearHogarInicial(ctx);
+  assert.equal(nombreVisible(inicial, banoComun(inicial)), 'Baño 1');
+
+  // 2 dormitorios + 1 oficina, 3 baños internos: numerados desde 2 en el orden de su cuarto.
+  let e = agregar(inicial, ctx, 'dormitorio', 'oficina', 'bano', 'bano', 'bano');
+  const [d1, d2] = espaciosDeTipo(e, 'dormitorio');
+  const [of1] = espaciosDeTipo(e, 'oficina');
+  assert.equal(nombreVisible(e, banoComun(e)), 'Baño 1');
+  assert.deepEqual([d1, d2, of1].map((c) => nombreVisible(e, banoDe(e, c.id))), ['Baño 2', 'Baño 3', 'Baño 4']);
+  assert.deepEqual(cuartosEnOrden(e).map((c) => c.id), [d1.id, d2.id, of1.id]);
+
+  // Se elimina Dormitorio 1 con todos los cuartos con baño: su baño se elimina y los demás se renumeran desde 2.
+  const sinD1 = eliminarEspacio(e, d1.id, ctx);
+  assert.equal(banosInternos(sinD1).length, 2);
+  assert.equal(nombreVisible(sinD1, banoComun(sinD1)), 'Baño 1');
+  assert.deepEqual([d2, of1].map((c) => nombreVisible(sinD1, banoDe(sinD1, c.id))), ['Baño 2', 'Baño 3']);
+  assert.deepEqual(['Baño 1', 'Baño 2', 'Baño 3'], espaciosDeTipo(sinD1, 'bano').map((b) => nombreVisible(sinD1, b)));
+
+  // Con un cuarto libre (la oficina), el baño de Dormitorio 1 se mueve allí y la numeración sigue el orden de los cuartos.
+  const conLibre = agregar(inicial, ctx, 'dormitorio', 'oficina', 'bano', 'bano');
+  const [e1, e2] = espaciosDeTipo(conLibre, 'dormitorio');
+  const [ofi] = espaciosDeTipo(conLibre, 'oficina');
+  const banoMovido = banoDe(conLibre, e1.id);
+  const movido = eliminarEspacio(conLibre, e1.id, ctx);
+  assert.equal(buscarEspacio(movido, banoMovido.id).contenidoEn, ofi.id);
+  assert.equal(nombreVisible(movido, banoDe(movido, e2.id)), 'Baño 2');
+  assert.equal(nombreVisible(movido, banoDe(movido, ofi.id)), 'Baño 3');
+  assert.equal(nombreVisible(movido, buscarEspacio(movido, banoMovido.id)), 'Baño 3');
 });
 
 test('AC-5.2: eliminar un espacio concreto renumera a los demás', () => {
