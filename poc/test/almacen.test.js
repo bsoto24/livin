@@ -39,6 +39,14 @@ test('Error: datos ilegibles crean hogar inicial con aviso', () => {
   }
 });
 
+test('Error: si falla la lectura del almacenamiento se crea el hogar inicial con aviso', () => {
+  const storage = { getItem: () => { throw new Error('bloqueado'); }, setItem: () => {} };
+  const { estado, aviso } = iniciarSesion(crearAlmacen(storage), crearCtx());
+  assert.match(aviso, /No se pudo recuperar/);
+  assert.equal(espaciosDeTipo(estado, 'sala').length, 1);
+  assert.equal(espaciosDeTipo(estado, 'dormitorio').length, 1);
+});
+
 test('AC-8.5: un miembro sin cuenta se carga como válido', () => {
   const ctx = crearCtx();
   const e = crearHogarInicial(ctx);

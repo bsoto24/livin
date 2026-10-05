@@ -18,9 +18,9 @@ function esEstadoValido(estado) {
 export function crearAlmacen(storage) {
   return {
     cargar() {
-      const texto = storage.getItem(CLAVE_DATOS);
-      if (texto === null) return { estado: null, error: null };
       try {
+        const texto = storage.getItem(CLAVE_DATOS);
+        if (texto === null) return { estado: null, error: null };
         const estado = JSON.parse(texto);
         return esEstadoValido(estado) ? { estado, error: null } : { estado: null, error: 'ilegible' };
       } catch {

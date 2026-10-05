@@ -20,7 +20,15 @@ const COLOR_MUEBLE = { B: 0x7f77dd, n: 0x8a6d4b, S: 0x1d9e75, T: 0x8a6d4b, M: 0x
 const COLOR_PARED = 0x5b4a3f;
 
 const $ = (id) => document.getElementById(id);
-const almacen = crearAlmacen(window.localStorage);
+// Si el navegador bloquea el almacenamiento, hasta acceder a localStorage lanza; se usa uno que siempre falla
+// para que el almacén muestre el aviso y la app funcione sin persistencia.
+function obtenerStorage() {
+  try { return window.localStorage; } catch {
+    const falla = () => { throw new Error('almacenamiento no disponible'); };
+    return { getItem: falla, setItem: falla };
+  }
+}
+const almacen = crearAlmacen(obtenerStorage());
 // crypto.randomUUID solo existe en contextos seguros (https/localhost); por http en la red local se usa getRandomValues.
 function nuevoUuid() {
   if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
