@@ -69,3 +69,12 @@ export const PARENTESCOS = {
 export const GENEROS = { femenino: 'Femenino', masculino: 'Masculino', otro: 'Otro' };
 export const ESPECIES = { perro: 'Perro', gato: 'Gato', otro: 'Otro' };
 export const LIMITES_HABITANTES = { familiar: 8, mascota: 4 };
+
+// Actividades (feature 003): listas cerradas y límites. Las claves se guardan; las etiquetas se muestran.
+export const ICONOS = {
+  platos: 'Platos', barrer: 'Barrer', ropa: 'Ropa', basura: 'Basura', limpiar: 'Limpiar',
+  compras: 'Compras', plantas: 'Plantas', mascota: 'Mascota', otra: 'Otra',
+};
+export const FRECUENCIAS = [1, 2, 3, 7, 14, 30]; // días
+export const LIMITE_ACTIVIDADES = 50;
+export const MAX_NOMBRE_ACTIVIDAD = 30;
