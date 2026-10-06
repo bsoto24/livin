@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { crearHogarInicial, agregarEspacio, eliminarEspacio, espaciosDeTipo } from '../src/hogar.js';
 import { generarDistribucion, esTransitable } from '../src/distribucion.js';
-import { posicionRelativa, resolverPosicion, paso } from '../src/posicion.js';
+import { posicionRelativa, resolverPosicion, paso, claveCasilla } from '../src/posicion.js';
 import { crearCtx } from './ayuda.js';
 
 test('AC-2.1: un paso a una casilla transitable avanza una casilla', () => {
@@ -77,4 +77,13 @@ test('AC-7.4: posición inválida vuelve a la aparición de la sala', () => {
   e3 = eliminarEspacio(e3, espaciosDeTipo(e3, 'oficina')[0].id, ctx3);
   d4 = generarDistribucion(e3);
   assert.deepEqual(resolverPosicion(d4, enPasillo), { ...d4.aparicion, direccion: 'abajo' });
+});
+
+test('AC-5.1, AC-5.3 (002): un habitante bloquea el paso del jugador y deja pasar cuando se aparta', () => {
+  const d = generarDistribucion(crearHogarInicial(crearCtx()));
+  const inicio = { ...d.aparicion, direccion: 'izquierda' };
+  const conHabitante = new Set([claveCasilla(inicio.x, inicio.y + 1)]);
+  assert.deepEqual(paso(d, inicio, 'abajo', conHabitante), { x: inicio.x, y: inicio.y, direccion: 'abajo', movio: false });
+  assert.deepEqual(paso(d, inicio, 'abajo', new Set()), { x: inicio.x, y: inicio.y + 1, direccion: 'abajo', movio: true });
+  assert.deepEqual(paso(d, inicio, 'abajo'), { x: inicio.x, y: inicio.y + 1, direccion: 'abajo', movio: true });
 });

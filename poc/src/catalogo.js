@@ -61,3 +61,11 @@ export const CENTRO = {
 
 export const ANCHO_PASILLO = 3;
 export const FILA_PUERTA_PASILLO = 2;
+
+// Habitantes (feature 002): listas cerradas y límites. Las claves se guardan; las etiquetas se muestran.
+export const PARENTESCOS = {
+  pareja: 'Pareja', hijo: 'Hijo/a', padre_madre: 'Padre o madre', hermano: 'Hermano/a', abuelo: 'Abuelo/a', otro: 'Otro familiar',
+};
+export const GENEROS = { femenino: 'Femenino', masculino: 'Masculino', otro: 'Otro' };
+export const ESPECIES = { perro: 'Perro', gato: 'Gato', otro: 'Otro' };
+export const LIMITES_HABITANTES = { familiar: 8, mascota: 4 };
