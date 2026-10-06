@@ -1,2 +1,2 @@
-- [Livin project state](livin-project-state.md) — feature 001 merged locally, no remote; verified on Android (S23 Ultra); AC-6.6 label question open
+- [Livin project state](livin-project-state.md) — feature 001 complete through spec v1.1.0, on origin/main, verified on Android (82 fps v1.0.0, 73 fps v1.1.0)
 - [Docs in Spanish](docs-in-spanish.md) — specs/ADRs/foundation and domain vocabulary are Spanish; chat is English
