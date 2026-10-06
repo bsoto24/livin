@@ -9,6 +9,7 @@ import {
 import { generarDistribucion } from './distribucion.js';
 import { crearAlmacen, iniciarSesion } from './almacen.js';
 import { posicionRelativa, resolverPosicion, paso } from './posicion.js';
+import { etiquetasDeEspacios } from './etiquetas.js';
 
 const TILE = 16;
 const MS_POR_CASILLA = 250; // 4 casillas por segundo (AC-2.2)
@@ -18,6 +19,15 @@ const COLOR_PISO = { sala: 0xe8dcc0, comedor: 0xe2d2b0, cocina: 0xd9e4e8, bano: 
 const COLOR_MUEBLE = { B: 0x7f77dd, n: 0x8a6d4b, S: 0x1d9e75, T: 0x8a6d4b, M: 0x8a6d4b, s: 0xa6875f, K: 0x5f5e5a,
   R: 0xb4b2a9, L: 0x888780, W: 0xffffff, w: 0xf1efe8, U: 0x85b7eb, E: 0x8a6d4b, e: 0x444441, V: 0xb4b2a9, P: 0xd85a30, o: 0xef9f27 };
 const COLOR_PARED = 0x5b4a3f;
+// Profundidades: mapa 0, etiquetas de espacio 5, personaje 10, nombre del personaje 20.
+const PROF_ETIQUETA_ESPACIO = 5;
+const PROF_PERSONAJE = 10;
+const PROF_ETIQUETA_PERSONAJE = 20;
+// Las etiquetas se crean siempre con este estilo fijo y se contrarrestan con setScale(1 / zoom): así se ven 1:1 en pantalla.
+const ESTILO_ETIQUETA = {
+  fontFamily: 'system-ui, sans-serif', fontSize: '12px', color: '#2a221c',
+  backgroundColor: 'rgba(242,234,211,0.85)', padding: { x: 3, y: 2 },
+};
 
 const $ = (id) => document.getElementById(id);
 // Si el navegador bloquea el almacenamiento, hasta acceder a localStorage lanza; se usa uno que siempre falla
@@ -74,11 +84,12 @@ class Escena extends Phaser.Scene {
 
   create() {
     this.mapa = this.add.graphics();
-    this.etiquetas = [];
+    this.etiquetas = new Map(); // clave de espacio → objeto de texto de su etiqueta (solo visuales, nunca interactivas)
     this.personaje = this.add.container(0, 0, [
       this.add.rectangle(0, 0, 12, 14, 0xd4537e).setStrokeStyle(1, 0x4b1528),
       this.add.triangle(0, 5, 0, 0, 6, 0, 3, 4, 0x4b1528),
-    ]);
+    ]).setDepth(PROF_PERSONAJE);
+    this.etiquetaPersonaje = this.add.text(0, 0, '', ESTILO_ETIQUETA).setOrigin(0.5, 1).setDepth(PROF_ETIQUETA_PERSONAJE);
     this.teclas = this.input.keyboard.createCursorKeys();
     this.input.on('pointerup', (p) => { if (modo === 'edicion') tocarMapa(Math.floor(p.worldX / TILE), Math.floor(p.worldY / TILE)); });
     this.scale.on('resize', () => (modo === 'edicion' ? this.encuadrarHogar() : null));
@@ -106,18 +117,33 @@ class Escena extends Phaser.Scene {
     this.dibujarEtiquetas();
   }
 
+  // Etiquetas de nombre (FR-12): una por espacio y la del personaje; en ambos modos. Se rehacen al redibujar o cambiar el zoom.
   dibujarEtiquetas() {
     this.etiquetas.forEach((t) => t.destroy());
-    this.etiquetas = [];
-    if (modo !== 'edicion') return;
-    const zoom = this.cameras.main.zoom;
-    for (const e of espaciosActivos(estado)) {
-      const r = distribucion.rects[e.id];
-      const texto = this.add.text((r.x + r.w / 2) * TILE, (r.y + r.h / 2) * TILE, nombreVisible(estado, e), {
-        fontFamily: 'system-ui, sans-serif', fontSize: `${Math.round(12 / zoom)}px`, color: '#2a221c',
-        backgroundColor: 'rgba(242,234,211,0.85)', padding: { x: 2 / zoom, y: 1 / zoom },
-      }).setOrigin(0.5);
-      this.etiquetas.push(texto);
+    this.etiquetas.clear();
+    const escala = 1 / this.cameras.main.zoom; // contrarresta el zoom de la cámara: tamaño constante en pantalla
+    for (const e of etiquetasDeEspacios(estado, distribucion, null, null)) {
+      const texto = this.add.text(e.x * TILE, e.y * TILE, e.texto, ESTILO_ETIQUETA)
+        .setOrigin(0.5).setScale(escala).setDepth(PROF_ETIQUETA_ESPACIO);
+      this.etiquetas.set(e.clave, texto);
+    }
+    this.etiquetaPersonaje.setText(estado.miembros[0].nombre).setScale(escala);
+  }
+
+  // Por cuadro: el nombre sigue al personaje; en exploración, la etiqueta del espacio actual se desplaza a la parte visible.
+  actualizarEtiquetas() {
+    this.etiquetaPersonaje.setPosition(this.personaje.x, this.personaje.y - TILE * 0.75);
+    if (modo !== 'exploracion') return; // en edición se ve todo el hogar: las etiquetas quedan centradas
+    const v = this.cameras.main.worldView;
+    const vista = { x: v.x / TILE, y: v.y / TILE, w: v.width / TILE, h: v.height / TILE };
+    const medir = (texto) => {
+      for (const t of this.etiquetas.values()) {
+        if (t.text === texto) return { w: t.displayWidth / TILE, h: t.displayHeight / TILE };
+      }
+      return { w: 0, h: 0 };
+    };
+    for (const e of etiquetasDeEspacios(estado, distribucion, { x: jugador.x, y: jugador.y }, vista, medir)) {
+      this.etiquetas.get(e.clave)?.setPosition(e.x * TILE, e.y * TILE);
     }
   }
 
@@ -130,6 +156,7 @@ class Escena extends Phaser.Scene {
     const cam = this.cameras.main;
     cam.setZoom(ZOOM_EXPLORACION);
     cam.startFollow(this.personaje, true);
+    this.dibujarEtiquetas(); // la escala de las etiquetas depende del zoom
   }
 
   encuadrarHogar() {
@@ -168,6 +195,7 @@ class Escena extends Phaser.Scene {
   update() {
     const dir = this.direccionActual();
     if (dir) this.mover(dir);
+    this.actualizarEtiquetas();
     if (!dir && !moviendo && posicionSinGuardar && modo === 'exploracion') guardarPosicion(); // en reposo tras caminar (FR-10)
     $('depuracion').textContent = `${Math.round(this.game.loop.actualFps)} fps · regen ${ultimaRegeneracionMs.toFixed(1)} ms`;
   }

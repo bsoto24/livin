@@ -1,10 +1,20 @@
 # Feature 001: Mapa y editor del hogar
 
 **Status:** Approved
-**Version:** 1.0.0
+**Version:** 1.1.0
 **Created:** 2026-10-04
+**Last Updated:** 2026-10-05
 **Branch:** `001-mapa-editor-hogar`
 **Source:** [prd.md](prd.md) · [ADR generador](../../adr/001-generador-distribucion-piezas-reglas.md) · [ADR modelo de datos](../../adr/001-modelo-datos-local-first-multiusuario.md)
+
+---
+
+## Changelog
+
+| Version | Date | Change |
+|---------|------|--------|
+| 1.0.0 | 2026-10-04 | Spec inicial aprobada |
+| 1.1.0 | 2026-10-05 | Se agregan la Story 9 (AC-9.1 a AC-9.5) y FR-12: etiquetas con el nombre de cada espacio y del personaje sobre el mapa, en modo exploración y en modo edición. Motivo: el usuario no sabía en qué espacio estaba mientras caminaba, porque las etiquetas solo se veían en modo edición. Cambio MINOR: no modifica ni elimina requisitos aprobados. |
 
 ---
 
@@ -19,6 +29,7 @@ Las tareas del hogar se gestionan con listas o chats que nadie disfruta revisar,
 - Toda combinación de espacios permitida produce un mapa en el que cada espacio es alcanzable caminando.
 - Ningún espacio cambia como efecto secundario de otra acción, salvo la única excepción definida para baños internos (FR-4).
 - El hogar, los nombres y la posición del personaje se conservan entre sesiones.
+- El usuario sabe en qué espacio está mientras camina, porque el mapa muestra el nombre de cada espacio y el de su personaje.
 - Espacios y miembros tienen identidad estable, de modo que futuras features (actividades, multiusuario) puedan referenciarlos sin migrar datos.
 
 ## Non-Goals
@@ -128,7 +139,7 @@ Las tareas del hogar se gestionan con listas o chats que nadie disfruta revisar,
 - [ ] **AC-6.3** Dado un espacio con nombre personalizado, Cuando el usuario guarda un nombre vacío o solo con espacios en blanco, Entonces vuelve a mostrarse su nombre automático.
 - [ ] **AC-6.4** Dado otro espacio que ya se muestra como "Cocina 1", Cuando el usuario intenta renombrar un espacio a "cocina 1", "Dormitorio 3" o cualquier texto con formato de nombre automático, Entonces el cambio se rechaza con un mensaje que explica el motivo y el nombre anterior se mantiene.
 - [ ] **AC-6.5** Dado el campo de nombre, Cuando el usuario intenta ingresar más de 20 caracteres, Entonces el campo no acepta caracteres más allá del vigésimo y el nombre guardado tiene como máximo 20 caracteres.
-- [ ] **AC-6.6** Dado el modo edición, Cuando el usuario toca su personaje y lo renombra a "Diana", Entonces el personaje se muestra como "Diana".
+- [ ] **AC-6.6** Dado el modo edición, Cuando el usuario toca su personaje y lo renombra a "Diana", Entonces el personaje se muestra como "Diana" (en su ficha y, según AC-9.4, junto a él sobre el mapa).
 - [ ] **AC-6.7** Dado el personaje, Cuando el usuario intenta guardar un nombre vacío, Entonces el cambio se rechaza con un mensaje y el nombre anterior se mantiene.
 
 ### Story 7: Conservar mi hogar entre sesiones
@@ -157,6 +168,20 @@ Las tareas del hogar se gestionan con listas o chats que nadie disfruta revisar,
 - [ ] **AC-8.3** Dado que se crea o modifica un hogar, espacio, miembro, cuenta o pertenencia, Cuando se inspecciona su registro, Entonces contiene fecha de creación, fecha de última modificación y la cuenta local del propietario como autora.
 - [ ] **AC-8.4** Dado el primer arranque, Cuando se inspeccionan los datos guardados, Entonces existen una cuenta local, una pertenencia de esa cuenta al hogar con rol propietario y el personaje vinculado a esa cuenta.
 - [ ] **AC-8.5** Dados datos guardados que incluyen un miembro sin cuenta vinculada, Cuando se abre la app, Entonces los datos se cargan como válidos, sin aviso de error.
+
+### Story 9: Saber dónde estoy mientras camino *(agregada en v1.1.0)*
+
+**As a** usuario que recorre su hogar
+**I want** ver sobre el mapa el nombre de cada espacio y el de mi personaje
+**So that** sepa en qué espacio estoy sin tener que entrar al modo edición
+
+**Acceptance criteria:**
+
+- [ ] **AC-9.1** Dado el modo exploración, Cuando se muestra el mapa, Entonces cada espacio muestra su nombre sobre el mapa, centrado en su área: el nombre personalizado si lo tiene y, si no, el automático. El texto tiene un tamaño legible que no cambia al acercar o alejar la cámara.
+- [ ] **AC-9.2** Dado un personaje dentro de un espacio, Cuando camina por ese espacio, Entonces la etiqueta de ese espacio permanece visible en pantalla mientras el personaje esté en él, aunque el centro del espacio quede fuera de la vista; y al cruzar una puerta, la etiqueta del nuevo espacio ya está visible, sin ninguna acción del usuario ni pantalla de transición.
+- [ ] **AC-9.3** Dado un espacio renombrado, renumerado o eliminado en modo edición, Cuando el usuario toca "Listo", Entonces las etiquetas del modo exploración muestran los nombres vigentes y no queda ninguna etiqueta de un espacio eliminado.
+- [ ] **AC-9.4** Dado el personaje, en modo exploración y en modo edición, Cuando se muestra el mapa, Entonces su nombre aparece junto a él, sobre el mapa, lo sigue al moverse y se actualiza al renombrarlo.
+- [ ] **AC-9.5** Dado el modo exploración con las etiquetas visibles, Cuando el usuario toca la cruceta o camina, Entonces las etiquetas no bloquean el paso ni capturan la entrada, y el movimiento se mantiene a 60 cuadros por segundo.
 
 ## Functional Requirements
 
@@ -314,6 +339,19 @@ Tipos de espacio disponibles y sus límites. Cómo se describen internamente los
 **Must not:**
 - Hacer que el nombre de un miembro dependa del nombre de una cuenta.
 - Hacer que la eliminación de un miembro afecte a los espacios.
+
+### FR-12: Etiquetas en el mapa *(agregado en v1.1.0)*
+
+**Must:**
+- Mostrar sobre el mapa, en modo exploración y en modo edición, el nombre visible (FR-9) de cada espacio, centrado en su área y en un tamaño de texto legible constante en pantalla.
+- Mantener visible en pantalla la etiqueta del espacio que contiene al personaje mientras este permanezca en él; si el centro del espacio queda fuera de la vista, desplazar la etiqueta dentro de la parte visible de ese espacio.
+- Mostrar el nombre del personaje junto a él, en ambos modos, siguiéndolo al moverse.
+- Actualizar las etiquetas cada vez que cambian los nombres o los espacios, y al volver al modo exploración con "Listo".
+
+**Must not:**
+- Bloquear el paso del personaje ni capturar la entrada táctil o del teclado en modo exploración.
+- Mostrar etiquetas de espacios eliminados.
+- Guardar las etiquetas como datos propios: se calculan a partir de los nombres ya guardados (FR-10 no cambia).
 
 ## Non-Functional Requirements
 
