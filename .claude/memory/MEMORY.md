@@ -1,2 +1,2 @@
-- [Livin project state](livin-project-state.md) — feature 001 complete through spec v1.1.0, on origin/main, verified on Android (82 fps v1.0.0, 73 fps v1.1.0)
+- [Livin project state](livin-project-state.md) — 001 done and verified on Android; 002 (family members and pets) merged locally, not pushed, Android check pending
 - [Docs in Spanish](docs-in-spanish.md) — specs/ADRs/foundation and domain vocabulary are Spanish; chat is English
