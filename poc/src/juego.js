@@ -1,15 +1,20 @@
 // src/juego.js
 /* global Phaser */
-import { TIPOS, ETIQUETAS } from './catalogo.js';
+import { TIPOS, ETIQUETAS, PARENTESCOS, GENEROS, ESPECIES, LIMITES_HABITANTES } from './catalogo.js';
 import {
   espaciosActivos, buscarEspacio, contar, puedeAgregar, puedeQuitar, puedeEliminar, agregarEspacio, quitarUltimo,
   ultimoDeTipo, eliminarEspacio, requiereConfirmacion, consecuenciasDeEliminar, siguienteDestinoBano,
   nombreVisible, nombreAutomatico, renombrarEspacio, renombrarMiembro, MENSAJES_ERROR,
+  habitantes, buscarMiembro, esPropietario, contarHabitantes, puedeAgregarHabitante, agregarHabitante, editarHabitante,
+  eliminarHabitante,
 } from './hogar.js';
 import { generarDistribucion } from './distribucion.js';
 import { crearAlmacen, iniciarSesion } from './almacen.js';
 import { posicionRelativa, resolverPosicion, paso } from './posicion.js';
 import { etiquetasDeEspacios } from './etiquetas.js';
+import {
+  MS_POR_PASO, colocarHabitantes, avanzarHabitantes, sincronizarHabitantes, congelarHabitantes, ocupadasPorHabitantes,
+} from './movimiento.js';
 
 const TILE = 16;
 const MS_POR_CASILLA = 250; // 4 casillas por segundo (AC-2.2)
@@ -28,6 +33,10 @@ const ESTILO_ETIQUETA = {
   fontFamily: 'system-ui, sans-serif', fontSize: '12px', color: '#2a221c',
   backgroundColor: 'rgba(242,234,211,0.85)', padding: { x: 3, y: 2 },
 };
+// Aspecto de los habitantes (FR-8), arte de marcador: personas de 12×14 según su género, mascotas de 8×8 según su especie.
+const COLOR_FAMILIAR = { femenino: 0xe8833a, masculino: 0x3a7bd5, otro: 0x8e6bbf };
+const COLOR_MASCOTA = { perro: 0x9c6b3c, gato: 0x7d7d7d, otro: 0x4f9d69 };
+const COLOR_BORDE_HABITANTE = 0x2a221c;
 
 const $ = (id) => document.getElementById(id);
 // Si el navegador bloquea el almacenamiento, hasta acceder a localStorage lanza; se usa uno que siempre falla
@@ -60,6 +69,12 @@ let moviendo = false;
 let posicionSinGuardar = false;
 let direccionTactil = null;
 let ultimaRegeneracionMs = 0;
+let jugadorDesde = null; // casilla de origen mientras el jugador da un paso: también bloquea a los habitantes (AC-5.2)
+const azar = Math.random; // el movimiento recibe el azar inyectado (ADR-002 de movimiento)
+function idsHabitantes() { return habitantes(estado).map((h) => h.id); }
+function propietario() { return estado.miembros.find((m) => m.eliminadoEn === null && esPropietario(estado, m)); }
+const casillaJugador = () => ({ x: jugador.x, y: jugador.y, desde: jugadorDesde });
+let moviles = colocarHabitantes(idsHabitantes(), distribucion, casillaJugador(), azar); // FR-7: al abrir, después del jugador
 
 function avisar(texto) {
   const caja = $('aviso');
@@ -85,6 +100,7 @@ class Escena extends Phaser.Scene {
   create() {
     this.mapa = this.add.graphics();
     this.etiquetas = new Map(); // clave de espacio → objeto de texto de su etiqueta (solo visuales, nunca interactivas)
+    this.sprites = new Map(); // id de habitante → { cuerpo, etiqueta } (FR-8; nunca interactivos)
     this.personaje = this.add.container(0, 0, [
       this.add.rectangle(0, 0, 12, 14, 0xd4537e).setStrokeStyle(1, 0x4b1528),
       this.add.triangle(0, 5, 0, 0, 6, 0, 3, 4, 0x4b1528),
@@ -117,7 +133,7 @@ class Escena extends Phaser.Scene {
     this.dibujarEtiquetas();
   }
 
-  // Etiquetas de nombre (FR-12): una por espacio y la del personaje; en ambos modos. Se rehacen al redibujar o cambiar el zoom.
+  // Etiquetas de nombre (FR-12 de la 001, FR-8 de la 002): una por espacio, la del personaje y las de los habitantes.
   dibujarEtiquetas() {
     this.etiquetas.forEach((t) => t.destroy());
     this.etiquetas.clear();
@@ -127,12 +143,49 @@ class Escena extends Phaser.Scene {
         .setOrigin(0.5).setScale(escala).setDepth(PROF_ETIQUETA_ESPACIO);
       this.etiquetas.set(e.clave, texto);
     }
-    this.etiquetaPersonaje.setText(estado.miembros[0].nombre).setScale(escala);
+    this.etiquetaPersonaje.setText(propietario().nombre).setScale(escala);
+    this.sincronizarSprites();
   }
 
-  // Por cuadro: el nombre sigue al personaje; en exploración, la etiqueta del espacio actual se desplaza a la parte visible.
+  // Cuerpos y nombres de los habitantes (FR-8): se rehacen desde `moviles` al redibujar o cambiar el zoom.
+  sincronizarSprites() {
+    for (const s of this.sprites.values()) {
+      this.tweens.killTweensOf(s.cuerpo);
+      s.cuerpo.destroy();
+      s.etiqueta.destroy();
+    }
+    this.sprites.clear();
+    const escala = 1 / this.cameras.main.zoom;
+    for (const h of moviles) {
+      const miembro = buscarMiembro(estado, h.id);
+      const cuerpo = miembro.tipo === 'mascota'
+        ? this.add.rectangle(0, 0, 8, 8, COLOR_MASCOTA[miembro.especie])
+        : this.add.rectangle(0, 0, 12, 14, COLOR_FAMILIAR[miembro.genero ?? 'otro']);
+      cuerpo.setStrokeStyle(1, COLOR_BORDE_HABITANTE).setDepth(PROF_PERSONAJE)
+        .setPosition(h.x * TILE + TILE / 2, h.y * TILE + TILE / 2);
+      const etiqueta = this.add.text(cuerpo.x, cuerpo.y - TILE * 0.6, miembro.nombre, ESTILO_ETIQUETA)
+        .setOrigin(0.5, 1).setScale(escala).setDepth(PROF_ETIQUETA_PERSONAJE);
+      this.sprites.set(h.id, { cuerpo, etiqueta });
+    }
+  }
+
+  // Por cuadro, solo en exploración: avanza el movimiento autónomo (FR-5) y anima cada paso nuevo durante MS_POR_PASO.
+  moverHabitantes(dtMs) {
+    if (modo !== 'exploracion') return;
+    const antes = new Map(moviles.map((h) => [h.id, h]));
+    moviles = avanzarHabitantes(moviles, distribucion, casillaJugador(), dtMs, azar);
+    for (const h of moviles) {
+      const previo = antes.get(h.id);
+      const s = this.sprites.get(h.id);
+      if (!s || (previo.x === h.x && previo.y === h.y)) continue;
+      this.tweens.add({ targets: s.cuerpo, x: h.x * TILE + TILE / 2, y: h.y * TILE + TILE / 2, duration: MS_POR_PASO, ease: 'Linear' });
+    }
+  }
+
+  // Por cuadro: los nombres siguen a sus personajes; en exploración, la etiqueta del espacio actual se desplaza a la parte visible.
   actualizarEtiquetas() {
     this.etiquetaPersonaje.setPosition(this.personaje.x, this.personaje.y - TILE * 0.75);
+    for (const s of this.sprites.values()) s.etiqueta.setPosition(s.cuerpo.x, s.cuerpo.y - TILE * 0.6);
     if (modo !== 'exploracion') return; // en edición se ve todo el hogar: las etiquetas quedan centradas
     const v = this.cameras.main.worldView;
     const vista = { x: v.x / TILE, y: v.y / TILE, w: v.width / TILE, h: v.height / TILE };
@@ -180,21 +233,24 @@ class Escena extends Phaser.Scene {
 
   mover(direccion) {
     if (moviendo || modo !== 'exploracion') return;
-    const r = paso(distribucion, jugador, direccion);
+    const r = paso(distribucion, jugador, direccion, ocupadasPorHabitantes(moviles)); // los habitantes son obstáculos (FR-6)
+    const origen = { x: jugador.x, y: jugador.y };
     jugador = { x: r.x, y: r.y, direccion: r.direccion };
     posicionSinGuardar = true;
     if (!r.movio) { this.colocarPersonaje(); return; }
     moviendo = true;
+    jugadorDesde = origen;
     this.personaje.setAngle({ abajo: 0, izquierda: 90, arriba: 180, derecha: 270 }[direccion]);
     this.tweens.add({
       targets: this.personaje, x: r.x * TILE + TILE / 2, y: r.y * TILE + TILE / 2, duration: MS_POR_CASILLA, ease: 'Linear',
-      onComplete: () => { moviendo = false; },
+      onComplete: () => { moviendo = false; jugadorDesde = null; },
     });
   }
 
-  update() {
+  update(_tiempo, deltaMs) {
     const dir = this.direccionActual();
     if (dir) this.mover(dir);
+    this.moverHabitantes(deltaMs);
     this.actualizarEtiquetas();
     if (!dir && !moviendo && posicionSinGuardar && modo === 'exploracion') guardarPosicion(); // en reposo tras caminar (FR-10)
     $('depuracion').textContent = `${Math.round(this.game.loop.actualFps)} fps · regen ${ultimaRegeneracionMs.toFixed(1)} ms`;
@@ -227,6 +283,7 @@ $('editar').addEventListener('click', () => {
   if (moviendo) return;
   guardarPosicion();
   modo = 'edicion';
+  moviles = congelarHabitantes(moviles); // quietos en la casilla a la que se dirigían (AC-7.2)
   mostrarExploracion(false);
   pintarPanel();
   escena().encuadrarHogar();
@@ -236,6 +293,7 @@ $('listo').addEventListener('click', () => {
   modo = 'exploracion';
   jugador = resolverPosicion(distribucion, posGuardada);
   guardarPosicion();
+  moviles = colocarHabitantes(idsHabitantes(), distribucion, casillaJugador(), azar); // FR-7: primero el jugador, después ellos
   mostrarExploracion(true);
   const s = escena();
   s.redibujar();
@@ -249,10 +307,11 @@ function aplicar(nuevo) {
   estado = nuevo;
   distribucion = generarDistribucion(estado);
   jugador = resolverPosicion(distribucion, posGuardada);
+  moviles = sincronizarHabitantes(moviles, idsHabitantes(), distribucion, casillaJugador(), azar); // FR-7, AC-7.7
   const s = escena();
   s.redibujar();
   ultimaRegeneracionMs = performance.now() - t0; // medición de la meta de 100 ms (NFR)
-  guardarEstado(); // cada cambio del modo edición se guarda al aplicarse (FR-10)
+  guardarEstado(); // cada cambio del modo edición se guarda al aplicarse (FR-10 de la 001, AC-9.2)
   s.colocarPersonaje();
   s.encuadrarHogar();
   pintarPanel();
@@ -288,48 +347,128 @@ function pintarPanel() {
     mas.addEventListener('click', () => aplicar(agregarEspacio(estado, tipo, ctx)));
     cont.append(fila);
   }
+  pintarHabitantes();
+}
+
+// Sección "Habitantes" del panel (FR-4, AC-7.1): contador "n de límite" y botón "+" por clase.
+function pintarHabitantes() {
+  const cont = $('habitantes');
+  cont.replaceChildren();
+  for (const [clase, titulo] of [['familiar', 'Familiares'], ['mascota', 'Mascotas']]) {
+    const fila = document.createElement('div');
+    fila.className = 'fila habitante';
+    fila.innerHTML = `<span>${titulo}</span><span class="cuenta">${contarHabitantes(estado, clase)} de ${LIMITES_HABITANTES[clase]}</span>`
+      + `<button aria-label="Agregar ${clase}">+</button>`;
+    const mas = fila.querySelector('button');
+    mas.disabled = !puedeAgregarHabitante(estado, clase);
+    mas.addEventListener('click', () => abrirFichaHabitante(clase, null));
+    cont.append(fila);
+  }
 }
 
 // ---------- Fichas ----------
-let fichaActual = null;
+let fichaActual = null; // { tipo: 'espacio' | 'propietario' | 'habitante', id, clase? }
 
+function llenarSelect(select, lista, valor) {
+  select.replaceChildren(new Option('Elegir…', ''), ...Object.entries(lista).map(([clave, texto]) => new Option(texto, clave)));
+  select.value = valor ?? '';
+}
+
+function mostrarCampos({ parentesco = false, genero = false, especie = false }) {
+  $('ficha-parentesco').style.display = parentesco ? 'block' : 'none';
+  $('ficha-genero').style.display = genero ? 'block' : 'none';
+  $('ficha-especie').style.display = especie ? 'block' : 'none';
+}
+
+// En la ficha de un habitante, guardar se activa solo con nombre y todos sus datos elegidos (AC-1.3, AC-2.3).
+function actualizarGuardar() {
+  if (fichaActual?.tipo !== 'habitante') { $('ficha-guardar').disabled = false; return; }
+  const datosElegidos = fichaActual.clase === 'familiar'
+    ? $('ficha-parentesco').value !== '' && $('ficha-genero').value !== ''
+    : $('ficha-especie').value !== '';
+  $('ficha-guardar').disabled = $('ficha-nombre').value.trim() === '' || !datosElegidos;
+}
+
+// Ficha de un espacio o del personaje del propietario (como en la 001: solo renombrar; Eliminar solo en espacios).
 function abrirFicha(tipo, id) {
   fichaActual = { tipo, id };
   const esEspacio = tipo === 'espacio';
   const espacio = esEspacio ? buscarEspacio(estado, id) : null;
-  const miembro = esEspacio ? null : estado.miembros.find((m) => m.id === id);
+  const miembro = esEspacio ? null : buscarMiembro(estado, id);
   $('ficha-titulo').textContent = esEspacio ? nombreVisible(estado, espacio) : miembro.nombre;
   $('ficha-nombre').value = esEspacio ? (espacio.nombrePersonalizado ?? '') : miembro.nombre;
   $('ficha-nombre').placeholder = esEspacio ? nombreAutomatico(estado, espacio) : 'Nombre del personaje';
+  mostrarCampos({});
+  $('ficha-guardar').textContent = 'Renombrar';
   $('ficha-error').textContent = '';
   $('ficha-eliminar').style.display = esEspacio ? 'block' : 'none';
   $('ficha-eliminar').disabled = !esEspacio || !puedeEliminar(estado, id);
+  actualizarGuardar();
+  $('ficha').style.display = 'flex';
+}
+
+// Ficha de un habitante (FR-4): alta si `id` es null; edición si no. Familiar: nombre, parentesco y género; mascota: nombre y especie.
+function abrirFichaHabitante(clase, id) {
+  fichaActual = { tipo: 'habitante', id, clase };
+  const miembro = id ? buscarMiembro(estado, id) : null;
+  const familiar = clase === 'familiar';
+  $('ficha-titulo').textContent = miembro ? miembro.nombre : (familiar ? 'Nuevo familiar' : 'Nueva mascota');
+  $('ficha-nombre').value = miembro?.nombre ?? '';
+  $('ficha-nombre').placeholder = familiar ? 'Nombre del familiar' : 'Nombre de la mascota';
+  llenarSelect($('ficha-parentesco'), PARENTESCOS, miembro?.parentesco);
+  llenarSelect($('ficha-genero'), GENEROS, miembro?.genero);
+  llenarSelect($('ficha-especie'), ESPECIES, miembro?.especie);
+  mostrarCampos(familiar ? { parentesco: true, genero: true } : { especie: true });
+  $('ficha-guardar').textContent = 'Guardar';
+  $('ficha-error').textContent = '';
+  $('ficha-eliminar').style.display = miembro ? 'block' : 'none';
+  $('ficha-eliminar').disabled = !miembro;
+  actualizarGuardar();
   $('ficha').style.display = 'flex';
 }
 
 const cerrarFicha = () => { $('ficha').style.display = 'none'; fichaActual = null; };
 
+// Prioridad al tocar una casilla (FR-4): personaje del propietario, luego habitante, luego espacio (AC-7.3, AC-7.4).
 function tocarMapa(x, y) {
   if (y < 0 || y >= distribucion.alto || x < 0 || x >= distribucion.ancho) return;
-  if (x === jugador.x && y === jugador.y) { abrirFicha('miembro', estado.miembros[0].id); return; } // AC-5.6
+  if (x === jugador.x && y === jugador.y) { abrirFicha('propietario', propietario().id); return; }
+  const habitante = moviles.find((h) => h.x === x && h.y === y);
+  if (habitante) {
+    const miembro = buscarMiembro(estado, habitante.id);
+    abrirFichaHabitante(miembro.tipo === 'mascota' ? 'mascota' : 'familiar', miembro.id);
+    return;
+  }
   const clave = distribucion.espacioEn[y][x];
   if (clave && buscarEspacio(estado, clave)) abrirFicha('espacio', clave);
 }
 
 $('ficha').querySelector('form').addEventListener('submit', (ev) => {
   ev.preventDefault();
+  const { tipo, id, clase } = fichaActual;
   const texto = $('ficha-nombre').value;
-  const r = fichaActual.tipo === 'espacio'
-    ? renombrarEspacio(estado, fichaActual.id, texto, ctx)
-    : renombrarMiembro(estado, fichaActual.id, texto, ctx);
+  let r;
+  if (tipo === 'espacio') r = renombrarEspacio(estado, id, texto, ctx);
+  else if (tipo === 'propietario') r = renombrarMiembro(estado, id, texto, ctx);
+  else {
+    const datos = { nombre: texto, parentesco: $('ficha-parentesco').value, genero: $('ficha-genero').value, especie: $('ficha-especie').value };
+    r = id ? editarHabitante(estado, id, datos, ctx) : agregarHabitante(estado, clase, datos, ctx);
+  }
   if (!r.ok) { $('ficha-error').textContent = MENSAJES_ERROR[r.error]; return; }
   cerrarFicha();
   aplicar(r.estado);
 });
-$('ficha-nombre').addEventListener('input', () => { $('ficha-error').textContent = ''; });
+$('ficha-nombre').addEventListener('input', () => { $('ficha-error').textContent = ''; actualizarGuardar(); });
+for (const campo of ['ficha-parentesco', 'ficha-genero', 'ficha-especie']) $(campo).addEventListener('change', actualizarGuardar);
 $('ficha-cancelar').addEventListener('click', cerrarFicha);
 $('ficha-eliminar').addEventListener('click', () => {
-  const id = fichaActual.id;
+  const { tipo, id } = fichaActual;
+  if (tipo === 'habitante') {
+    if (!window.confirm(`¿Eliminar a "${buscarMiembro(estado, id).nombre}"?`)) return; // AC-8.1, AC-8.2
+    cerrarFicha();
+    aplicar(eliminarHabitante(estado, id, ctx));
+    return;
+  }
   if (!confirmarEliminacion(id)) return;
   cerrarFicha();
   aplicar(eliminarEspacio(estado, id, ctx));

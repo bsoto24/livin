@@ -22,6 +22,9 @@
     .fila small { display: block; opacity: .7; }
     .fila button { height: 32px; font-size: 18px; }
     .fila .cuenta { text-align: center; }
+    .fila.habitante { grid-template-columns: 1fr auto 36px; }
+    .subtitulo { display: block; margin: 12px 0 4px; }
+    #ficha select { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; margin: 4px 0; }
     #ficha { position: fixed; inset: 0; background: rgba(0, 0, 0, .55); display: none; align-items: center; justify-content: center; }
     #ficha form { background: #f2ead3; color: #2a221c; padding: 16px; border-radius: 12px; width: min(320px, 86vw); }
     #ficha input { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; margin: 8px 0 4px; }
@@ -47,16 +50,21 @@
   <section id="panel">
     <header><strong>Espacios</strong><button id="listo">Listo</button></header>
     <div id="contadores"></div>
+    <strong class="subtitulo">Habitantes</strong>
+    <div id="habitantes"></div>
   </section>
   <div id="ficha">
     <form>
       <strong id="ficha-titulo"></strong>
       <input id="ficha-nombre" maxlength="20" autocomplete="off">
+      <select id="ficha-parentesco" aria-label="Parentesco"></select>
+      <select id="ficha-genero" aria-label="Género"></select>
+      <select id="ficha-especie" aria-label="Especie"></select>
       <div class="error" id="ficha-error"></div>
       <div class="acciones">
         <button type="button" class="peligro" id="ficha-eliminar">Eliminar</button>
         <button type="button" id="ficha-cancelar">Cancelar</button>
-        <button type="submit">Renombrar</button>
+        <button type="submit" id="ficha-guardar">Renombrar</button>
       </div>
     </form>
   </div>
