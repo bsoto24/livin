@@ -1055,7 +1055,7 @@ export function avanzarHabitantes(moviles, distribucion, jugador, dtMs, azar) {
 ```
 
 - [ ] Run: `cd poc && node --test test/posicion.test.js test/movimiento.test.js` — expect: PASS (`# pass 16`, `# fail 0`: 6 de posición y 10 de movimiento)
-- [ ] Run: `cd poc && npm test` — expect: PASS (`# pass 100`, `# fail 0`; incluye ahora las pruebas de contrato de la Fase 0)
+- [ ] Run: `cd poc && npm test` — expect: PASS (`# pass 89`, `# fail 0`; incluye ahora las pruebas de contrato de la Fase 0)
 - [ ] Commit: `feat(poc): add pure autonomous movement and mutual blocking` (cuerpo: `Plan section: Phase 3: Movimiento autónomo y bloqueo mutuo`)
 
 ---
@@ -1457,7 +1457,7 @@ $('ficha-eliminar').addEventListener('click', () => {
 });
 ```
 
-- [ ] Run: `cd poc && node --check src/juego.js && npm test` — expect: sin errores de sintaxis; `# pass 100`, `# fail 0`
+- [ ] Run: `cd poc && node --check src/juego.js && npm test` — expect: sin errores de sintaxis; `# pass 89`, `# fail 0`
 - [ ] Comprobación estática (script desechable con `node -e`, sin commitear): cada nombre que `juego.js` importa existe en su módulo, y cada `$('id')` usado en `juego.js` existe como `id=` en `index.html` — expect: 0 faltantes
 - [ ] Run: servir `poc/` con `python3 -m http.server 8080 --bind 127.0.0.1` y abrir `http://localhost:8080` con un viewport de teléfono — expect: en "Editar" aparece la sección Habitantes; "+" abre la ficha con "Guardar" desactivado; tras guardar un familiar y una mascota aparecen con su nombre; al tocar "Listo" caminan; el jugador no puede pisarlos; tocar a un habitante en edición abre su ficha; eliminar pide confirmación; al recargar siguen ahí
 - [ ] Commit: `feat(poc): show and manage family members and pets on the map` (cuerpo: `Plan section: Phase 4: Presentación: habitantes en el mapa y en el modo edición`)
@@ -1503,4 +1503,4 @@ $('ficha-eliminar').addEventListener('click', () => {
 | 2026-10-05 | Phase 4 | La ficha de edición de un habitante mantiene Guardar activo para que se muestre el mensaje de nombre vacío (revisión D2) |
 | 2026-10-05 | Phase 3 | Prueba que mide la pausa real entre tramos (AC-4.1) |
 
-Las pruebas añadidas por la revisión están en el repositorio; los bloques de código de este plan reflejan el código final de `src/` pero no repiten todas esas pruebas.
+Las pruebas añadidas por la revisión están en el repositorio; los bloques de código de este plan reflejan el código final de `src/` pero no repiten todas esas pruebas. Los `# pass 89` de las Fases 3 y 4 son el conteo con las pruebas que lista el plan; la verificación final (Fase 5 y Quickstart) cuenta las 100 de la suite completa, que incluye las 11 añadidas por la revisión.
