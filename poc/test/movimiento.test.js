@@ -223,3 +223,128 @@ test('el movimiento es puro y reproducible con la misma semilla', () => {
   assert.deepEqual(a, b);
   assert.deepEqual(inicial, copia);
 });
+
+// --- Seguimiento de la revisión: ritmo de pasos (D4) y vacíos de cobertura (G1-G4) ---
+
+const SEMILLAS = Array.from({ length: 300 }, (_, i) => i + 1);
+
+test('AC-4.2: un tramo de 6 pasos tarda 3000 ms a 60 y a 30 cuadros por segundo, sin perder tiempo entre pasos', () => {
+  const d = generarDistribucion(crearHogarInicial(crearCtx()));
+  const jugador = { x: 1, y: 8, desde: null }; // lejos del pasillo por el que camina
+  for (const [dt, tolerancia] of [[1000 / 60, 17], [1000 / 30, 34]]) {
+    const azar = azarReproducible(1);
+    let [h] = avanzarHabitantes([movil('h-1', 9, 3, { tramo: 6, direccion: 'derecha' })], d, jugador, 0, azar); // inicia el 1.er paso
+    let transcurrido = 0;
+    for (let cuadros = 0; (h.desde !== null || h.tramo !== 0) && cuadros < 1000; cuadros++) {
+      transcurrido += dt;
+      [h] = avanzarHabitantes([h], d, jugador, dt, azar);
+      verificarInvariantes(d, [h], jugador);
+    }
+    assert.deepEqual([h.x, h.y, h.desde, h.tramo], [15, 3, null, 0], `${dt} ms por cuadro: no completó el tramo`);
+    assert.ok(Math.abs(transcurrido - 6 * MS_POR_PASO) <= tolerancia, `${dt} ms por cuadro: el tramo tardó ${transcurrido} ms`);
+  }
+});
+
+test('AC-6.1, AC-6.2: al colocarlos nunca ocupan la casilla del jugador ni la de la que viene', () => {
+  for (const estado of [crearHogarInicial(crearCtx()), hogarMasGrande()]) {
+    const d = generarDistribucion(estado);
+    const { x, y } = d.aparicion;
+    const jugador = { x, y, direccion: 'derecha', desde: { x: x - 1, y } };
+    for (const semilla of SEMILLAS) {
+      const moviles = colocarHabitantes(IDS, d, jugador, azarReproducible(semilla));
+      verificarInvariantes(d, moviles, jugador); // incluye las dos casillas del jugador y que no se repitan
+      assert.equal(new Set(moviles.map((h) => claveCasilla(h.x, h.y))).size, IDS.length);
+    }
+  }
+});
+
+test('AC-7.7, FR-7: el habitante que quedó en la casilla del jugador (o en su origen) se reubica y los demás se quedan', () => {
+  const d = generarDistribucion(crearHogarInicial(crearCtx()));
+  const otro = movil('h-2', d.aparicion.x - 2, d.aparicion.y);
+  for (const [motivo, jugador, encima] of [
+    ['casilla del jugador', { x: 13, y: 3, desde: null }, { x: 13, y: 3 }],
+    ['origen del paso del jugador', { x: 13, y: 3, desde: { x: 14, y: 3 } }, { x: 14, y: 3 }],
+  ]) {
+    for (const semilla of SEMILLAS.slice(0, 50)) {
+      const despues = sincronizarHabitantes([movil('h-1', encima.x, encima.y), otro], ['h-1', 'h-2'], d, jugador, azarReproducible(semilla));
+      assert.notDeepEqual([despues[0].x, despues[0].y], [encima.x, encima.y], motivo);
+      assert.deepEqual(despues[1], otro, motivo);
+      verificarInvariantes(d, despues, jugador);
+    }
+  }
+});
+
+test('AC-7.7, FR-7: lo reubicado o nuevo nunca cae en la casilla de un habitante que se conserva ni en la del jugador', () => {
+  const d = generarDistribucion(hogarMasGrande());
+  const lejos = { x: d.aparicion.x, y: d.aparicion.y, desde: null };
+  for (const semilla of SEMILLAS) {
+    const azar = azarReproducible(semilla);
+    const antes = colocarHabitantes(IDS.slice(0, 6), d, lejos, azar);
+    // el jugador queda sobre la casilla de h-1 y sobre el origen de h-2 (que se deben reubicar)
+    const jugador = { x: antes[0].x, y: antes[0].y, desde: { x: antes[1].x, y: antes[1].y } };
+    const despues = sincronizarHabitantes(antes, IDS, d, jugador, azar);
+    assert.deepEqual(despues.map((h) => h.id), IDS);
+    assert.deepEqual(despues.slice(2, 6), antes.slice(2, 6), 'los que están bien no se mueven');
+    verificarInvariantes(d, despues, jugador);
+  }
+});
+
+test('AC-1.2, AC-2.2: un habitante nuevo se coloca solo en una casilla libre (sin habitantes ni jugador)', () => {
+  const d = generarDistribucion(crearHogarInicial(crearCtx()));
+  const jugador = { x: d.aparicion.x, y: d.aparicion.y, desde: { x: d.aparicion.x, y: d.aparicion.y + 1 } };
+  for (const semilla of SEMILLAS) {
+    const azar = azarReproducible(semilla);
+    const antes = colocarHabitantes(IDS.slice(0, 11), d, jugador, azar);
+    const despues = sincronizarHabitantes(antes, [...IDS.slice(0, 11), 'nuevo'], d, jugador, azar);
+    const nuevo = despues.find((h) => h.id === 'nuevo');
+    for (const h of antes) assert.notDeepEqual([nuevo.x, nuevo.y], [h.x, h.y], `cae sobre ${h.id}`);
+    assert.deepEqual(despues.slice(0, 11), antes);
+    verificarInvariantes(d, despues, jugador);
+  }
+});
+
+test('AC-4.1: las pausas y los tramos varían, y mientras dura la pausa el habitante no se mueve y la pausa baja con el tiempo', () => {
+  const d = generarDistribucion(hogarMasGrande());
+  const azar = azarReproducible(31);
+  const jugador = { x: d.aparicion.x, y: d.aparicion.y, desde: null };
+  const DT = 50;
+  let moviles = colocarHabitantes(IDS.slice(0, 5), d, jugador, azar);
+  const pausas = [];
+  const tramos = [];
+  const pasosSeguidos = moviles.map(() => 0);
+  let enPausaVista = 0;
+  for (let t = 0; t < 300000; t += DT) {
+    const antes = moviles;
+    moviles = avanzarHabitantes(moviles, d, jugador, DT, azar);
+    verificarInvariantes(d, moviles, jugador);
+    moviles.forEach((h, i) => {
+      const a = antes[i];
+      if (a.progresoMs === 0 && a.pausaMs > 0) { // en pausa: quieto y la pausa baja exactamente lo transcurrido
+        enPausaVista++;
+        assert.deepEqual([h.x, h.y, h.desde, h.progresoMs], [a.x, a.y, a.desde, 0], `${h.id} se movió durante la pausa`);
+        assert.equal(h.pausaMs, Math.max(0, a.pausaMs - DT), `${h.id}: la pausa no bajó ${DT} ms`);
+      }
+      if (h.x !== a.x || h.y !== a.y) pasosSeguidos[i]++;
+      if (a.pausaMs === 0 && h.pausaMs > 0) {
+        pausas.push(h.pausaMs);
+        if (pasosSeguidos[i] > 0) tramos.push(pasosSeguidos[i]);
+        pasosSeguidos[i] = 0;
+      }
+    });
+  }
+  assert.ok(enPausaVista > 100, 'debería observar habitantes en pausa');
+  assert.ok(new Set(pausas).size > 5, 'las pausas no deberían ser constantes');
+  assert.ok(new Set(tramos).size >= 4, 'los tramos no deberían ser constantes');
+});
+
+test('AC-4.1: un tramo nuevo solo elige entre las direcciones libres', () => {
+  const d = generarDistribucion(crearHogarInicial(crearCtx()));
+  const jugador = { x: 1, y: 8, desde: null };
+  // (12, 3): arriba y abajo son pared y a la izquierda está otro habitante; solo queda libre la derecha
+  for (const semilla of SEMILLAS.slice(0, 200)) {
+    const [h] = avanzarHabitantes(
+      [movil('h-1', 12, 3), movil('h-2', 11, 3, { pausaMs: 2000 })], d, jugador, 0, azarReproducible(semilla),
+    );
+    assert.deepEqual([h.x, h.y, h.desde], [13, 3, { x: 12, y: 3 }], `semilla ${semilla}`);
+  }
+});

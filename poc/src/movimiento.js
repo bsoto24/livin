@@ -80,17 +80,24 @@ export function sincronizarHabitantes(moviles, ids, distribucion, jugador, azar)
 
 // Avanza `dtMs` milisegundos el movimiento de todos los habitantes (FR-5, FR-6). Pura: devuelve un arreglo nuevo.
 // Se procesan en orden con un único conjunto de ocupadas, así dos habitantes nunca eligen la misma casilla (AC-4.5).
+// Si un paso termina y el tramo continúa, el siguiente empieza en la misma llamada y se le acredita el tiempo que
+// sobró del cuadro, para que los pasos de un tramo promedien 500 ms sin importar los cuadros por segundo (AC-4.2).
 export function avanzarHabitantes(moviles, distribucion, jugador, dtMs, azar) {
   const ocupadas = new Set([...ocupadasPorHabitantes(moviles), ...ocupadasPorJugador(jugador)]);
   const libre = (x, y) => esTransitable(distribucion, x, y) && !ocupadas.has(claveCasilla(x, y));
-  return moviles.map((h) => {
+  return moviles.map((original) => {
+    let h = original;
+    let sobranteMs = 0;
     if (h.progresoMs > 0) {
-      const progresoMs = Math.max(0, h.progresoMs - dtMs);
-      if (progresoMs > 0) return { ...h, progresoMs };
+      const restanteMs = h.progresoMs - dtMs;
+      if (restanteMs > 0) return { ...h, progresoMs: restanteMs };
       ocupadas.delete(claveCasilla(h.desde.x, h.desde.y)); // llegó: libera la casilla de origen
-      return { ...h, progresoMs: 0, desde: null };
+      h = { ...h, progresoMs: 0, desde: null };
+      if (h.tramo === 0) return h; // fin del tramo: sigue la pausa que se sorteó al iniciar el último paso
+      sobranteMs = -restanteMs;
+    } else if (h.pausaMs > 0) {
+      return { ...h, pausaMs: Math.max(0, h.pausaMs - dtMs) };
     }
-    if (h.pausaMs > 0) return { ...h, pausaMs: Math.max(0, h.pausaMs - dtMs) };
     let { tramo, direccion } = h;
     if (tramo === 0) {
       const opciones = ORDEN_DIRECCIONES.filter((d) => libre(h.x + DIRECCIONES[d].dx, h.y + DIRECCIONES[d].dy));
@@ -104,7 +111,7 @@ export function avanzarHabitantes(moviles, distribucion, jugador, dtMs, azar) {
     ocupadas.add(claveCasilla(x, y));
     const restante = tramo - 1;
     return {
-      ...h, x, y, desde: { x: h.x, y: h.y }, progresoMs: MS_POR_PASO,
+      ...h, x, y, desde: { x: h.x, y: h.y }, progresoMs: Math.max(1, MS_POR_PASO - sobranteMs),
       tramo: restante, direccion: restante > 0 ? direccion : null, pausaMs: restante > 0 ? 0 : pausaAleatoria(azar),
     };
   });
