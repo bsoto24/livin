@@ -23,15 +23,27 @@
     .fila button { height: 32px; font-size: 18px; }
     .fila .cuenta { text-align: center; }
     .fila.habitante { grid-template-columns: 1fr auto 36px; }
+    .fila.cabecera { grid-template-columns: 1fr auto auto; }
+    .fila.cabecera button { font-size: 15px; padding: 0 10px; }
+    .fila.actividad { grid-template-columns: 28px 1fr; cursor: pointer; }
+    .icono { font-size: 20px; text-align: center; }
     .subtitulo { display: block; margin: 12px 0 4px; }
-    #ficha select { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; margin: 4px 0; }
-    #ficha { position: fixed; inset: 0; background: rgba(0, 0, 0, .55); display: none; align-items: center; justify-content: center; }
-    #ficha form { background: #f2ead3; color: #2a221c; padding: 16px; border-radius: 12px; width: min(320px, 86vw); }
-    #ficha input { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; margin: 8px 0 4px; }
-    #ficha .error { color: #a32d2d; min-height: 1.2em; font-size: 13px; }
-    #ficha .acciones { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
-    #ficha .acciones button { padding: 8px 12px; background: #2a221c; color: #f2ead3; }
-    #ficha .acciones .peligro { background: #a32d2d; margin-right: auto; }
+    #ficha select, #ficha-actividad select { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; margin: 4px 0; }
+    #ficha, #ficha-actividad { position: fixed; inset: 0; background: rgba(0, 0, 0, .55); display: none; align-items: center; justify-content: center; }
+    #ficha form, #ficha-actividad form { background: #f2ead3; color: #2a221c; padding: 16px; border-radius: 12px; width: min(320px, 86vw); }
+    #ficha input, #ficha-actividad input { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; margin: 8px 0 4px; }
+    #ficha .error, #ficha-actividad .error { color: #a32d2d; min-height: 1.2em; font-size: 13px; }
+    #ficha .acciones, #ficha-actividad .acciones { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+    #ficha .acciones button, #ficha-actividad .acciones button { padding: 8px 12px; background: #2a221c; color: #f2ead3; }
+    #ficha .acciones .peligro, #ficha-actividad .acciones .peligro { background: #a32d2d; margin-right: auto; }
+    #hoja { position: fixed; left: 0; right: 0; bottom: 0; max-height: 55%; overflow-y: auto; background: #f2ead3; color: #2a221c;
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-radius: 14px 14px 0 0; display: none; }
+    #hoja header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    #hoja .item { display: grid; grid-template-columns: 28px 1fr auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid #d9cfb4; }
+    #hoja .item small { display: block; opacity: .7; }
+    #hoja .botones { display: flex; gap: 6px; }
+    #hoja button { padding: 6px 10px; background: #2a221c; color: #f2ead3; }
+    #hoja .peligro { background: #a32d2d; }
     #aviso { position: fixed; top: calc(56px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); background: #2a221c;
       color: #f2ead3; padding: 8px 14px; border-radius: 8px; display: none; max-width: 86vw; }
     #depuracion { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 8px; color: #9fe1cb; font: 12px monospace; }
@@ -52,6 +64,8 @@
     <div id="contadores"></div>
     <strong class="subtitulo">Habitantes</strong>
     <div id="habitantes"></div>
+    <strong class="subtitulo">Actividades</strong>
+    <div id="actividades"></div>
   </section>
   <div id="ficha">
     <form>
@@ -65,6 +79,28 @@
         <button type="button" class="peligro" id="ficha-eliminar">Eliminar</button>
         <button type="button" id="ficha-cancelar">Cancelar</button>
         <button type="submit" id="ficha-guardar">Renombrar</button>
+      </div>
+    </form>
+  </div>
+  <section id="hoja" aria-label="Actividades del lugar">
+    <header><strong id="hoja-titulo"></strong><button type="button" id="hoja-cerrar">Cerrar</button></header>
+    <div id="hoja-lista"></div>
+  </section>
+  <div id="ficha-actividad">
+    <form>
+      <strong id="actividad-titulo"></strong>
+      <input id="actividad-nombre" maxlength="30" autocomplete="off" placeholder="Nombre de la actividad">
+      <select id="actividad-icono" aria-label="Icono"></select>
+      <select id="actividad-miembro" aria-label="Asignada a"></select>
+      <select id="actividad-espacio" aria-label="Espacio"></select>
+      <select id="actividad-tipo" aria-label="Tipo"></select>
+      <input id="actividad-vence" type="date" aria-label="Vence">
+      <select id="actividad-frecuencia" aria-label="Frecuencia"></select>
+      <div class="error" id="actividad-error"></div>
+      <div class="acciones">
+        <button type="button" class="peligro" id="actividad-eliminar">Eliminar</button>
+        <button type="button" id="actividad-cancelar">Cancelar</button>
+        <button type="submit" id="actividad-guardar">Guardar</button>
       </div>
     </form>
   </div>
