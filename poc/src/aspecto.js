@@ -36,10 +36,10 @@ export function casillasLibres(distribucion, espacioId) {
 // Casilla fija de la burbuja de un espacio (AC-2.8): la primera casilla libre de su área.
 export const casillaDeBurbuja = (distribucion, espacioId) => casillasLibres(distribucion, espacioId)[0] ?? null;
 
-// Objetos del suelo (FR-5): tantos como pide el estado, limitados por las casillas libres, sin la de la burbuja.
+// Objetos del suelo (FR-5): tantos como pide el estado, limitados por las casillas libres del espacio.
 // El orden sale del hash del espacio y la casilla, así que el desastre siempre agrega objetos a los del desorden.
 export function objetosDelSuelo(distribucion, espacioId, limpieza) {
-  const libres = casillasLibres(distribucion, espacioId).slice(1); // la primera es la de la burbuja
+  const libres = casillasLibres(distribucion, espacioId);
   return libres
     .map((c) => ({ ...c, h: hash(`${espacioId}:${claveCasilla(c.x, c.y)}`) }))
     .sort((a, b) => a.h - b.h)

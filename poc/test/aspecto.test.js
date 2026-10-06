@@ -50,7 +50,6 @@ test('AC-4.3, AC-4.4, AC-4.7: objetos del suelo según el estado, en casillas li
   const d = generarDistribucion(e);
   for (const espacio of espaciosDeTipo(e, 'cocina')) {
     const libres = new Set(casillasLibres(d, espacio.id).map((c) => `${c.x},${c.y}`));
-    const burbuja = casillaDeBurbuja(d, espacio.id);
     const desordenado = objetosDelSuelo(d, espacio.id, 'desordenado');
     const desastre = objetosDelSuelo(d, espacio.id, 'desastre');
     assert.deepEqual(objetosDelSuelo(d, espacio.id, 'limpio'), []);
@@ -60,20 +59,21 @@ test('AC-4.3, AC-4.4, AC-4.7: objetos del suelo según el estado, en casillas li
     assert.equal(new Set(desastre.map((o) => `${o.x},${o.y}`)).size, desastre.length);
     for (const o of desastre) {
       assert.ok(libres.has(`${o.x},${o.y}`));
-      assert.ok(o.x !== burbuja.x || o.y !== burbuja.y);
       assert.ok(Number.isInteger(o.variante) && o.variante >= 0 && o.variante < 6);
     }
     assert.deepEqual(objetosDelSuelo(generarDistribucion(e), espacio.id, 'desastre'), desastre);
   }
 });
 
-test('AC-4.7: si hay menos casillas libres que objetos, se muestran tantos como casillas libres haya', () => {
+test('AC-4.3, AC-4.7: si hay menos casillas libres que objetos, se muestran tantos como casillas libres haya', () => {
   const e = hogarConBanos();
   const d = generarDistribucion(e);
   const bano = banoDe(e, espaciosDeTipo(e, 'dormitorio')[0].id);
   const libres = casillasLibres(d, bano.id).length;
-  assert.ok(libres - 1 < OBJETOS_POR_ESTADO.desastre);
-  assert.equal(objetosDelSuelo(d, bano.id, 'desastre').length, libres - 1); // todas menos la de la burbuja
+  assert.equal(libres, 4); // el baño interno es el espacio más pequeño del catálogo
+  assert.ok(libres < OBJETOS_POR_ESTADO.desastre);
+  assert.equal(objetosDelSuelo(d, bano.id, 'desastre').length, libres);
+  assert.equal(objetosDelSuelo(d, bano.id, 'desordenado').length, Math.min(OBJETOS_POR_ESTADO.desordenado, libres));
 });
 
 test('FR-6: ubicarBurbujas pone la de un espacio en su casilla fija y la de un miembro en la casilla de encima de él', () => {
