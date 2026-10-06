@@ -1459,7 +1459,7 @@ $('ficha-eliminar').addEventListener('click', () => {
 
 - [ ] Run: `cd poc && node --check src/juego.js && npm test` — expect: sin errores de sintaxis; `# pass 89`, `# fail 0`
 - [ ] Comprobación estática (script desechable con `node -e`, sin commitear): cada nombre que `juego.js` importa existe en su módulo, y cada `$('id')` usado en `juego.js` existe como `id=` en `index.html` — expect: 0 faltantes
-- [ ] Run: servir `poc/` con `python3 -m http.server 8080 --bind 127.0.0.1` y abrir `http://localhost:8080` con un viewport de teléfono — expect: en "Editar" aparece la sección Habitantes; "+" abre la ficha con "Guardar" desactivado; tras guardar un familiar y una mascota aparecen con su nombre; al tocar "Listo" caminan; el jugador no puede pisarlos; tocar a un habitante en edición abre su ficha; eliminar pide confirmación; al recargar siguen ahí
+- [ ] Run: servir `poc/` desde su carpeta con `python3 -c "import http.server as s; h = type('H', (s.SimpleHTTPRequestHandler,), {'end_headers': lambda self: (self.send_header('Cache-Control', 'no-cache'), s.SimpleHTTPRequestHandler.end_headers(self))[-1]}); s.ThreadingHTTPServer(('127.0.0.1', 8080), h).serve_forever()"` (ver la nota sobre la caché en la Fase 5) y abrir `http://localhost:8080` con un viewport de teléfono — expect: en "Editar" aparece la sección Habitantes; "+" abre la ficha con "Guardar" desactivado; tras guardar un familiar y una mascota aparecen con su nombre; al tocar "Listo" caminan; el jugador no puede pisarlos; tocar a un habitante en edición abre su ficha; eliminar pide confirmación; al recargar siguen ahí
 - [ ] Commit: `feat(poc): show and manage family members and pets on the map` (cuerpo: `Plan section: Phase 4: Presentación: habitantes en el mapa y en el modo edición`)
 
 ---
@@ -1469,7 +1469,8 @@ $('ficha-eliminar').addEventListener('click', () => {
 **Implements:** All FRs | **Satisfies:** All ACs
 
 - [ ] Run full test suite: `cd poc && npm test` — expect: `# pass 100`, `# fail 0`
-- [ ] Servir en la red local (`python3 -m http.server 8080 --bind 0.0.0.0` desde `poc/`) y abrir `http://<IP-del-computador>:8080` en el Android (misma Wi-Fi, con internet para cargar Phaser); al terminar, parar el servidor.
+- [ ] Servir en la red local desde `poc/` con `python3 -c "import http.server as s; h = type('H', (s.SimpleHTTPRequestHandler,), {'end_headers': lambda self: (self.send_header('Cache-Control', 'no-cache'), s.SimpleHTTPRequestHandler.end_headers(self))[-1]}); s.ThreadingHTTPServer(('0.0.0.0', 8080), h).serve_forever()"` y abrir `http://<IP-del-computador>:8080` en el Android (misma Wi-Fi, con internet para cargar Phaser); al terminar, parar el servidor (`lsof -ti:8080 | xargs kill`).
+  > **Nota sobre la caché:** no uses `python3 -m http.server` a secas. No envía `Cache-Control`, y el navegador del teléfono aplica caché heurística a los módulos ES: puede mezclar copias viejas de unos archivos con los nuevos de otros, el enlace de módulos falla (`does not provide an export named ...`) y el mapa no se dibuja (se ven los botones pero la pantalla queda negra). El comando de arriba envía `Cache-Control: no-cache`, así que el navegador revalida cada archivo en cada carga (304 si no cambió). Si aun así ocurre, borrar los datos de navegación del sitio en el teléfono.
 - [ ] Verificar manualmente en el Android, marcando cada uno:
   - [ ] AC-1.1 a AC-1.5 y AC-2.1 a AC-2.4: altas de familiares y mascotas, listas sin preselección, "Guardar" desactivado hasta completar, límites 8 y 4, cancelar sin cambios.
   - [ ] AC-3.1 a AC-3.5: nombres con espacios, repetidos (también contra el propietario), 21 caracteres y vacíos.
@@ -1487,7 +1488,7 @@ $('ficha-eliminar').addEventListener('click', () => {
 ## Quickstart Validation
 
 1. `cd poc && npm test` → `# pass 100`, `# fail 0`.
-2. Servir `poc/` y abrir `http://localhost:8080`: aparece el hogar con el personaje en la sala.
+2. Servir `poc/` con el comando de la Fase 4 y abrir `http://localhost:8080`: aparece el hogar con el personaje en la sala.
 3. **Editar** → en Habitantes, "+" de Familiares → nombre "Diana", parentesco "Pareja", género "Femenino" → **Guardar**: aparece en el mapa con su nombre.
 4. "+" de Mascotas → nombre "Firulais", especie "Perro" → **Guardar**: aparece más pequeña, con su nombre.
 5. **Listo**: ambos aparecen en casillas libres y caminan solos; el personaje no puede pisarlos.
@@ -1502,5 +1503,6 @@ $('ficha-eliminar').addEventListener('click', () => {
 | 2026-10-05 | Phase 2 | El validador de v2 solo valida los miembros activos (revisión D1) y pruebas de claves de prototipo y de `tipo` ausente |
 | 2026-10-05 | Phase 4 | La ficha de edición de un habitante mantiene Guardar activo para que se muestre el mensaje de nombre vacío (revisión D2) |
 | 2026-10-05 | Phase 3 | Prueba que mide la pausa real entre tramos (AC-4.1) |
+| 2026-10-06 | Phase 4 y Phase 5 | El comando para servir `poc/` envía `Cache-Control: no-cache`: con `python3 -m http.server` a secas, el teléfono mezcló módulos viejos y nuevos en caché y el mapa no se dibujaba (causa raíz comprobada con el registro del servidor y reproducida con una mezcla de versiones) |
 
 Las pruebas añadidas por la revisión están en el repositorio; los bloques de código de este plan reflejan el código final de `src/` pero no repiten todas esas pruebas. Los `# pass 89` de las Fases 3 y 4 son el conteo con las pruebas que lista el plan; la verificación final (Fase 5 y Quickstart) cuenta las 100 de la suite completa, que incluye las 11 añadidas por la revisión.
