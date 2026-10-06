@@ -29,7 +29,7 @@
 
 ## Goal
 
-Que el propietario registre hasta 8 familiares y 4 mascotas en modo edición y los vea caminar solos por su hogar sin superponerse con nadie, con los datos conservados entre sesiones y los hogares de la feature 001 migrados sin pérdida, cubierto por 89 pruebas automáticas (55 existentes + 34 nuevas).
+Que el propietario registre hasta 8 familiares y 4 mascotas en modo edición y los vea caminar solos por su hogar sin superponerse con nadie, con los datos conservados entre sesiones y los hogares de la feature 001 migrados sin pérdida, cubierto por 100 pruebas automáticas (55 existentes + 45 nuevas).
 
 Archivos (bajo `poc/`): `src/catalogo.js` (listas y límites), `src/hogar.js` (operaciones puras de habitantes), `src/almacen.js` (migración y validación v2), `src/posicion.js` (paso con ocupación), `src/movimiento.js` (nuevo: movimiento puro), `src/juego.js` e `index.html` (presentación), y pruebas en `test/` (`ayuda.js`, `contrato-habitantes.test.js`, `habitantes.test.js`, `almacen.test.js`, `posicion.test.js`, `movimiento.test.js`).
 
@@ -575,11 +575,12 @@ const enLista = (lista, valor) => typeof valor === 'string' && Object.hasOwn(lis
 const nuloOEnLista = (lista, valor) => valor === null || enLista(lista, valor);
 
 // Reglas de los miembros en la versión 2 (ADR-002 de modelo de miembros, FR-9 de la 002).
+// Solo se validan los miembros activos: los eliminados quedan fuera de toda validación (FR-10).
 function miembrosValidos(estado) {
   const propietaria = estado.membresias.find((m) => m.rol === 'propietario' && m.eliminadoEn === null)?.cuentaId;
   const activos = estado.miembros.filter((m) => m.eliminadoEn === null);
   if (!propietaria || activos.filter((m) => m.cuentaId === propietaria).length !== 1) return false;
-  return estado.miembros.every((m) => {
+  return activos.every((m) => {
     if (m.tipo === 'mascota') return m.parentesco === null && m.genero === null && enLista(ESPECIES, m.especie);
     if (m.tipo === 'persona') return m.especie === null && nuloOEnLista(PARENTESCOS, m.parentesco) && nuloOEnLista(GENEROS, m.genero);
     return false;
@@ -1015,17 +1016,24 @@ export function sincronizarHabitantes(moviles, ids, distribucion, jugador, azar)
 
 // Avanza `dtMs` milisegundos el movimiento de todos los habitantes (FR-5, FR-6). Pura: devuelve un arreglo nuevo.
 // Se procesan en orden con un único conjunto de ocupadas, así dos habitantes nunca eligen la misma casilla (AC-4.5).
+// Si un paso termina y el tramo continúa, el siguiente empieza en la misma llamada y se le acredita el tiempo que
+// sobró del cuadro, para que los pasos de un tramo promedien 500 ms sin importar los cuadros por segundo (AC-4.2).
 export function avanzarHabitantes(moviles, distribucion, jugador, dtMs, azar) {
   const ocupadas = new Set([...ocupadasPorHabitantes(moviles), ...ocupadasPorJugador(jugador)]);
   const libre = (x, y) => esTransitable(distribucion, x, y) && !ocupadas.has(claveCasilla(x, y));
-  return moviles.map((h) => {
+  return moviles.map((original) => {
+    let h = original;
+    let sobranteMs = 0;
     if (h.progresoMs > 0) {
-      const progresoMs = Math.max(0, h.progresoMs - dtMs);
-      if (progresoMs > 0) return { ...h, progresoMs };
+      const restanteMs = h.progresoMs - dtMs;
+      if (restanteMs > 0) return { ...h, progresoMs: restanteMs };
       ocupadas.delete(claveCasilla(h.desde.x, h.desde.y)); // llegó: libera la casilla de origen
-      return { ...h, progresoMs: 0, desde: null };
+      h = { ...h, progresoMs: 0, desde: null };
+      if (h.tramo === 0) return h; // fin del tramo: sigue la pausa que se sorteó al iniciar el último paso
+      sobranteMs = -restanteMs;
+    } else if (h.pausaMs > 0) {
+      return { ...h, pausaMs: Math.max(0, h.pausaMs - dtMs) };
     }
-    if (h.pausaMs > 0) return { ...h, pausaMs: Math.max(0, h.pausaMs - dtMs) };
     let { tramo, direccion } = h;
     if (tramo === 0) {
       const opciones = ORDEN_DIRECCIONES.filter((d) => libre(h.x + DIRECCIONES[d].dx, h.y + DIRECCIONES[d].dy));
@@ -1039,7 +1047,7 @@ export function avanzarHabitantes(moviles, distribucion, jugador, dtMs, azar) {
     ocupadas.add(claveCasilla(x, y));
     const restante = tramo - 1;
     return {
-      ...h, x, y, desde: { x: h.x, y: h.y }, progresoMs: MS_POR_PASO,
+      ...h, x, y, desde: { x: h.x, y: h.y }, progresoMs: Math.max(1, MS_POR_PASO - sobranteMs),
       tramo: restante, direccion: restante > 0 ? direccion : null, pausaMs: restante > 0 ? 0 : pausaAleatoria(azar),
     };
   });
@@ -1047,7 +1055,7 @@ export function avanzarHabitantes(moviles, distribucion, jugador, dtMs, azar) {
 ```
 
 - [ ] Run: `cd poc && node --test test/posicion.test.js test/movimiento.test.js` — expect: PASS (`# pass 16`, `# fail 0`: 6 de posición y 10 de movimiento)
-- [ ] Run: `cd poc && npm test` — expect: PASS (`# pass 89`, `# fail 0`; incluye ahora las pruebas de contrato de la Fase 0)
+- [ ] Run: `cd poc && npm test` — expect: PASS (`# pass 100`, `# fail 0`; incluye ahora las pruebas de contrato de la Fase 0)
 - [ ] Commit: `feat(poc): add pure autonomous movement and mutual blocking` (cuerpo: `Plan section: Phase 3: Movimiento autónomo y bloqueo mutuo`)
 
 ---
@@ -1353,9 +1361,10 @@ function mostrarCampos({ parentesco = false, genero = false, especie = false }) 
   $('ficha-especie').style.display = especie ? 'block' : 'none';
 }
 
-// En la ficha de un habitante, guardar se activa solo con nombre y todos sus datos elegidos (AC-1.3, AC-2.3).
+// Solo el alta de un habitante (id null) deshabilita guardar hasta tener nombre y todos sus datos elegidos (AC-1.3, AC-2.3).
+// La edición de un habitante existente lo deja activo: un nombre vacío llega a editarHabitante, que lo rechaza y se muestra el mensaje (AC-3.5).
 function actualizarGuardar() {
-  if (fichaActual?.tipo !== 'habitante') { $('ficha-guardar').disabled = false; return; }
+  if (fichaActual?.tipo !== 'habitante' || fichaActual.id) { $('ficha-guardar').disabled = false; return; }
   const datosElegidos = fichaActual.clase === 'familiar'
     ? $('ficha-parentesco').value !== '' && $('ficha-genero').value !== ''
     : $('ficha-especie').value !== '';
@@ -1448,7 +1457,7 @@ $('ficha-eliminar').addEventListener('click', () => {
 });
 ```
 
-- [ ] Run: `cd poc && node --check src/juego.js && npm test` — expect: sin errores de sintaxis; `# pass 89`, `# fail 0`
+- [ ] Run: `cd poc && node --check src/juego.js && npm test` — expect: sin errores de sintaxis; `# pass 100`, `# fail 0`
 - [ ] Comprobación estática (script desechable con `node -e`, sin commitear): cada nombre que `juego.js` importa existe en su módulo, y cada `$('id')` usado en `juego.js` existe como `id=` en `index.html` — expect: 0 faltantes
 - [ ] Run: servir `poc/` con `python3 -m http.server 8080 --bind 127.0.0.1` y abrir `http://localhost:8080` con un viewport de teléfono — expect: en "Editar" aparece la sección Habitantes; "+" abre la ficha con "Guardar" desactivado; tras guardar un familiar y una mascota aparecen con su nombre; al tocar "Listo" caminan; el jugador no puede pisarlos; tocar a un habitante en edición abre su ficha; eliminar pide confirmación; al recargar siguen ahí
 - [ ] Commit: `feat(poc): show and manage family members and pets on the map` (cuerpo: `Plan section: Phase 4: Presentación: habitantes en el mapa y en el modo edición`)
@@ -1459,7 +1468,7 @@ $('ficha-eliminar').addEventListener('click', () => {
 
 **Implements:** All FRs | **Satisfies:** All ACs
 
-- [ ] Run full test suite: `cd poc && npm test` — expect: `# pass 89`, `# fail 0`
+- [ ] Run full test suite: `cd poc && npm test` — expect: `# pass 100`, `# fail 0`
 - [ ] Servir en la red local (`python3 -m http.server 8080 --bind 0.0.0.0` desde `poc/`) y abrir `http://<IP-del-computador>:8080` en el Android (misma Wi-Fi, con internet para cargar Phaser); al terminar, parar el servidor.
 - [ ] Verificar manualmente en el Android, marcando cada uno:
   - [ ] AC-1.1 a AC-1.5 y AC-2.1 a AC-2.4: altas de familiares y mascotas, listas sin preselección, "Guardar" desactivado hasta completar, límites 8 y 4, cancelar sin cambios.
@@ -1477,10 +1486,21 @@ $('ficha-eliminar').addEventListener('click', () => {
 
 ## Quickstart Validation
 
-1. `cd poc && npm test` → `# pass 89`, `# fail 0`.
+1. `cd poc && npm test` → `# pass 100`, `# fail 0`.
 2. Servir `poc/` y abrir `http://localhost:8080`: aparece el hogar con el personaje en la sala.
 3. **Editar** → en Habitantes, "+" de Familiares → nombre "Diana", parentesco "Pareja", género "Femenino" → **Guardar**: aparece en el mapa con su nombre.
 4. "+" de Mascotas → nombre "Firulais", especie "Perro" → **Guardar**: aparece más pequeña, con su nombre.
 5. **Listo**: ambos aparecen en casillas libres y caminan solos; el personaje no puede pisarlos.
 6. **Editar** → tocar a Diana → cambiar el género a "Otro" → **Guardar**: cambia su aspecto. Tocar a Firulais → **Eliminar** → confirmar.
 7. **Listo**, recargar la página: Diana sigue con sus datos; Firulais ya no está.
+
+## Plan Changelog
+
+| Date | Phase | Change |
+|------|-------|--------|
+| 2026-10-05 | Phase 3 | `avanzarHabitantes` arrastra el tiempo sobrante para que un tramo mantenga 500 ms por paso (revisión D4), y pruebas de colocación y sincronización con exclusión del jugador y de variación de pausas y tramos |
+| 2026-10-05 | Phase 2 | El validador de v2 solo valida los miembros activos (revisión D1) y pruebas de claves de prototipo y de `tipo` ausente |
+| 2026-10-05 | Phase 4 | La ficha de edición de un habitante mantiene Guardar activo para que se muestre el mensaje de nombre vacío (revisión D2) |
+| 2026-10-05 | Phase 3 | Prueba que mide la pausa real entre tramos (AC-4.1) |
+
+Las pruebas añadidas por la revisión están en el repositorio; los bloques de código de este plan reflejan el código final de `src/` pero no repiten todas esas pruebas.

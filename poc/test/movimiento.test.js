@@ -348,3 +348,47 @@ test('AC-4.1: un tramo nuevo solo elige entre las direcciones libres', () => {
     assert.deepEqual([h.x, h.y, h.desde], [13, 3, { x: 12, y: 3 }], `semilla ${semilla}`);
   }
 });
+
+test('AC-4.1: entre la llegada del último paso de un tramo y el inicio del siguiente transcurre exactamente la pausa sorteada', () => {
+  const d = generarDistribucion(crearHogarInicial(crearCtx()));
+  const jugador = { x: d.aparicion.x, y: d.aparicion.y + 3, desde: null };
+  const DT = 50;
+  const medidas = [];
+  for (let semilla = 1; semilla <= 60; semilla++) {
+    const azar = azarReproducible(semilla);
+    let h = movil('h-1', d.aparicion.x - 2, d.aparicion.y, { tramo: 1, direccion: 'izquierda' });
+    let t = 0;
+    let pausa = null; // pausa sorteada al iniciar el último paso
+    let llegada = null;
+    let siguiente = null;
+    let posicion = null; // casilla del habitante entre la llegada y el inicio del siguiente tramo
+    for (; t < 10000 && siguiente === null; t += DT) {
+      const antes = h;
+      [h] = avanzarHabitantes([h], d, jugador, DT, azar);
+      verificarInvariantes(d, [h], jugador);
+      const movio = h.x !== antes.x || h.y !== antes.y;
+      if (pausa === null) {
+        if (movio) { // inicia el último paso del tramo (tramo: 1): se sortea la pausa
+          assert.equal(h.tramo, 0, `semilla ${semilla}: el tramo debía terminar con este paso`);
+          pausa = h.pausaMs;
+          assert.ok(pausa >= PAUSA_MIN_MS && pausa <= PAUSA_MAX_MS, `semilla ${semilla}: pausa ${pausa} fuera de rango`);
+          t = 0; // el reloj parte de este cuadro
+        }
+        continue;
+      }
+      if (llegada === null) {
+        if (antes.desde !== null && h.desde === null) { llegada = t; posicion = [h.x, h.y]; }
+        continue;
+      }
+      if (movio) siguiente = t;
+      else assert.deepEqual([h.x, h.y], posicion, `semilla ${semilla}: se movió durante la pausa`);
+    }
+    assert.notEqual(pausa, null, `semilla ${semilla}: nunca inició el paso`);
+    assert.notEqual(siguiente, null, `semilla ${semilla}: nunca empezó el siguiente tramo`);
+    assert.ok(Math.abs(llegada - MS_POR_PASO) <= DT, `semilla ${semilla}: llegó a los ${llegada} ms, no ~${MS_POR_PASO}`);
+    const medida = siguiente - llegada;
+    assert.ok(Math.abs(medida - pausa) <= 2 * DT, `semilla ${semilla}: pausa sorteada ${pausa} ms, transcurrieron ${medida} ms`);
+    medidas.push(medida);
+  }
+  assert.ok(Math.max(...medidas) - Math.min(...medidas) > 1500, 'las pausas medidas deberían variar más de 1500 ms');
+});
