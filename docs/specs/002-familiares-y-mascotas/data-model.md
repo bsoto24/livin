@@ -57,6 +57,6 @@ Este documento describe solo lo que cambia respecto al [modelo de datos de la fe
 
 **Migración:** un documento `version: 1` que cumple las condiciones de la 001 se migra al cargar: cada miembro recibe `tipo: 'persona'` y `parentesco`, `genero` y `especie` nulos. No se reescribe al abrir; se guarda como versión 2 en el siguiente guardado.
 
-**Ilegible** (se crea el hogar inicial con aviso), además de las condiciones de la 001: un miembro con `tipo` distinto de `persona` o `mascota`; una mascota con parentesco o género, o sin especie de la lista; una persona con especie, o con un parentesco o género que no es nulo ni de la lista; o un número de miembros activos vinculados a la cuenta propietaria distinto de uno. Cualquier `version` distinta de 1 o 2 sigue siendo ilegible.
+**Ilegible** (se crea el hogar inicial con aviso), además de las condiciones de la 001: un miembro activo con `tipo` distinto de `persona` o `mascota`; una mascota con parentesco o género, o sin especie de la lista; una persona con especie, o con un parentesco o género que no es nulo ni de la lista; o un número de miembros activos vinculados a la cuenta propietaria distinto de uno. Cualquier `version` distinta de 1 o 2 sigue siendo ilegible. Los miembros eliminados no se validan (FR-10).
 
 **Spec requirement:** FR-9

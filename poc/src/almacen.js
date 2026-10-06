@@ -20,11 +20,12 @@ const enLista = (lista, valor) => typeof valor === 'string' && Object.hasOwn(lis
 const nuloOEnLista = (lista, valor) => valor === null || enLista(lista, valor);
 
 // Reglas de los miembros en la versión 2 (ADR-002 de modelo de miembros, FR-9 de la 002).
+// Solo se validan los miembros activos: los eliminados quedan fuera de toda validación (FR-10).
 function miembrosValidos(estado) {
   const propietaria = estado.membresias.find((m) => m.rol === 'propietario' && m.eliminadoEn === null)?.cuentaId;
   const activos = estado.miembros.filter((m) => m.eliminadoEn === null);
   if (!propietaria || activos.filter((m) => m.cuentaId === propietaria).length !== 1) return false;
-  return estado.miembros.every((m) => {
+  return activos.every((m) => {
     if (m.tipo === 'mascota') return m.parentesco === null && m.genero === null && enLista(ESPECIES, m.especie);
     if (m.tipo === 'persona') return m.especie === null && nuloOEnLista(PARENTESCOS, m.parentesco) && nuloOEnLista(GENEROS, m.genero);
     return false;

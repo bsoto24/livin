@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { crearAlmacen, iniciarSesion, migrarAV2, CLAVE_DATOS, CLAVE_POSICION } from '../src/almacen.js';
 import {
-  agregarEspacio, renombrarEspacio, espaciosDeTipo, crearHogarInicial, agregarHabitante, familiares, mascotas,
+  agregarEspacio, renombrarEspacio, espaciosDeTipo, crearHogarInicial, agregarHabitante, eliminarHabitante, familiares, mascotas,
 } from '../src/hogar.js';
 import { crearCtx, almacenEnMemoria } from './ayuda.js';
 
@@ -147,4 +147,57 @@ test('AC-9.5: datos con un habitante inválido se consideran ilegibles', () => {
   }
   const sinPropietario = { ...base, miembros: base.miembros.map((m, i) => (i === 0 ? { ...m, cuentaId: null } : m)) };
   assert.match(abrir(sinPropietario).aviso, /No se pudo recuperar/);
+});
+
+const abrirDatos = (datos) => iniciarSesion(crearAlmacen(almacenEnMemoria({ [CLAVE_DATOS]: JSON.stringify(datos) })), crearCtx());
+const conMiembro = (base, nuevo) => ({ ...base, miembros: base.miembros.map((m) => (m.id === nuevo.id ? nuevo : m)) });
+
+test('FR-10: un miembro eliminado con datos inválidos no vuelve ilegible el documento', () => {
+  const ctx = crearCtx();
+  const base = hogarConHabitantes(ctx);
+  const [, diana, firulais] = base.miembros;
+  const sinDiana = eliminarHabitante(base, diana.id, ctx);
+  const sinFirulais = eliminarHabitante(base, firulais.id, ctx);
+  const eliminadaDiana = sinDiana.miembros.find((m) => m.id === diana.id);
+  const eliminadoFirulais = sinFirulais.miembros.find((m) => m.id === firulais.id);
+  assert.notEqual(eliminadaDiana.eliminadoEn, null);
+  assert.notEqual(eliminadoFirulais.eliminadoEn, null);
+  const casos = [
+    [sinDiana, { ...eliminadaDiana, parentesco: 'tia' }],
+    [sinDiana, { ...eliminadaDiana, tipo: 'robot' }],
+    [sinDiana, { ...eliminadaDiana, especie: 'perro' }],
+    [sinDiana, { ...eliminadaDiana, genero: 'x' }],
+    [sinFirulais, { ...eliminadoFirulais, parentesco: 'pareja' }],
+  ];
+  for (const [documento, malo] of casos) {
+    const guardado = conMiembro(documento, malo);
+    const { estado, aviso } = abrirDatos(guardado);
+    assert.equal(aviso, null, JSON.stringify(malo));
+    assert.deepEqual(estado, JSON.parse(JSON.stringify(guardado)), JSON.stringify(malo));
+  }
+});
+
+test('AC-9.5: los valores de prototipo no cuentan como valores de las listas cerradas', () => {
+  const base = hogarConHabitantes(crearCtx());
+  const [, diana, firulais] = base.miembros;
+  const variantes = [];
+  for (const clave of ['toString', 'constructor', '__proto__']) {
+    variantes.push({ ...diana, parentesco: clave }, { ...diana, genero: clave }, { ...firulais, especie: clave });
+  }
+  for (const malo of variantes) {
+    const { estado, aviso } = abrirDatos(conMiembro(base, malo));
+    assert.match(aviso, /No se pudo recuperar/, JSON.stringify(malo));
+    assert.equal(estado.miembros.length, 1);
+  }
+});
+
+test('AC-9.5: un miembro activo sin tipo hace ilegible el documento', () => {
+  const base = hogarConHabitantes(crearCtx());
+  for (const indice of [0, 1, 2]) { // propietario, familiar y mascota
+    const { tipo, ...sinTipo } = base.miembros[indice];
+    assert.equal('tipo' in sinTipo, false);
+    const { estado, aviso } = abrirDatos(conMiembro(base, sinTipo));
+    assert.match(aviso, /No se pudo recuperar/, `miembro ${indice}`);
+    assert.equal(estado.miembros.length, 1);
+  }
 });
