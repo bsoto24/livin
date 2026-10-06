@@ -1,5 +1,5 @@
 // src/hogar.js
-import { TIPOS, ETIQUETAS, LIMITES, ADMITE_BANO } from './catalogo.js';
+import { TIPOS, ETIQUETAS, LIMITES, ADMITE_BANO, PARENTESCOS, GENEROS, ESPECIES, LIMITES_HABITANTES } from './catalogo.js';
 
 const MAX_NOMBRE = 20;
 const PATRON_AUTOMATICO = new RegExp(
@@ -31,8 +31,12 @@ export function crearHogarInicial(ctx) {
     id: ctx.nuevoId(), hogarId, tipo, orden: 1, secuencia: i + 1,
     nombrePersonalizado: null, contenidoEn: null, ...a(),
   }));
-  const miembro = { id: ctx.nuevoId(), hogarId, nombre: 'Personaje 1', cuentaId, ...a() };
-  return { version: 1, cuentas: [cuenta], hogares: [hogar], membresias: [membresia], espacios, miembros: [miembro] };
+  // El personaje del propietario es una persona sin parentesco ni género (ADR-002 de modelo de miembros).
+  const miembro = {
+    id: ctx.nuevoId(), hogarId, nombre: 'Personaje 1', cuentaId,
+    tipo: 'persona', parentesco: null, genero: null, especie: null, ...a(),
+  };
+  return { version: 2, cuentas: [cuenta], hogares: [hogar], membresias: [membresia], espacios, miembros: [miembro] };
 }
 
 // ---------- Consultas ----------
@@ -182,14 +186,92 @@ export function renombrarEspacio(estado, id, texto, ctx) {
   return { ok: true, estado: reemplazar(estado, [{ ...tocar(espacio, ctx), nombrePersonalizado: nombre }]) };
 }
 
-export function renombrarMiembro(estado, id, texto, ctx) {
+// Reglas de nombre de miembro (FR-9 de la 001, FR-3 de la 002): sin espacios en los extremos, 1–20 caracteres,
+// único sin distinguir mayúsculas entre los miembros activos (propietario, familiares y mascotas).
+function validarNombreMiembro(estado, texto, idExcluido) {
   const nombre = texto.trim();
-  if (nombre === '') return { ok: false, error: 'vacio', estado };
-  if (nombre.length > MAX_NOMBRE) return { ok: false, error: 'largo', estado };
-  const repetido = miembrosActivos(estado).some((m) => m.id !== id && normalizar(m.nombre) === normalizar(nombre));
-  if (repetido) return { ok: false, error: 'duplicado', estado };
-  const miembros = estado.miembros.map((m) => (m.id === id ? { ...tocar(m, ctx), nombre } : m));
+  if (nombre === '') return { error: 'vacio' };
+  if (nombre.length > MAX_NOMBRE) return { error: 'largo' };
+  const repetido = miembrosActivos(estado).some((m) => m.id !== idExcluido && normalizar(m.nombre) === normalizar(nombre));
+  if (repetido) return { error: 'duplicado' };
+  return { nombre };
+}
+
+export function renombrarMiembro(estado, id, texto, ctx) {
+  const v = validarNombreMiembro(estado, texto, id);
+  if (v.error) return { ok: false, error: v.error, estado };
+  const miembros = estado.miembros.map((m) => (m.id === id ? { ...tocar(m, ctx), nombre: v.nombre } : m));
   return { ok: true, estado: { ...estado, miembros } };
+}
+
+// ---------- Habitantes (feature 002) ----------
+
+const cuentaPropietaria = (estado) =>
+  estado.membresias.find((m) => m.rol === 'propietario' && m.eliminadoEn === null)?.cuentaId ?? null;
+
+// El personaje del propietario es el miembro vinculado a la cuenta propietaria; no es un habitante.
+export const esPropietario = (estado, miembro) => miembro.cuentaId !== null && miembro.cuentaId === cuentaPropietaria(estado);
+export const buscarMiembro = (estado, id) => miembrosActivos(estado).find((m) => m.id === id) ?? null;
+export const familiares = (estado) => miembrosActivos(estado).filter((m) => m.tipo === 'persona' && !esPropietario(estado, m));
+export const mascotas = (estado) => miembrosActivos(estado).filter((m) => m.tipo === 'mascota');
+export const habitantes = (estado) => [...familiares(estado), ...mascotas(estado)];
+export const contarHabitantes = (estado, clase) => (clase === 'familiar' ? familiares(estado) : mascotas(estado)).length;
+export const puedeAgregarHabitante = (estado, clase) => contarHabitantes(estado, clase) < LIMITES_HABITANTES[clase];
+
+const enLista = (lista, valor) => typeof valor === 'string' && Object.hasOwn(lista, valor);
+
+// Datos obligatorios según la clase (FR-2): familiar → parentesco y género; mascota → especie.
+function validarDatos(clase, datos) {
+  if (clase === 'familiar') {
+    if (!enLista(PARENTESCOS, datos.parentesco)) return 'parentesco';
+    if (!enLista(GENEROS, datos.genero)) return 'genero';
+    return null;
+  }
+  return enLista(ESPECIES, datos.especie) ? null : 'especie';
+}
+
+const datosDeClase = (clase, datos) => (clase === 'familiar'
+  ? { tipo: 'persona', parentesco: datos.parentesco, genero: datos.genero, especie: null }
+  : { tipo: 'mascota', parentesco: null, genero: null, especie: datos.especie });
+
+export function agregarHabitante(estado, clase, datos, ctx) {
+  if (!puedeAgregarHabitante(estado, clase)) return { ok: false, error: 'limite', estado };
+  const v = validarNombreMiembro(estado, datos.nombre ?? '', null);
+  if (v.error) return { ok: false, error: v.error, estado };
+  const errorDatos = validarDatos(clase, datos);
+  if (errorDatos) return { ok: false, error: errorDatos, estado };
+  const miembro = {
+    id: ctx.nuevoId(), hogarId: estado.hogares[0].id, nombre: v.nombre, cuentaId: null,
+    ...datosDeClase(clase, datos), ...auditoriaNueva(ctx),
+  };
+  return { ok: true, estado: { ...estado, miembros: [...estado.miembros, miembro] } };
+}
+
+export function editarHabitante(estado, id, datos, ctx) {
+  const miembro = buscarMiembro(estado, id);
+  if (!miembro || esPropietario(estado, miembro)) return { ok: false, error: 'no-editable', estado };
+  const clase = miembro.tipo === 'mascota' ? 'mascota' : 'familiar';
+  const v = validarNombreMiembro(estado, datos.nombre ?? '', id);
+  if (v.error) return { ok: false, error: v.error, estado };
+  const errorDatos = validarDatos(clase, datos);
+  if (errorDatos) return { ok: false, error: errorDatos, estado };
+  const miembros = estado.miembros.map((m) => (m.id === id
+    ? { ...tocar(m, ctx), nombre: v.nombre, ...datosDeClase(clase, datos) }
+    : m));
+  return { ok: true, estado: { ...estado, miembros } };
+}
+
+export function puedeEliminarMiembro(estado, id) {
+  const miembro = buscarMiembro(estado, id);
+  return Boolean(miembro) && !esPropietario(estado, miembro);
+}
+
+// Borrado lógico (FR-4, FR-10): el registro queda con su fecha de eliminación; no afecta a nadie más.
+export function eliminarHabitante(estado, id, ctx) {
+  if (!puedeEliminarMiembro(estado, id)) return estado;
+  const ahora = ctx.ahora();
+  const miembros = estado.miembros.map((m) => (m.id === id ? { ...tocar(m, ctx), eliminadoEn: ahora } : m));
+  return { ...estado, miembros };
 }
 
 export const MENSAJES_ERROR = {
@@ -197,4 +279,9 @@ export const MENSAJES_ERROR = {
   largo: 'El nombre puede tener como máximo 20 caracteres.',
   duplicado: 'Ya existe otro con ese nombre.',
   'formato-automatico': 'Ese formato está reservado para los nombres automáticos (por ejemplo, "Dormitorio 3").',
+  limite: 'Ya se alcanzó el límite de habitantes de esta clase.',
+  parentesco: 'Elige un parentesco de la lista.',
+  genero: 'Elige un género de la lista.',
+  especie: 'Elige una especie de la lista.',
+  'no-editable': 'El personaje del propietario solo se puede renombrar.',
 };
