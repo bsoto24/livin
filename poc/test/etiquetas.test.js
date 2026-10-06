@@ -73,6 +73,38 @@ test('AC-9.2: si la etiqueta cabe en la vista no se mueve', () => {
   assert.deepEqual({ x: actual.x, y: actual.y }, centro(sala));
 });
 
+test('AC-9.2: ajusta también en vertical cuando la vista es más baja que el espacio', () => {
+  const e = crearHogarInicial(crearCtx());
+  const d = generarDistribucion(e);
+  const sala = d.rects[espaciosDeTipo(e, 'sala')[0].id];
+  const vista = { x: 0, y: 0, w: d.ancho, h: 4 }; // todo el ancho (x no cambia), pero el centro de la sala queda por debajo
+  assert.ok(centro(sala).y > vista.y + vista.h, 'el centro de la sala queda fuera de la vista');
+  const actual = etiquetasDeEspacios(e, d, d.aparicion, vista, medir).find((t) => t.actual);
+  assert.equal(actual.x, centro(sala).x);
+  assert.equal(actual.y, vista.y + vista.h - medir().h / 2); // 3.5: centro limitado al borde inferior de la vista
+  assert.ok(actual.y - 0.5 >= vista.y && actual.y + 0.5 <= vista.y + vista.h, 'etiqueta fuera de la vista en y');
+});
+
+test('AC-9.2: si la etiqueta es más ancha que la parte visible del espacio se centra en ella', () => {
+  const e = crearHogarInicial(crearCtx());
+  const d = generarDistribucion(e);
+  const sala = d.rects[espaciosDeTipo(e, 'sala')[0].id];
+  const vista = { x: sala.x, y: 0, w: 2, h: d.alto }; // tramo visible en x: [sala.x, sala.x + 2], menor que la etiqueta (3)
+  const actual = etiquetasDeEspacios(e, d, d.aparicion, vista, medir).find((t) => t.actual);
+  assert.equal(actual.x, sala.x + 1);
+  assert.equal(actual.y, centro(sala).y);
+});
+
+test('AC-9.2: si el espacio no se ve en absoluto la etiqueta no se mueve', () => {
+  const e = crearHogarInicial(crearCtx());
+  const d = generarDistribucion(e);
+  const sala = d.rects[espaciosDeTipo(e, 'sala')[0].id];
+  const vista = { x: 0, y: 0, w: 4, h: 4 }; // no intersecta el rango x de la sala
+  assert.ok(vista.x + vista.w <= sala.x, 'la vista no toca la sala');
+  const actual = etiquetasDeEspacios(e, d, d.aparicion, vista, medir).find((t) => t.actual);
+  assert.deepEqual({ x: actual.x, y: actual.y }, centro(sala));
+});
+
 test('AC-9.2: dentro de un baño interno la etiqueta actual es la del baño', () => {
   const ctx = crearCtx();
   const e = agregarEspacio(crearHogarInicial(ctx), 'bano', ctx);
