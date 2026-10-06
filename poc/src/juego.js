@@ -220,21 +220,21 @@ class Escena extends Phaser.Scene {
     const escala = 1 / this.cameras.main.zoom;
     this.burbujas = burbujas(estado, hoy).map((b) => {
       const texto = this.add.text(0, 0, `${GLIFO_ICONO[b.icono]}${b.mas ? '+' : ''}`, ESTILO_BURBUJA)
-        .setOrigin(0.5, 1).setScale(escala).setDepth(PROF_BURBUJA);
+        .setOrigin(0.5).setScale(escala).setDepth(PROF_BURBUJA);
       const casilla = b.tipo === 'espacio' ? casillaDeBurbuja(distribucion, b.id) : null;
-      if (casilla) texto.setPosition(casilla.x * TILE + TILE / 2, (casilla.y + 1) * TILE);
+      if (casilla) texto.setPosition(casilla.x * TILE + TILE / 2, casilla.y * TILE + TILE / 2);
       return { ...b, texto };
     });
     this.colocarBurbujas();
   }
 
-  // Las burbujas de los miembros siguen a su personaje, por encima de su nombre.
+  // Las burbujas de los miembros siguen a su personaje, centradas en la casilla de encima de él: la misma que responde al toque (AC-6.8).
   colocarBurbujas() {
     const idPropietario = propietario().id;
     for (const b of this.burbujas) {
       if (b.tipo !== 'miembro') continue;
       const cuerpo = b.id === idPropietario ? this.personaje : this.sprites.get(b.id)?.cuerpo;
-      if (cuerpo) b.texto.setPosition(cuerpo.x, cuerpo.y - TILE * 1.4);
+      if (cuerpo) b.texto.setPosition(cuerpo.x, cuerpo.y - TILE);
     }
   }
 
