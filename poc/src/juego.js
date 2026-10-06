@@ -380,9 +380,10 @@ function mostrarCampos({ parentesco = false, genero = false, especie = false }) 
   $('ficha-especie').style.display = especie ? 'block' : 'none';
 }
 
-// En la ficha de un habitante, guardar se activa solo con nombre y todos sus datos elegidos (AC-1.3, AC-2.3).
+// Solo el alta de un habitante (id null) deshabilita guardar hasta tener nombre y todos sus datos elegidos (AC-1.3, AC-2.3).
+// La edición de un habitante existente lo deja activo: un nombre vacío llega a editarHabitante, que lo rechaza y se muestra el mensaje (AC-3.5).
 function actualizarGuardar() {
-  if (fichaActual?.tipo !== 'habitante') { $('ficha-guardar').disabled = false; return; }
+  if (fichaActual?.tipo !== 'habitante' || fichaActual.id) { $('ficha-guardar').disabled = false; return; }
   const datosElegidos = fichaActual.clase === 'familiar'
     ? $('ficha-parentesco').value !== '' && $('ficha-genero').value !== ''
     : $('ficha-especie').value !== '';
