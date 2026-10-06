@@ -454,13 +454,15 @@ function pintarPanel() {
   const cont = $('contadores');
   cont.replaceChildren();
   for (const tipo of TIPOS) {
-    const fila = document.createElement('div');
-    fila.className = 'fila';
+    const fila = elemento('div', undefined, 'fila');
     const destino = tipo === 'bano' ? siguienteDestinoBano(estado) : null;
-    const pista = tipo === 'bano' && destino ? `<small>Siguiente: ${nombreVisible(estado, destino)}</small>` : '';
-    fila.innerHTML = `<span>${ETIQUETAS[tipo]}${pista}</span><button aria-label="Quitar">−</button>`
-      + `<span class="cuenta">${contar(estado, tipo)}</span><button aria-label="Agregar">+</button>`;
-    const [menos, mas] = fila.querySelectorAll('button');
+    const nombre = elemento('span', ETIQUETAS[tipo]);
+    if (destino) nombre.append(elemento('small', `Siguiente: ${nombreVisible(estado, destino)}`)); // texto, nunca marcado (NFR de seguridad de la 003)
+    const menos = elemento('button', '−');
+    menos.setAttribute('aria-label', 'Quitar');
+    const mas = elemento('button', '+');
+    mas.setAttribute('aria-label', 'Agregar');
+    fila.append(nombre, menos, elemento('span', String(contar(estado, tipo)), 'cuenta'), mas);
     menos.disabled = !puedeQuitar(estado, tipo);
     mas.disabled = !puedeAgregar(estado, tipo);
     menos.addEventListener('click', () => {
