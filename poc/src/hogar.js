@@ -8,12 +8,12 @@ const PATRON_AUTOMATICO = new RegExp(
 
 const normalizar = (texto) => texto.trim().toLocaleLowerCase('es');
 
-function auditoriaNueva(ctx) {
+export function auditoriaNueva(ctx) {
   const ahora = ctx.ahora();
   return { creadoEn: ahora, actualizadoEn: ahora, creadoPor: ctx.cuentaId, actualizadoPor: ctx.cuentaId, eliminadoEn: null };
 }
 
-function tocar(registro, ctx) {
+export function tocar(registro, ctx) {
   return { ...registro, actualizadoEn: ctx.ahora(), actualizadoPor: ctx.cuentaId };
 }
 
@@ -124,20 +124,23 @@ export function agregarEspacio(estado, tipo, ctx) {
   return { ...estado, espacios: [...estado.espacios, nuevo] };
 }
 
-// Qué pasaría al eliminar este espacio (para decidir si se pide confirmación).
+// Qué pasaría al eliminar este espacio (para decidir si se pide confirmación). `actividades` cuenta las pendientes
+// que se eliminarían con él, incluidas las de su baño interno si se elimina con él (FR-9 de la 003).
 export function consecuenciasDeEliminar(estado, id) {
   const espacio = buscarEspacio(estado, id);
   const bano = espacio ? banoDe(estado, espacio.id) : null;
+  const banoSeElimina = Boolean(bano) && siguienteDestinoBano(estado, id) === null;
   return {
     tieneNombrePersonalizado: Boolean(espacio?.nombrePersonalizado),
-    banoSeElimina: Boolean(bano) && siguienteDestinoBano(estado, id) === null,
-    banoSeMueve: Boolean(bano) && siguienteDestinoBano(estado, id) !== null,
+    banoSeElimina,
+    banoSeMueve: Boolean(bano) && !banoSeElimina,
+    actividades: pendientesDeEspacios(estado, banoSeElimina ? [id, bano.id] : [id]),
   };
 }
 
 export const requiereConfirmacion = (estado, id) => {
   const c = consecuenciasDeEliminar(estado, id);
-  return c.tieneNombrePersonalizado || c.banoSeElimina;
+  return c.tieneNombrePersonalizado || c.banoSeElimina || c.actividades > 0;
 };
 
 export function eliminarEspacio(estado, id, ctx) {
@@ -150,6 +153,9 @@ export function eliminarEspacio(estado, id, ctx) {
   if (bano && destino) cambios.push({ ...tocar(bano, ctx), contenidoEn: destino.id });
   if (bano && !destino) cambios.push({ ...tocar(bano, ctx), eliminadoEn: ahora });
   let resultado = reemplazar(estado, cambios);
+  // Baja en cascada de las actividades del espacio y, si se elimina con él, de su baño interno (FR-9 de la 003).
+  const eliminados = bano && !destino ? [id, bano.id] : [id];
+  resultado = darDeBajaActividades(resultado, (a) => eliminados.includes(a.espacioId), ahora, ctx);
   // Recompactar el orden de los restantes del mismo tipo (solo cambia el nombre automático).
   const restantes = espaciosDeTipo(resultado, espacio.tipo);
   const reordenados = restantes.filter((e, i) => e.orden !== i + 1).map((e) => ({ ...tocar(e, ctx), orden: restantes.indexOf(e) + 1 }));
@@ -267,12 +273,26 @@ export function puedeEliminarMiembro(estado, id) {
   return Boolean(miembro) && !esPropietario(estado, miembro);
 }
 
-// Borrado lógico (FR-4, FR-10): el registro queda con su fecha de eliminación; no afecta a nadie más.
+// Borrado lógico (FR-4, FR-10 de la 002): el registro queda con su fecha de eliminación; no afecta a los espacios
+// ni a los demás miembros. Sus actividades se dan de baja en la misma operación (FR-9 de la 003).
 export function eliminarHabitante(estado, id, ctx) {
   if (!puedeEliminarMiembro(estado, id)) return estado;
   const ahora = ctx.ahora();
   const miembros = estado.miembros.map((m) => (m.id === id ? { ...tocar(m, ctx), eliminadoEn: ahora } : m));
-  return { ...estado, miembros };
+  return darDeBajaActividades({ ...estado, miembros }, (a) => a.miembroId === id, ahora, ctx);
+}
+
+// ---------- Actividades (feature 003): consultas y bajas en cascada ----------
+
+// Pendiente: no eliminada y, si es puntual, todavía no hecha (FR-2 de la 003). Las repetitivas nunca tienen `hechaEn`.
+export const actividadesPendientes = (estado) => estado.actividades.filter((a) => a.eliminadoEn === null && a.hechaEn === null);
+export const pendientesDeEspacios = (estado, ids) => actividadesPendientes(estado).filter((a) => ids.includes(a.espacioId)).length;
+export const pendientesDeMiembro = (estado, id) => actividadesPendientes(estado).filter((a) => a.miembroId === id).length;
+
+// Baja lógica, con la misma fecha, de todas las actividades no eliminadas (pendientes y hechas) que cumplen `afectada` (FR-9 de la 003).
+function darDeBajaActividades(estado, afectada, ahora, ctx) {
+  const actividades = estado.actividades.map((a) => (a.eliminadoEn === null && afectada(a) ? { ...tocar(a, ctx), eliminadoEn: ahora } : a));
+  return { ...estado, actividades };
 }
 
 export const MENSAJES_ERROR = {
