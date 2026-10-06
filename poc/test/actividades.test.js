@@ -9,6 +9,7 @@ import {
 } from '../src/hogar.js';
 import {
   agregarActividad, editarActividad, eliminarActividad, marcarHecha, buscarActividad, contarActividades, puedeAgregarActividad,
+  atraso, porHacer, limpiezaDeEspacio, burbujas, actividadesDelLugar, listaDelPanel, textoPlazo,
 } from '../src/actividades.js';
 import { crearCtx } from './ayuda.js';
 
@@ -349,4 +350,140 @@ test('Reliability, FR-9: ninguna baja de un espacio o de un miembro deja una act
     }
     for (const m of miembrosActivos(e).slice(1)) assert.ok(referenciasValidas(eliminarHabitante(e, m.id, ctx)), m.nombre);
   }
+});
+
+// ---------- Estado derivado ----------
+
+// Hogar con una actividad de Diana en la cocina por cada fecha de `vences`, en ese orden de creación.
+function conVencimientos(vences, extra = {}) {
+  const ctx = crearCtx();
+  let e = hogarBase(ctx);
+  for (const vence of vences) e = alta(e, datos(e, { vence, ...extra }), ctx);
+  return { e, ctx };
+}
+
+test('FR-2, AC-2.7: por hacer son las pendientes que vencen hoy o antes, de la más atrasada a la menos', () => {
+  const { e: base, ctx } = conVencimientos([HOY, '2026-10-05', '2026-10-07', '2026-10-01', '2026-10-02']);
+  const [hoy, ayer, manana, hecha, eliminada] = base.actividades;
+  let e = marcarHecha(base, hecha.id, HOY, ctx);
+  e = eliminarActividad(e, eliminada.id, ctx);
+  assert.deepEqual(porHacer(e, HOY).map((a) => a.id), [ayer.id, hoy.id]);
+  assert.deepEqual([atraso(hoy, HOY), atraso(ayer, HOY), atraso(manana, HOY)], [0, 1, -1]);
+});
+
+test('AC-4.1 a AC-4.4, Reliability: umbrales del estado por días de atraso de la actividad más atrasada', () => {
+  const casos = [
+    [[], 'limpio'], [[HOY], 'limpio'], [['2026-10-07'], 'limpio'], [['2026-10-05'], 'desordenado'],
+    [['2026-10-04'], 'desordenado'], [['2026-10-03'], 'desastre'], [['2026-09-01'], 'desastre'],
+    [[HOY, '2026-10-04', '2026-10-07'], 'desordenado'],
+  ];
+  for (const [vences, esperado] of casos) {
+    const { e } = conVencimientos(vences);
+    assert.equal(limpiezaDeEspacio(e, cocina(e).id, HOY), esperado, vences.join(', '));
+  }
+});
+
+test('AC-3.4, AC-3.5: al marcar como hecha la más atrasada, el estado sigue a la que queda', () => {
+  const { e: base, ctx } = conVencimientos(['2026-10-02', '2026-10-05']);
+  const [cuatro, uno] = base.actividades;
+  assert.equal(limpiezaDeEspacio(base, cocina(base).id, HOY), 'desastre');
+  const e = marcarHecha(base, cuatro.id, HOY, ctx);
+  assert.equal(limpiezaDeEspacio(e, cocina(e).id, HOY), 'desordenado');
+  assert.equal(limpiezaDeEspacio(marcarHecha(e, uno.id, HOY, ctx), cocina(e).id, HOY), 'limpio');
+});
+
+test('AC-4.5, AC-4.6: el estado de un espacio solo considera sus propias actividades; el baño interno es un espacio propio', () => {
+  const ctx = crearCtx();
+  let e = agregarEspacio(hogarBase(ctx), 'bano', ctx);
+  const d1 = espaciosDeTipo(e, 'dormitorio')[0];
+  const bano = banoDe(e, d1.id);
+  const sala = espaciosDeTipo(e, 'sala')[0];
+  e = alta(e, datos(e, { vence: '2026-10-01' }), ctx);
+  e = alta(e, datos(e, { vence: '2026-10-01', espacioId: null }), ctx);
+  e = alta(e, datos(e, { vence: '2026-10-05', espacioId: bano.id }), ctx);
+  assert.deepEqual(
+    [cocina(e), sala, d1, bano].map((x) => limpiezaDeEspacio(e, x.id, HOY)),
+    ['desastre', 'limpio', 'limpio', 'desordenado'],
+  );
+});
+
+test('AC-2.1, AC-2.2, AC-2.5, AC-2.6, FR-6: una burbuja por lugar, con el icono de la más atrasada y el indicador de más', () => {
+  const ctx = crearCtx();
+  let e = hogarBase(ctx);
+  const sala = espaciosDeTipo(e, 'sala')[0];
+  const firulais = mascotas(e)[0];
+  e = alta(e, datos(e, { icono: 'platos', vence: HOY }), ctx);
+  e = alta(e, datos(e, { icono: 'basura', vence: '2026-10-04' }), ctx);
+  e = alta(e, datos(e, { icono: 'limpiar', vence: '2026-10-05' }), ctx);
+  e = alta(e, datos(e, { icono: 'barrer', espacioId: sala.id }), ctx);
+  e = alta(e, datos(e, { icono: 'ropa', espacioId: null, vence: '2026-10-05' }), ctx);
+  e = alta(e, datos(e, { icono: 'compras', espacioId: null }), ctx);
+  e = alta(e, datos(e, { icono: 'mascota', miembroId: firulais.id }), ctx); // con espacio: va en la burbuja de la cocina
+  const [platos, basura, limpiar, barrer, ropa, compras, paseo] = e.actividades;
+  assert.deepEqual(burbujas(e, HOY), [
+    { tipo: 'espacio', id: cocina(e).id, icono: 'basura', actividades: [basura.id, limpiar.id, platos.id, paseo.id], mas: true },
+    { tipo: 'miembro', id: diana(e).id, icono: 'ropa', actividades: [ropa.id, compras.id], mas: true },
+    { tipo: 'espacio', id: sala.id, icono: 'barrer', actividades: [barrer.id], mas: false },
+  ]);
+});
+
+test('AC-2.3: a igual atraso, la burbuja muestra el icono de la actividad creada primero', () => {
+  const ctx = crearCtx();
+  let e = hogarBase(ctx);
+  e = alta(e, datos(e, { icono: 'plantas', vence: '2026-10-05' }), ctx);
+  e = alta(e, datos(e, { icono: 'basura', vence: '2026-10-05' }), ctx);
+  assert.equal(burbujas(e, HOY)[0].icono, 'plantas');
+});
+
+test('FR-7: la hoja de un lugar lista sus actividades por hacer en el orden de la burbuja', () => {
+  const ctx = crearCtx();
+  let e = hogarBase(ctx);
+  e = alta(e, datos(e, { nombre: 'Hoy' }), ctx);
+  e = alta(e, datos(e, { nombre: 'Atrasada', vence: '2026-10-03' }), ctx);
+  e = alta(e, datos(e, { nombre: 'Futura', vence: '2026-10-09' }), ctx);
+  e = alta(e, datos(e, { nombre: 'Sin espacio', espacioId: null }), ctx);
+  const nombres = (lugar) => actividadesDelLugar(e, lugar, HOY).map((a) => a.nombre);
+  assert.deepEqual(nombres({ tipo: 'espacio', id: cocina(e).id }), ['Atrasada', 'Hoy']);
+  assert.deepEqual(nombres({ tipo: 'miembro', id: diana(e).id }), ['Sin espacio']);
+  assert.deepEqual(nombres({ tipo: 'miembro', id: mascotas(e)[0].id }), []);
+});
+
+test('AC-6.1, FR-8: la lista del panel tiene todas las pendientes por fecha de vencimiento, sin las hechas ni las eliminadas', () => {
+  const { e: base, ctx } = conVencimientos(['2026-10-20', HOY, '2026-10-01', '2026-10-09', '2026-10-02']);
+  const [veinte, hoy, uno, nueve, dos] = base.actividades;
+  let e = marcarHecha(base, dos.id, HOY, ctx);
+  e = eliminarActividad(e, nueve.id, ctx);
+  assert.deepEqual(listaDelPanel(e).map((a) => a.id), [uno.id, hoy.id, veinte.id]);
+});
+
+test('AC-3.1: el texto del plazo dice si vence hoy, cuántos días lleva atrasada o cuándo vence', () => {
+  assert.deepEqual(
+    [HOY, '2026-10-05', '2026-10-03', '2026-10-07', '2026-10-20'].map((vence) => textoPlazo({ vence }, HOY)),
+    ['Vence hoy', 'Atrasada 1 día', 'Atrasada 3 días', 'Vence mañana', 'Vence el 2026-10-20'],
+  );
+});
+
+test('AC-5.1, AC-5.2, AC-5.6, FR-10: al cambiar el día cambian las burbujas y el estado', () => {
+  const ver = (estado, dia) => [burbujas(estado, dia).length, limpiezaDeEspacio(estado, cocina(estado).id, dia)];
+  const { e: base } = conVencimientos(['2026-10-07']);
+  assert.deepEqual(ver(base, HOY), [0, 'limpio']);
+  assert.deepEqual(ver(base, '2026-10-07'), [1, 'limpio']);
+  assert.deepEqual(ver(base, '2026-10-09'), [1, 'desordenado']);
+  assert.deepEqual(ver(base, '2026-10-10'), [1, 'desastre']);
+  const ctx = crearCtx();
+  let e = hogarBase(ctx);
+  e = alta(e, datos(e, { tipo: 'repetitiva', frecuenciaDias: 3 }), ctx);
+  const { id } = ultima(e);
+  e = marcarHecha(e, id, HOY, ctx);
+  assert.deepEqual(ver(e, '2026-10-08'), [0, 'limpio']);
+  assert.deepEqual(ver(e, '2026-10-09'), [1, 'limpio']);
+  assert.equal(atraso(buscarActividad(e, id), '2026-10-09'), 0);
+});
+
+test('el estado derivado es puro: no modifica el estado y repite el resultado con los mismos argumentos', () => {
+  const { e } = conVencimientos(['2026-10-01', HOY, '2026-10-09'], { espacioId: null });
+  const copia = structuredClone(e);
+  const calcular = () => [burbujas(e, HOY), porHacer(e, HOY), listaDelPanel(e), limpiezaDeEspacio(e, cocina(e).id, HOY)];
+  assert.deepEqual(calcular(), calcular());
+  assert.deepEqual(e, copia);
 });

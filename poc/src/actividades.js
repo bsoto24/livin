@@ -74,3 +74,62 @@ export const MENSAJES_ACTIVIDAD = {
   limite: 'Ya hay 50 actividades pendientes.',
   'no-encontrada': 'Esa actividad ya no está pendiente.',
 };
+
+// ---------- Estado derivado (ADR-003 de estado derivado): nada se guarda; todo sale de (estado, hoy) ----------
+
+export const UMBRAL_DESORDENADO = 1; // días de atraso (FR-4); valores de partida, ajustables tras probarlos
+export const UMBRAL_DESASTRE = 3;
+
+export const atraso = (actividad, hoy) => diasEntre(actividad.vence, hoy);
+
+// Por hacer (FR-2): pendientes que vencen hoy o antes, de la más atrasada a la menos. El orden es estable:
+// a igual atraso se conserva el orden de creación (el de `estado.actividades`).
+export function porHacer(estado, hoy) {
+  return actividadesPendientes(estado)
+    .map((a) => ({ a, dias: atraso(a, hoy) }))
+    .filter((x) => x.dias >= 0)
+    .sort((x, y) => y.dias - x.dias)
+    .map((x) => x.a);
+}
+
+// Estado de un espacio (FR-4) según la actividad por hacer más atrasada vinculada a él.
+export function limpiezaDeEspacio(estado, espacioId, hoy) {
+  const peor = porHacer(estado, hoy).find((a) => a.espacioId === espacioId);
+  const dias = peor ? atraso(peor, hoy) : 0;
+  if (dias >= UMBRAL_DESASTRE) return 'desastre';
+  if (dias >= UMBRAL_DESORDENADO) return 'desordenado';
+  return 'limpio';
+}
+
+// Una burbuja por lugar con actividades por hacer (FR-6): el espacio, o el miembro para las que no tienen espacio.
+// El icono es el de la primera del lugar en el orden de `porHacer`; `mas` indica que hay más de una.
+export function burbujas(estado, hoy) {
+  const porLugar = new Map();
+  for (const a of porHacer(estado, hoy)) {
+    const tipo = a.espacioId === null ? 'miembro' : 'espacio';
+    const id = a.espacioId ?? a.miembroId;
+    const clave = `${tipo}:${id}`;
+    if (!porLugar.has(clave)) porLugar.set(clave, { tipo, id, icono: a.icono, actividades: [] });
+    porLugar.get(clave).actividades.push(a.id);
+  }
+  return [...porLugar.values()].map((b) => ({ ...b, mas: b.actividades.length > 1 }));
+}
+
+// Actividades por hacer de un lugar, en el orden de su burbuja (FR-7).
+export const actividadesDelLugar = (estado, lugar, hoy) => porHacer(estado, hoy).filter((a) => (lugar.tipo === 'espacio'
+  ? a.espacioId === lugar.id
+  : a.espacioId === null && a.miembroId === lugar.id));
+
+// Lista del panel del modo edición (FR-8): todas las pendientes, por fecha de vencimiento (las fechas AAAA-MM-DD ordenan como texto).
+export const listaDelPanel = (estado) => [...actividadesPendientes(estado)]
+  .sort((x, y) => (x.vence < y.vence ? -1 : x.vence > y.vence ? 1 : 0));
+
+// Texto del plazo para la hoja y el panel (AC-3.1, AC-6.1).
+export function textoPlazo(actividad, hoy) {
+  const dias = atraso(actividad, hoy);
+  if (dias === 0) return 'Vence hoy';
+  if (dias === 1) return 'Atrasada 1 día';
+  if (dias > 1) return `Atrasada ${dias} días`;
+  if (dias === -1) return 'Vence mañana';
+  return `Vence el ${actividad.vence}`;
+}
