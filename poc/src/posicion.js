@@ -3,7 +3,10 @@ import { esTransitable } from './distribucion.js';
 
 export const DIRECCIONES = { arriba: { dx: 0, dy: -1 }, abajo: { dx: 0, dy: 1 }, izquierda: { dx: -1, dy: 0 }, derecha: { dx: 1, dy: 0 } };
 
-// Convierte una casilla absoluta del mapa en una posición relativa a su espacio o pasillo (FR-10).
+// Clave de una casilla para los conjuntos de casillas ocupadas.
+export const claveCasilla = (x, y) => `${x},${y}`;
+
+// Convierte una casilla absoluta del mapa en una posición relativa a su espacio o pasillo (FR-10 de la 001).
 export function posicionRelativa(distribucion, x, y, direccion) {
   const clave = distribucion.espacioEn[y][x];
   const r = distribucion.rects[clave];
@@ -22,11 +25,12 @@ export function resolverPosicion(distribucion, guardada) {
   return { x, y, direccion: guardada.direccion };
 }
 
-// Un paso del modo exploración: devuelve la nueva casilla y dirección (AC-2.1, AC-2.3).
-export function paso(distribucion, actual, direccion) {
+// Un paso del modo exploración (AC-2.1 y AC-2.3 de la 001). Las casillas de `ocupadas` (los habitantes) también
+// bloquean el paso (FR-6 de la 002); sin ese argumento el comportamiento es el de la 001.
+export function paso(distribucion, actual, direccion, ocupadas = new Set()) {
   const { dx, dy } = DIRECCIONES[direccion];
   const x = actual.x + dx;
   const y = actual.y + dy;
-  if (esTransitable(distribucion, x, y)) return { x, y, direccion, movio: true };
+  if (esTransitable(distribucion, x, y) && !ocupadas.has(claveCasilla(x, y))) return { x, y, direccion, movio: true };
   return { x: actual.x, y: actual.y, direccion, movio: false };
 }
