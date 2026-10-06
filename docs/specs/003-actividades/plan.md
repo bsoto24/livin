@@ -11,7 +11,7 @@
 - Hasta 50 actividades **pendientes** por hogar. *Ruling:* la spec dice "activas"; se cuentan las pendientes (no eliminadas y, si son puntuales, no hechas), porque las puntuales hechas no aparecen en ninguna lista ni se pueden borrar, y contarlas podría bloquear el cupo para siempre. Coste si es incorrecto: cambiar `contarActividades` y una prueba.
 - Plazos por día del calendario local, sin hora, como texto `AAAA-MM-DD`. **Por hacer** = pendiente con vencimiento hoy o antes. **Atraso** = días enteros entre el vencimiento y hoy.
 - Estado de un espacio por la actividad por hacer más atrasada **vinculada a él**: limpio (ninguna o atraso 0), desordenado (1–2 días), desastre (3 o más). Cada baño interno es un espacio propio. Objetos en el suelo: 0, 4 y 12. Insignias: ✓, ! y !!. Los pasillos no tienen estado.
-- Una burbuja por lugar (un espacio, o un miembro para sus actividades sin espacio). El icono es el de la más atrasada (a igual atraso, la creada primero) y lleva "+" si hay más. *Ruling:* la burbuja de un espacio ocupa la primera casilla libre de su área en orden de lectura, y la de un miembro se toca en la casilla de encima de él.
+- Una burbuja por lugar (un espacio, o un miembro para sus actividades sin espacio). El icono es el de la más atrasada (a igual atraso, la creada primero) y lleva "+" si hay más. *Ruling:* la burbuja de un espacio ocupa la primera casilla libre de su área en orden de lectura, y la de un miembro se toca en la casilla de encima de él. Cada burbuja se dibuja centrada en la casilla donde se toca.
 - "Hecho" solo en exploración, desde la hoja, para actividades por hacer. Puntual: registra `hechaEn = hoy`. Repetitiva: `vence = hoy + frecuencia`. No se deshace.
 - Crear, editar y eliminar actividades solo en modo edición. Al tocar una casilla en edición, la prioridad es: personaje del propietario, habitante, burbuja, espacio.
 - Eliminar un espacio o un miembro da de baja lógica a todas sus actividades en la misma operación, incluida la excepción del baño interno que se elimina con su cuarto. La confirmación dice cuántas actividades pendientes se eliminan.
@@ -1253,7 +1253,6 @@ test('AC-4.3, AC-4.4, AC-4.7: objetos del suelo según el estado, en casillas li
   const d = generarDistribucion(e);
   for (const espacio of espaciosDeTipo(e, 'cocina')) {
     const libres = new Set(casillasLibres(d, espacio.id).map((c) => `${c.x},${c.y}`));
-    const burbuja = casillaDeBurbuja(d, espacio.id);
     const desordenado = objetosDelSuelo(d, espacio.id, 'desordenado');
     const desastre = objetosDelSuelo(d, espacio.id, 'desastre');
     assert.deepEqual(objetosDelSuelo(d, espacio.id, 'limpio'), []);
@@ -1263,20 +1262,21 @@ test('AC-4.3, AC-4.4, AC-4.7: objetos del suelo según el estado, en casillas li
     assert.equal(new Set(desastre.map((o) => `${o.x},${o.y}`)).size, desastre.length);
     for (const o of desastre) {
       assert.ok(libres.has(`${o.x},${o.y}`));
-      assert.ok(o.x !== burbuja.x || o.y !== burbuja.y);
       assert.ok(Number.isInteger(o.variante) && o.variante >= 0 && o.variante < 6);
     }
     assert.deepEqual(objetosDelSuelo(generarDistribucion(e), espacio.id, 'desastre'), desastre);
   }
 });
 
-test('AC-4.7: si hay menos casillas libres que objetos, se muestran tantos como casillas libres haya', () => {
+test('AC-4.3, AC-4.7: si hay menos casillas libres que objetos, se muestran tantos como casillas libres haya', () => {
   const e = hogarConBanos();
   const d = generarDistribucion(e);
   const bano = banoDe(e, espaciosDeTipo(e, 'dormitorio')[0].id);
   const libres = casillasLibres(d, bano.id).length;
-  assert.ok(libres - 1 < OBJETOS_POR_ESTADO.desastre);
-  assert.equal(objetosDelSuelo(d, bano.id, 'desastre').length, libres - 1); // todas menos la de la burbuja
+  assert.equal(libres, 4); // el baño interno es el espacio más pequeño del catálogo
+  assert.ok(libres < OBJETOS_POR_ESTADO.desastre);
+  assert.equal(objetosDelSuelo(d, bano.id, 'desastre').length, libres);
+  assert.equal(objetosDelSuelo(d, bano.id, 'desordenado').length, Math.min(OBJETOS_POR_ESTADO.desordenado, libres));
 });
 
 test('FR-6: ubicarBurbujas pone la de un espacio en su casilla fija y la de un miembro en la casilla de encima de él', () => {
@@ -1401,10 +1401,10 @@ export function casillasLibres(distribucion, espacioId) {
 // Casilla fija de la burbuja de un espacio (AC-2.8): la primera casilla libre de su área.
 export const casillaDeBurbuja = (distribucion, espacioId) => casillasLibres(distribucion, espacioId)[0] ?? null;
 
-// Objetos del suelo (FR-5): tantos como pide el estado, limitados por las casillas libres, sin la de la burbuja.
+// Objetos del suelo (FR-5): tantos como pide el estado, limitados por las casillas libres del espacio.
 // El orden sale del hash del espacio y la casilla, así que el desastre siempre agrega objetos a los del desorden.
 export function objetosDelSuelo(distribucion, espacioId, limpieza) {
-  const libres = casillasLibres(distribucion, espacioId).slice(1); // la primera es la de la burbuja
+  const libres = casillasLibres(distribucion, espacioId);
   return libres
     .map((c) => ({ ...c, h: hash(`${espacioId}:${claveCasilla(c.x, c.y)}`) }))
     .sort((a, b) => a.h - b.h)
@@ -1665,21 +1665,21 @@ function posicionesDeMiembros() {
     const escala = 1 / this.cameras.main.zoom;
     this.burbujas = burbujas(estado, hoy).map((b) => {
       const texto = this.add.text(0, 0, `${GLIFO_ICONO[b.icono]}${b.mas ? '+' : ''}`, ESTILO_BURBUJA)
-        .setOrigin(0.5, 1).setScale(escala).setDepth(PROF_BURBUJA);
+        .setOrigin(0.5).setScale(escala).setDepth(PROF_BURBUJA);
       const casilla = b.tipo === 'espacio' ? casillaDeBurbuja(distribucion, b.id) : null;
-      if (casilla) texto.setPosition(casilla.x * TILE + TILE / 2, (casilla.y + 1) * TILE);
+      if (casilla) texto.setPosition(casilla.x * TILE + TILE / 2, casilla.y * TILE + TILE / 2);
       return { ...b, texto };
     });
     this.colocarBurbujas();
   }
 
-  // Las burbujas de los miembros siguen a su personaje, por encima de su nombre.
+  // Las burbujas de los miembros siguen a su personaje, centradas en la casilla de encima de él: la misma que responde al toque (AC-6.8).
   colocarBurbujas() {
     const idPropietario = propietario().id;
     for (const b of this.burbujas) {
       if (b.tipo !== 'miembro') continue;
       const cuerpo = b.id === idPropietario ? this.personaje : this.sprites.get(b.id)?.cuerpo;
-      if (cuerpo) b.texto.setPosition(cuerpo.x, cuerpo.y - TILE * 1.4);
+      if (cuerpo) b.texto.setPosition(cuerpo.x, cuerpo.y - TILE);
     }
   }
 ```
@@ -1807,6 +1807,19 @@ function confirmarEliminacion(id) {
 ```js
   pintarHabitantes();
   pintarActividades();
+```
+
+- [ ] En `pintarPanel()`, reemplazar las seis líneas que construyen cada fila de espacio (desde `const fila = document.createElement('div');` hasta `const [menos, mas] = fila.querySelectorAll('button');`, ambas incluidas) por esta versión, que inserta el nombre personalizado del espacio como texto y no como marcado (NFR de seguridad). Las líneas siguientes (`menos.disabled`, `mas.disabled`, los dos `addEventListener` y `cont.append(fila)`) no cambian:
+```js
+    const fila = elemento('div', undefined, 'fila');
+    const destino = tipo === 'bano' ? siguienteDestinoBano(estado) : null;
+    const nombre = elemento('span', ETIQUETAS[tipo]);
+    if (destino) nombre.append(elemento('small', `Siguiente: ${nombreVisible(estado, destino)}`)); // texto, nunca marcado (NFR de seguridad de la 003)
+    const menos = elemento('button', '−');
+    menos.setAttribute('aria-label', 'Quitar');
+    const mas = elemento('button', '+');
+    mas.setAttribute('aria-label', 'Agregar');
+    fila.append(nombre, menos, elemento('span', String(contar(estado, tipo)), 'cuenta'), mas);
 ```
 
 - [ ] Agregar después de la función `pintarHabitantes()`:
@@ -2048,3 +2061,13 @@ $('actividad-eliminar').addEventListener('click', () => {
 5. **Listo** → tocar la burbuja de la cocina → **Hecho**: la cocina queda en "✓", sin objetos ni burbuja.
 6. Tocar la burbuja del personaje → **Hecho**: la burbuja desaparece. En **Editar**, la lista muestra "Sacar la basura" con su próximo vencimiento en 7 días.
 7. Recargar la página: todo sigue igual.
+
+---
+
+## Plan Changelog
+
+| Date | Section | Change |
+|------|---------|--------|
+| 2026-10-06 | Phase 4 | `objetosDelSuelo` ya no reserva la casilla de la burbuja: un baño interno, con 4 casillas libres, muestra 4 objetos como exige AC-4.3 y AC-4.7. Las pruebas del aspecto se corrigen en consecuencia. Hallazgo de la revisión de alineación (ronda 1), corregido en `e13328c`. |
+| 2026-10-06 | Phase 5 | La pista "Siguiente:" de la fila "Baño" del panel se construye con nodos de texto y no con `innerHTML`, porque un nombre personalizado de espacio como `<b>x</b>` se interpretaba como marcado (NFR de seguridad). Hallazgo de la ronda 1, corregido en `a4056e9`. |
+| 2026-10-06 | Phase 5 | Las burbujas se dibujan centradas en la casilla donde responden al toque: antes la de un miembro quedaba 1,4 casillas por encima y tocar el icono visible no abría la hoja (AC-6.8). Hallazgo de la ronda 2, corregido en `e890a58`. |
