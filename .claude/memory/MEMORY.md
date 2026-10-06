@@ -1,2 +1,2 @@
-- [Livin project state](livin-project-state.md) — 001 done and verified on Android; 002 (family members and pets) merged locally, not pushed, Android check pending
+- [Livin project state](livin-project-state.md) — 001 done and verified on Android; 002 (family members and pets) merged and pushed, Android check pending
 - [Docs in Spanish](docs-in-spanish.md) — specs/ADRs/foundation and domain vocabulary are Spanish; chat is English
