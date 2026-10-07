@@ -17,15 +17,16 @@ function hash(texto) {
   return h;
 }
 
-// Casillas del área de un espacio donde se puede pisar y que no son puertas, en orden de lectura (fila a fila).
+// Casillas del área de un espacio donde se puede pisar y que no son puertas ni la entrada del hogar, en orden de lectura
+// (fila a fila). La entrada queda libre de objetos y de burbujas (AC-9.6 de la 004).
 export function casillasLibres(distribucion, espacioId) {
   const r = distribucion.rects[espacioId];
   if (!r) return [];
-  const puertas = new Set(distribucion.puertas.map((p) => claveCasilla(p.x, p.y)));
+  const excluidas = new Set([...distribucion.puertas, distribucion.entrada].map((p) => claveCasilla(p.x, p.y)));
   const libres = [];
   for (let y = r.y; y < r.y + r.h; y++) {
     for (let x = r.x; x < r.x + r.w; x++) {
-      if (distribucion.espacioEn[y][x] === espacioId && esTransitable(distribucion, x, y) && !puertas.has(claveCasilla(x, y))) {
+      if (distribucion.espacioEn[y][x] === espacioId && esTransitable(distribucion, x, y) && !excluidas.has(claveCasilla(x, y))) {
         libres.push({ x, y });
       }
     }

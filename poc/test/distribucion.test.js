@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { crearHogarInicial, agregarEspacio, eliminarEspacio, espaciosDeTipo, espaciosActivos, banoDe, banoComun, cuartosEnOrden } from '../src/hogar.js';
 import { generarDistribucion, esTransitable } from '../src/distribucion.js';
+import { paso } from '../src/posicion.js';
 import { crearCtx } from './ayuda.js';
 
 const agregar = (estado, ctx, ...tipos) => tipos.reduce((e, t) => agregarEspacio(e, t, ctx), estado);
@@ -59,6 +60,17 @@ function verificarMapa(estado) {
       }
     }
   }
+  // Entrada (AC-9.1, AC-9.2 de la 004): casilla transitable de la pared inferior de la sala, bajo la aparición, alcanzable y que no
+  // lleva a ninguna parte. Como el mapa es conexo, desde ella se llega a cada espacio.
+  const salaId = espaciosDeTipo(estado, 'sala')[0].id;
+  const sala = d.rects[salaId];
+  assert.deepEqual(d.entrada, { x: d.aparicion.x, y: sala.y + sala.h - 1 });
+  assert.equal(d.espacioEn[d.entrada.y][d.entrada.x], salaId);
+  assert.ok(visto.has(`${d.entrada.x},${d.entrada.y}`), 'entrada inalcanzable');
+  for (let x = sala.x; x < sala.x + sala.w; x++) {
+    assert.equal(esTransitable(d, x, d.entrada.y), x === d.entrada.x, `pared inferior de la sala en x=${x}`);
+  }
+  assert.equal(esTransitable(d, d.entrada.x, d.entrada.y + 1), false, 'la entrada lleva fuera del hogar');
   assert.deepEqual(generarDistribucion(estado), d, 'no determinista');
 }
 
@@ -233,4 +245,43 @@ test('NFR rendimiento: generar el hogar más grande toma menos de 100 ms', () =>
   const inicio = performance.now();
   generarDistribucion(e);
   assert.ok(performance.now() - inicio < 100);
+});
+
+function hogarMasGrande() {
+  const ctx = crearCtx();
+  const e = agregar(crearHogarInicial(ctx), ctx, 'comedor', 'cocina', 'lavanderia', 'lavanderia', 'mascota', 'mascota',
+    'dormitorio', 'dormitorio', 'dormitorio', 'oficina', 'oficina');
+  return agregar(e, ctx, ...Array(6).fill('bano'));
+}
+
+test('AC-9.1, AC-9.3: la entrada es la única diferencia con el mapa de las features anteriores', () => {
+  const d = generarDistribucion(crearHogarInicial(crearCtx()));
+  assert.deepEqual(d.entrada, { x: 13, y: 10 });
+  assert.deepEqual(d.tiles, [
+    '###########################',
+    '#KLR...##........##.....nB#',
+    '#..........SSSS..##......B#',
+    '#......##.................#',
+    '#......##...TT...##.......#',
+    '#########....*...##.......#',
+    '#########........##########',
+    '#WwU...##........#         ',
+    '#................#         ',
+    '#......##........#         ',
+    '#############.####         ',
+  ]);
+  const grande = generarDistribucion(hogarMasGrande());
+  assert.deepEqual([grande.entrada, grande.ancho, grande.alto], [{ x: 16, y: 11 }, 33, 40]);
+  assert.equal(grande.tiles[11], '#########.######.#####.##....####');
+  assert.equal(grande.tiles[12], '#########.#          #.##.......#');
+});
+
+test('AC-9.5, FR-12: el jugador puede pisar la entrada pero no salir por ella', () => {
+  for (const estado of [crearHogarInicial(crearCtx()), hogarMasGrande()]) {
+    const d = generarDistribucion(estado);
+    const r = paso(d, { x: d.entrada.x, y: d.entrada.y - 1 }, 'abajo');
+    assert.deepEqual([r.x, r.y, r.movio], [d.entrada.x, d.entrada.y, true]);
+    assert.deepEqual(paso(d, d.entrada, 'abajo'), { x: d.entrada.x, y: d.entrada.y, direccion: 'abajo', movio: false });
+    for (const lado of ['izquierda', 'derecha']) assert.equal(paso(d, d.entrada, lado).movio, false);
+  }
 });
