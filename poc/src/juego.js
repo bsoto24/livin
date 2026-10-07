@@ -1,26 +1,32 @@
 // src/juego.js
 /* global Phaser */
-import { TIPOS, ETIQUETAS, PARENTESCOS, GENEROS, ESPECIES, LIMITES_HABITANTES, ICONOS, FRECUENCIAS, LIMITE_ACTIVIDADES } from './catalogo.js';
+import {
+  TIPOS, ETIQUETAS, PARENTESCOS, GENEROS, ESPECIES, LIMITES_HABITANTES, ICONOS, FRECUENCIAS, LIMITE_ACTIVIDADES, DIAS_RUTINA, LIMITE_BLOQUES,
+} from './catalogo.js';
 import {
   espaciosActivos, buscarEspacio, contar, puedeAgregar, puedeQuitar, puedeEliminar, agregarEspacio, quitarUltimo,
   ultimoDeTipo, eliminarEspacio, requiereConfirmacion, consecuenciasDeEliminar, siguienteDestinoBano,
   nombreVisible, nombreAutomatico, renombrarEspacio, renombrarMiembro, MENSAJES_ERROR,
   habitantes, buscarMiembro, esPropietario, contarHabitantes, puedeAgregarHabitante, agregarHabitante, editarHabitante,
-  eliminarHabitante, pendientesDeMiembro,
+  eliminarHabitante, pendientesDeMiembro, bloquesDeMiembro,
 } from './hogar.js';
 import { generarDistribucion } from './distribucion.js';
 import { crearAlmacen, iniciarSesion } from './almacen.js';
 import { posicionRelativa, resolverPosicion, paso } from './posicion.js';
 import { etiquetasDeEspacios } from './etiquetas.js';
 import {
-  MS_POR_PASO, colocarHabitantes, avanzarHabitantes, sincronizarHabitantes, congelarHabitantes, ocupadasPorHabitantes,
+  MS_POR_PASO, colocarHabitantes, avanzarHabitantes, sincronizarHabitantes, congelarHabitantes, ocupadasPorHabitantes, fijarObjetivos,
 } from './movimiento.js';
 import {
   contarActividades, puedeAgregarActividad, buscarActividad, agregarActividad, editarActividad, eliminarActividad, marcarHecha,
   limpiezaDeEspacio, burbujas, actividadesDelLugar, listaDelPanel, textoPlazo, MENSAJES_ACTIVIDAD,
 } from './actividades.js';
+import {
+  buscarBloque, bloquesDe, contarBloques, puedeAgregarBloque, agregarBloque, editarBloque, eliminarBloque, MENSAJES_BLOQUE,
+  textoHora, textoBloque, textoBajas, objetivosDeFamiliares, textoVuelta,
+} from './rutinas.js';
 import { INSIGNIAS, objetosDelSuelo, casillaDeBurbuja, ubicarBurbujas } from './aspecto.js';
-import { fechaLocal } from './fechas.js';
+import { ahoraLocal } from './fechas.js';
 
 const TILE = 16;
 const MS_POR_CASILLA = 250; // 4 casillas por segundo (AC-2.2)
@@ -49,6 +55,9 @@ const COLOR_INSIGNIA = { limpio: '#2e9e4f', desordenado: '#c98a00', desastre: '#
 const COLOR_OBJETO = [0xc0392b, 0x2980b9, 0xf1c40f, 0x8e44ad, 0x16a085, 0xd35400];
 const PROF_BURBUJA = 30;
 const ESTILO_BURBUJA = { fontFamily: 'system-ui, sans-serif', fontSize: '16px', color: '#2a221c', backgroundColor: '#ffffff', padding: { x: 4, y: 2 } };
+// Rutinas (FR-5 y FR-7 de la 004): en una casilla compartida, quien va en ruta se dibuja debajo de quien no; el cartel de la entrada.
+const PROF_EN_RUTA = 9;
+const ESTILO_CARTEL = { ...ESTILO_ETIQUETA, color: '#ffffff', backgroundColor: '#2a221c' };
 
 const $ = (id) => document.getElementById(id);
 // Si el navegador bloquea el almacenamiento, hasta acceder a localStorage lanza; se usa uno que siempre falla
@@ -86,14 +95,22 @@ const azar = Math.random; // el movimiento recibe el azar inyectado (ADR-002 de 
 function idsHabitantes() { return habitantes(estado).map((h) => h.id); }
 function propietario() { return estado.miembros.find((m) => m.eliminadoEn === null && esPropietario(estado, m)); }
 const casillaJugador = () => ({ x: jugador.x, y: jugador.y, desde: jugadorDesde });
-let moviles = colocarHabitantes(idsHabitantes(), distribucion, casillaJugador(), azar); // FR-7: al abrir, después del jugador
-let hoy = fechaLocal(new Date()); // el día de hoy se inyecta en las funciones puras (ADR-003 de estado derivado)
-// Casilla actual de cada miembro en el mapa: el propietario es el jugador; los habitantes, sus móviles (FR-6 de la 003).
+let ahora = ahoraLocal(new Date()); // fecha y minuto locales: se inyectan en las rutinas (ADR-004 de movimiento)
+let hoy = ahora.fecha; // el día de hoy se inyecta en las funciones puras (ADR-003 de estado derivado)
+let hojaActual = null; // hoja abierta: { tipo: 'espacio' | 'miembro', id } o { tipo: 'fuera' } (FR-7 de la 003, FR-5 de la 004)
+// FR-6 de la 004: al abrir, después del jugador, cada familiar donde dice su rutina y los demás al azar.
+let moviles = colocarHabitantes(idsHabitantes(), distribucion, casillaJugador(), azar, objetivosDeFamiliares(estado, ahora));
+// Casilla actual de cada miembro en el mapa: el propietario es el jugador; los habitantes, sus móviles (FR-6 de la 003). Quien está
+// fuera de casa no está en el mapa (AC-5.8 de la 004).
 function posicionesDeMiembros() {
-  const posiciones = new Map(moviles.map((h) => [h.id, { x: h.x, y: h.y }]));
+  const posiciones = new Map(moviles.filter((h) => h.fase !== 'fuera').map((h) => [h.id, { x: h.x, y: h.y }]));
   posiciones.set(propietario().id, { x: jugador.x, y: jugador.y });
   return posiciones;
 }
+// Familiares fuera de casa (FR-5 de la 004) y una firma que cambia cuando alguien sale, vuelve o ya no debería estar fuera.
+const familiaresFuera = () => moviles.filter((h) => h.fase === 'fuera');
+const firmaFuera = () => familiaresFuera().map((h) => `${h.id}${h.objetivo.tipo === 'fuera' ? '' : '~'}`).join(',');
+const tienePendientesSinEspacio = (id) => actividadesDelLugar(estado, { tipo: 'miembro', id }, hoy).length > 0;
 
 function avisar(texto) {
   const caja = $('aviso');
@@ -127,9 +144,11 @@ class Escena extends Phaser.Scene {
       this.add.triangle(0, 5, 0, 0, 6, 0, 3, 4, 0x4b1528),
     ]).setDepth(PROF_PERSONAJE);
     this.etiquetaPersonaje = this.add.text(0, 0, '', ESTILO_ETIQUETA).setOrigin(0.5, 1).setDepth(PROF_ETIQUETA_PERSONAJE);
+    this.cartel = this.add.text(0, 0, '', ESTILO_CARTEL).setOrigin(1, 0.5).setDepth(PROF_BURBUJA).setVisible(false); // FR-5 de la 004
+    this.firmaCartel = null;
     this.teclas = this.input.keyboard.createCursorKeys();
-    // En exploración solo responden las burbujas; en edición, también personajes y espacios (FR-8 de la 003).
-    this.input.on('pointerup', (p) => tocarMapa(Math.floor(p.worldX / TILE), Math.floor(p.worldY / TILE)));
+    // En exploración responden el cartel y las burbujas; en edición, también personajes y espacios (FR-8 de la 003, FR-5 de la 004).
+    this.input.on('pointerup', (p) => tocarMapa(Math.floor(p.worldX / TILE), Math.floor(p.worldY / TILE), this.tocaCartel(p.worldX, p.worldY)));
     this.scale.on('resize', () => (modo === 'edicion' ? this.encuadrarHogar() : null));
     this.redibujar();
     this.colocarPersonaje();
@@ -167,11 +186,12 @@ class Escena extends Phaser.Scene {
     }
   }
 
-  // Tras un cambio de actividades o de día: suelo, insignias y burbujas, sin rehacer a los personajes, que siguen caminando.
+  // Tras un cambio de actividades o de día: suelo, insignias, burbujas y la señal "!" del cartel, sin rehacer a los personajes.
   refrescarActividades() {
     this.dibujarSuelo();
     this.dibujarInsignias();
     this.dibujarBurbujas();
+    this.actualizarCartel();
   }
 
   // Etiquetas de nombre (FR-12 de la 001, FR-8 de la 002) con la insignia de cada espacio, y burbujas (FR-5, FR-6 de la 003).
@@ -188,6 +208,7 @@ class Escena extends Phaser.Scene {
     this.etiquetaPersonaje.setText(propietario().nombre).setScale(escala);
     this.sincronizarSprites();
     this.dibujarBurbujas();
+    this.actualizarCartel();
   }
 
   // Insignia del estado de limpieza junto al nombre de cada espacio (FR-5 de la 003); los pasillos no tienen etiqueta ni insignia.
@@ -228,12 +249,14 @@ class Escena extends Phaser.Scene {
     this.colocarBurbujas();
   }
 
-  // Las burbujas de los miembros siguen a su personaje, centradas en la casilla de encima de él: la misma que responde al toque (AC-6.8).
+  // Las burbujas de los miembros siguen a su personaje, centradas en la casilla de encima de él: la misma que responde al toque
+  // (AC-6.8 de la 003). La de un familiar fuera de casa no se ve (AC-5.8 de la 004).
   colocarBurbujas() {
     const idPropietario = propietario().id;
     for (const b of this.burbujas) {
       if (b.tipo !== 'miembro') continue;
       const cuerpo = b.id === idPropietario ? this.personaje : this.sprites.get(b.id)?.cuerpo;
+      b.texto.setVisible(Boolean(cuerpo?.visible));
       if (cuerpo) b.texto.setPosition(cuerpo.x, cuerpo.y - TILE);
     }
   }
@@ -256,11 +279,15 @@ class Escena extends Phaser.Scene {
         .setPosition(h.x * TILE + TILE / 2, h.y * TILE + TILE / 2);
       const etiqueta = this.add.text(cuerpo.x, cuerpo.y - TILE * 0.6, miembro.nombre, ESTILO_ETIQUETA)
         .setOrigin(0.5, 1).setScale(escala).setDepth(PROF_ETIQUETA_PERSONAJE);
+      cuerpo.setVisible(h.fase !== 'fuera'); // quien está fuera de casa no se ve (AC-4.1 de la 004)
+      etiqueta.setVisible(h.fase !== 'fuera');
       this.sprites.set(h.id, { cuerpo, etiqueta });
     }
   }
 
-  // Por cuadro, solo en exploración: avanza el movimiento autónomo (FR-5) y anima cada paso nuevo durante MS_POR_PASO.
+  // Por cuadro, solo en exploración: avanza el movimiento (FR-5 de la 002; FR-3 y FR-4 de la 004) y anima cada paso nuevo durante
+  // MS_POR_PASO. Quien sale por la entrada se oculta; quien vuelve aparece en ella sin animación. Quien va en ruta se dibuja
+  // debajo de quien pasea (AC-8.6 de la 004).
   moverHabitantes(dtMs) {
     if (modo !== 'exploracion') return;
     const antes = new Map(moviles.map((h) => [h.id, h]));
@@ -268,16 +295,50 @@ class Escena extends Phaser.Scene {
     for (const h of moviles) {
       const previo = antes.get(h.id);
       const s = this.sprites.get(h.id);
-      if (!s || (previo.x === h.x && previo.y === h.y)) continue;
+      if (!s) continue;
+      const visible = h.fase !== 'fuera';
+      s.cuerpo.setVisible(visible).setDepth(h.fase === 'pasea' ? PROF_PERSONAJE : PROF_EN_RUTA);
+      s.etiqueta.setVisible(visible);
+      if (previo.fase === 'fuera' && visible) {
+        this.tweens.killTweensOf(s.cuerpo);
+        s.cuerpo.setPosition(h.x * TILE + TILE / 2, h.y * TILE + TILE / 2);
+        continue;
+      }
+      if (previo.x === h.x && previo.y === h.y) continue;
       this.tweens.add({ targets: s.cuerpo, x: h.x * TILE + TILE / 2, y: h.y * TILE + TILE / 2, duration: MS_POR_PASO, ease: 'Linear' });
     }
+    if (firmaFuera() !== this.firmaCartel) this.actualizarCartel();
+  }
+
+  // Cartel de la entrada (FR-5 de la 004): "n fuera" y " !" si alguno tiene actividades por hacer sin espacio. Se dibuja sobre la
+  // pared, alineado a la derecha contra la entrada para no taparla, y no se ve si no hay nadie fuera.
+  actualizarCartel() {
+    const fuera = familiaresFuera();
+    this.firmaCartel = firmaFuera();
+    const aviso = fuera.some((h) => tienePendientesSinEspacio(h.id)) ? ' !' : '';
+    this.cartel.setText(`${fuera.length} fuera${aviso}`).setVisible(fuera.length > 0).setScale(1 / this.cameras.main.zoom)
+      .setPosition(distribucion.entrada.x * TILE, distribucion.entrada.y * TILE + TILE / 2);
+    if (hojaActual?.tipo === 'fuera') pintarHoja();
+  }
+
+  // El cartel responde al toque en toda el área donde se dibuja (lección de la 003: área táctil igual al área dibujada).
+  tocaCartel(xMundo, yMundo) {
+    return this.cartel.visible && this.cartel.getBounds().contains(xMundo, yMundo);
   }
 
   // Por cuadro: los nombres y las burbujas de los miembros siguen a sus personajes; en exploración, la etiqueta del espacio
   // actual (con su insignia) se desplaza a la parte visible.
   actualizarEtiquetas() {
     this.etiquetaPersonaje.setPosition(this.personaje.x, this.personaje.y - TILE * 0.75);
-    for (const s of this.sprites.values()) s.etiqueta.setPosition(s.cuerpo.x, s.cuerpo.y - TILE * 0.6);
+    // En una casilla compartida, el nombre de quien va en ruta pasa debajo de su cuerpo para no tapar el otro (AC-8.6 de la 004).
+    const porCasilla = new Map();
+    for (const h of moviles) if (h.fase !== 'fuera') porCasilla.set(`${h.x},${h.y}`, (porCasilla.get(`${h.x},${h.y}`) ?? 0) + 1);
+    for (const h of moviles) {
+      const s = this.sprites.get(h.id);
+      if (!s) continue;
+      const debajo = h.fase !== 'pasea' && porCasilla.get(`${h.x},${h.y}`) > 1;
+      s.etiqueta.setOrigin(0.5, debajo ? 0 : 1).setPosition(s.cuerpo.x, s.cuerpo.y + (debajo ? TILE * 0.6 : -TILE * 0.6));
+    }
     this.colocarBurbujas();
     if (modo !== 'exploracion') return; // en edición se ve todo el hogar: las etiquetas quedan centradas
     const v = this.cameras.main.worldView;
@@ -342,8 +403,10 @@ class Escena extends Phaser.Scene {
   }
 
   update(_tiempo, deltaMs) {
-    const fecha = fechaLocal(new Date());
-    if (fecha !== hoy) cambiarDia(fecha); // FR-10 de la 003: medianoche con la app abierta o vuelta a primer plano otro día
+    const reloj = ahoraLocal(new Date());
+    if (reloj.fecha !== hoy) cambiarDia(reloj.fecha); // FR-10 de la 003: medianoche con la app abierta o vuelta a primer plano otro día
+    // FR-2 y FR-3 de la 004: en exploración, al cambiar el minuto cada familiar recibe el objetivo de su rutina; en edición no (AC-6.5).
+    if (modo === 'exploracion' && (reloj.minuto !== ahora.minuto || reloj.fecha !== ahora.fecha)) cambiarMinuto(reloj);
     const dir = this.direccionActual();
     if (dir) this.mover(dir);
     this.moverHabitantes(deltaMs);
@@ -391,7 +454,9 @@ $('listo').addEventListener('click', () => {
   modo = 'exploracion';
   jugador = resolverPosicion(distribucion, posGuardada);
   guardarPosicion();
-  moviles = colocarHabitantes(idsHabitantes(), distribucion, casillaJugador(), azar); // FR-7: primero el jugador, después ellos
+  ahora = ahoraLocal(new Date());
+  // FR-6 de la 004: primero el jugador; después cada familiar donde dice su rutina en este momento, con los cambios hechos en edición.
+  moviles = colocarHabitantes(idsHabitantes(), distribucion, casillaJugador(), azar, objetivosDeFamiliares(estado, ahora));
   mostrarExploracion(true);
   const s = escena();
   s.redibujar();
@@ -436,9 +501,14 @@ function cambiarDia(fecha) {
   if (hojaActual) pintarHoja();
 }
 
-const textoActividades = (n) => (n === 1 ? 'Se eliminará 1 actividad.' : `Se eliminarán ${n} actividades.`);
+// El minuto cambió en exploración (FR-3 de la 004): cada familiar con un objetivo nuevo empieza a ir a su lugar.
+function cambiarMinuto(reloj) {
+  ahora = reloj;
+  moviles = fijarObjetivos(moviles, objetivosDeFamiliares(estado, ahora));
+}
 
-// Confirmación de eliminar un espacio (AC-5.3, AC-4.7 de la 001; AC-7.1, AC-7.4 y AC-7.6 de la 003).
+// Confirmación de eliminar un espacio (AC-5.3, AC-4.7 de la 001; AC-7.1, AC-7.4 y AC-7.6 de la 003; AC-10.1, AC-10.2, AC-10.4 y
+// AC-10.6 de la 004): dice cuántas actividades y cuántos bloques de rutina se eliminan con él.
 function confirmarEliminacion(id) {
   if (!requiereConfirmacion(estado, id)) return true;
   const espacio = buscarEspacio(estado, id);
@@ -446,7 +516,8 @@ function confirmarEliminacion(id) {
   const partes = [`¿Eliminar "${nombreVisible(estado, espacio)}"?`];
   if (c.banoSeElimina) partes.push('También se eliminará su baño interno.');
   if (c.tieneNombrePersonalizado) partes.push('Se perderá su nombre personalizado.');
-  if (c.actividades > 0) partes.push(textoActividades(c.actividades));
+  const bajas = textoBajas(c.actividades, c.bloques);
+  if (bajas) partes.push(bajas);
   return window.confirm(partes.join(' '));
 }
 
@@ -555,6 +626,7 @@ function abrirFicha(tipo, id) {
   $('ficha-nombre').value = esEspacio ? (espacio.nombrePersonalizado ?? '') : miembro.nombre;
   $('ficha-nombre').placeholder = esEspacio ? nombreAutomatico(estado, espacio) : 'Nombre del personaje';
   mostrarCampos({});
+  $('ficha-rutina').style.display = 'none'; // solo los familiares tienen rutina (AC-1.1 de la 004)
   $('ficha-guardar').textContent = 'Renombrar';
   $('ficha-error').textContent = '';
   $('ficha-eliminar').style.display = esEspacio ? 'block' : 'none';
@@ -575,6 +647,7 @@ function abrirFichaHabitante(clase, id) {
   llenarSelect($('ficha-genero'), GENEROS, miembro?.genero);
   llenarSelect($('ficha-especie'), ESPECIES, miembro?.especie);
   mostrarCampos(familiar ? { parentesco: true, genero: true } : { especie: true });
+  $('ficha-rutina').style.display = miembro && familiar ? 'block' : 'none'; // AC-1.1 de la 004
   $('ficha-guardar').textContent = 'Guardar';
   $('ficha-error').textContent = '';
   $('ficha-eliminar').style.display = miembro ? 'block' : 'none';
@@ -585,9 +658,10 @@ function abrirFichaHabitante(clase, id) {
 
 const cerrarFicha = () => { $('ficha').style.display = 'none'; fichaActual = null; };
 
-// Al tocar el mapa (FR-8 de la 003): en exploración solo responden las burbujas; en edición la prioridad es
-// personaje del propietario, habitante, burbuja y espacio (AC-7.3 y AC-7.4 de la 002, AC-6.8 de la 003).
-function tocarMapa(x, y) {
+// Al tocar el mapa (FR-8 de la 003, FR-5 de la 004): en exploración responden el cartel y las burbujas; en edición la prioridad es
+// personaje del propietario, habitante, cartel, burbuja y espacio (AC-5.13 de la 004).
+function tocarMapa(x, y, enCartel) {
+  if (modo === 'exploracion' && enCartel) { abrirHoja({ tipo: 'fuera' }); return; }
   if (y < 0 || y >= distribucion.alto || x < 0 || x >= distribucion.ancho) return;
   const burbuja = ubicarBurbujas(burbujas(estado, hoy), distribucion, posicionesDeMiembros()).find((b) => b.x === x && b.y === y);
   if (modo === 'exploracion') {
@@ -595,12 +669,13 @@ function tocarMapa(x, y) {
     return;
   }
   if (x === jugador.x && y === jugador.y) { abrirFicha('propietario', propietario().id); return; }
-  const habitante = moviles.find((h) => h.x === x && h.y === y);
+  const habitante = moviles.find((h) => h.fase !== 'fuera' && h.x === x && h.y === y);
   if (habitante) {
     const miembro = buscarMiembro(estado, habitante.id);
     abrirFichaHabitante(miembro.tipo === 'mascota' ? 'mascota' : 'familiar', miembro.id);
     return;
   }
+  if (enCartel) { abrirHoja({ tipo: 'fuera' }); return; }
   if (burbuja) { abrirHoja(burbuja); return; }
   const clave = distribucion.espacioEn[y][x];
   if (clave && buscarEspacio(estado, clave)) abrirFicha('espacio', clave);
@@ -627,9 +702,9 @@ $('ficha-cancelar').addEventListener('click', cerrarFicha);
 $('ficha-eliminar').addEventListener('click', () => {
   const { tipo, id } = fichaActual;
   if (tipo === 'habitante') {
-    const n = pendientesDeMiembro(estado, id);
-    const pregunta = `¿Eliminar a "${buscarMiembro(estado, id).nombre}"?${n > 0 ? ` ${textoActividades(n)}` : ''}`;
-    if (!window.confirm(pregunta)) return; // AC-8.1 y AC-8.2 de la 002; AC-7.7 y AC-7.8 de la 003
+    const bajas = textoBajas(pendientesDeMiembro(estado, id), bloquesDeMiembro(estado, id));
+    const pregunta = `¿Eliminar a "${buscarMiembro(estado, id).nombre}"?${bajas ? ` ${bajas}` : ''}`;
+    if (!window.confirm(pregunta)) return; // AC-8.1, AC-8.2 de la 002; AC-7.7, AC-7.8 de la 003; AC-10.7 a AC-10.9 de la 004
     cerrarFicha();
     aplicar(eliminarHabitante(estado, id, ctx));
     return;
@@ -639,8 +714,9 @@ $('ficha-eliminar').addEventListener('click', () => {
   aplicar(eliminarEspacio(estado, id, ctx));
 });
 
+$('ficha-rutina').addEventListener('click', () => abrirRutina(fichaActual.id));
+
 // ---------- Hoja de un lugar (FR-7 de la 003) ----------
-let hojaActual = null; // lugar de la hoja abierta: { tipo: 'espacio' | 'miembro', id }
 
 function abrirHoja(lugar) {
   hojaActual = { tipo: lugar.tipo, id: lugar.id };
@@ -652,6 +728,7 @@ const cerrarHoja = () => { $('hoja').style.display = 'none'; hojaActual = null; 
 // En exploración, cada actividad ofrece solo "Hecho" (AC-3.1); en edición, Editar y Eliminar (AC-6.7).
 // La hoja se cierra cuando el lugar ya no tiene actividades por hacer (AC-3.2).
 function pintarHoja() {
+  if (hojaActual.tipo === 'fuera') { pintarHojaFuera(); return; }
   const lugar = hojaActual.tipo === 'espacio' ? buscarEspacio(estado, hojaActual.id) : buscarMiembro(estado, hojaActual.id);
   const lista = lugar ? actividadesDelLugar(estado, hojaActual, hoy) : [];
   if (lista.length === 0) { cerrarHoja(); return; }
@@ -680,6 +757,32 @@ function pintarHoja() {
   $('hoja').style.display = 'block';
 }
 $('hoja-cerrar').addEventListener('click', cerrarHoja);
+
+// Hoja del cartel (FR-5 de la 004): los familiares fuera con su hora de vuelta y "!" si tienen actividades por hacer sin espacio.
+// En exploración, la fila con "!" abre la hoja de actividades de ese familiar (AC-5.9); en edición, cada fila abre su ficha (AC-5.12).
+function pintarHojaFuera() {
+  const fuera = familiaresFuera();
+  if (fuera.length === 0) { cerrarHoja(); return; }
+  $('hoja-titulo').textContent = 'Fuera de casa';
+  const cont = $('hoja-lista');
+  cont.replaceChildren();
+  for (const h of fuera) {
+    const conPendientes = tienePendientesSinEspacio(h.id);
+    const datos = elemento('span');
+    datos.append(elemento('strong', buscarMiembro(estado, h.id).nombre), elemento('small', textoVuelta(estado, h.id, ahora)));
+    const item = elemento('div', undefined, 'item');
+    item.append(elemento('span', conPendientes ? '!' : '', 'icono'), datos, elemento('span'));
+    if (modo === 'edicion') {
+      item.classList.add('tocable');
+      item.addEventListener('click', () => { cerrarHoja(); abrirFichaHabitante('familiar', h.id); });
+    } else if (conPendientes) {
+      item.classList.add('tocable');
+      item.addEventListener('click', () => abrirHoja({ tipo: 'miembro', id: h.id }));
+    }
+    cont.append(item);
+  }
+  $('hoja').style.display = 'block';
+}
 
 // ---------- Ficha de una actividad (FR-1 y FR-8 de la 003) ----------
 let actividadEnFicha = null; // id de la actividad en edición, o null en un alta
@@ -752,6 +855,101 @@ for (const campo of ['actividad-miembro', 'actividad-tipo', 'actividad-frecuenci
 $('actividad-cancelar').addEventListener('click', cerrarFichaActividad);
 $('actividad-eliminar').addEventListener('click', () => {
   if (confirmarYEliminarActividad(actividadEnFicha)) cerrarFichaActividad();
+});
+
+// ---------- Rutina de un familiar (FR-8 de la 004) ----------
+let rutinaActual = null; // { miembroId, dias } de la rutina abierta
+let bloqueEnFicha = null; // id del bloque en edición, o null en un alta
+const MINUTOS_INICIO = Array.from({ length: 48 }, (_, i) => i * 30); // 00:00 a 23:30
+const MINUTOS_FIN = MINUTOS_INICIO.map((m) => m + 30); // 00:30 a 24:00
+
+function abrirRutina(miembroId) {
+  cerrarFicha();
+  rutinaActual = { miembroId, dias: 'laborables' };
+  pintarRutina();
+  $('rutina').style.display = 'flex';
+}
+
+// Selector de horario, contador "n de 8", lista por inicio y "+ Bloque" (AC-1.2, AC-1.3, AC-1.9).
+function pintarRutina() {
+  const { miembroId, dias } = rutinaActual;
+  $('rutina-titulo').textContent = `Rutina de ${buscarMiembro(estado, miembroId).nombre}`;
+  for (const boton of document.querySelectorAll('#rutina [data-dias]')) boton.setAttribute('aria-pressed', String(boton.dataset.dias === dias));
+  $('rutina-cuenta').textContent = `${contarBloques(estado, miembroId, dias)} de ${LIMITE_BLOQUES}`;
+  $('rutina-agregar').disabled = !puedeAgregarBloque(estado, miembroId, dias);
+  const lista = bloquesDe(estado, miembroId, dias);
+  $('rutina-lista').replaceChildren(...(lista.length === 0 ? [elemento('p', 'Sin bloques')] : lista.map((b) => {
+    const fila = elemento('div', textoBloque(estado, b), 'bloque');
+    fila.addEventListener('click', () => abrirFichaBloque(b.id));
+    return fila;
+  })));
+}
+
+// Al cerrar la rutina se vuelve a la ficha del familiar (AC-2.7).
+function cerrarRutina() {
+  const { miembroId } = rutinaActual;
+  $('rutina').style.display = 'none';
+  rutinaActual = null;
+  abrirFichaHabitante('familiar', miembroId);
+}
+
+$('rutina-cerrar').addEventListener('click', cerrarRutina);
+for (const boton of document.querySelectorAll('#rutina [data-dias]')) {
+  boton.addEventListener('click', () => { rutinaActual.dias = boton.dataset.dias; pintarRutina(); });
+}
+$('rutina-agregar').addEventListener('click', () => abrirFichaBloque(null));
+
+// Ficha de un bloque (AC-1.4, AC-2.1): alta sin valores elegidos; edición con inicio, fin y lugar actuales.
+function abrirFichaBloque(id) {
+  bloqueEnFicha = id;
+  const b = id ? buscarBloque(estado, id) : null;
+  $('bloque-titulo').textContent = `${b ? 'Bloque' : 'Nuevo bloque'} · ${DIAS_RUTINA[rutinaActual.dias]}`;
+  opciones($('bloque-inicio'), [['', 'Inicio…'], ...MINUTOS_INICIO.map((m) => [String(m), textoHora(m)])], b ? String(b.inicio) : '');
+  opciones($('bloque-fin'), [['', 'Fin…'], ...MINUTOS_FIN.map((m) => [String(m), textoHora(m)])], b ? String(b.fin) : '');
+  const lugares = [['fuera', 'Fuera de casa'], ...espaciosActivos(estado).map((e) => [e.id, nombreVisible(estado, e)])];
+  opciones($('bloque-lugar'), [['', 'Lugar…'], ...lugares], b ? (b.espacioId ?? 'fuera') : '');
+  $('bloque-error').textContent = '';
+  $('bloque-eliminar').style.display = b ? 'block' : 'none';
+  actualizarFichaBloque();
+  $('ficha-bloque').style.display = 'flex';
+}
+
+// Guardar se activa con inicio, fin y lugar elegidos (AC-1.5); fin no posterior y superposición los rechaza el dominio con su
+// mensaje (AC-1.7, AC-1.8, AC-2.3, AC-2.4).
+function actualizarFichaBloque() {
+  $('bloque-guardar').disabled = ['bloque-inicio', 'bloque-fin', 'bloque-lugar'].some((campo) => $(campo).value === '');
+}
+
+const cerrarFichaBloque = () => { $('ficha-bloque').style.display = 'none'; bloqueEnFicha = null; };
+
+// Los cambios de rutina se guardan al aplicarse (AC-11.2) y no mueven a nadie hasta tocar "Listo" (AC-6.5).
+function aplicarRutina(nuevo) {
+  estado = nuevo;
+  guardarEstado();
+  pintarRutina();
+}
+
+$('ficha-bloque').querySelector('form').addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  const lugar = $('bloque-lugar').value;
+  const datos = { inicio: Number($('bloque-inicio').value), fin: Number($('bloque-fin').value), espacioId: lugar === 'fuera' ? null : lugar };
+  const { miembroId, dias } = rutinaActual;
+  const r = bloqueEnFicha ? editarBloque(estado, bloqueEnFicha, datos, ctx) : agregarBloque(estado, { ...datos, miembroId, dias }, ctx);
+  if (!r.ok) { $('bloque-error').textContent = MENSAJES_BLOQUE[r.error]; return; }
+  cerrarFichaBloque();
+  aplicarRutina(r.estado);
+});
+for (const campo of ['bloque-inicio', 'bloque-fin', 'bloque-lugar']) {
+  $(campo).addEventListener('change', () => { $('bloque-error').textContent = ''; actualizarFichaBloque(); });
+}
+$('bloque-cancelar').addEventListener('click', cerrarFichaBloque);
+// Eliminar un bloque pide confirmación con el familiar y el horario (AC-2.5).
+$('bloque-eliminar').addEventListener('click', () => {
+  const b = buscarBloque(estado, bloqueEnFicha);
+  const pregunta = `¿Eliminar el bloque ${textoBloque(estado, b)} de "${buscarMiembro(estado, b.miembroId).nombre}" (${DIAS_RUTINA[b.dias]})?`;
+  if (!window.confirm(pregunta)) return;
+  cerrarFichaBloque();
+  aplicarRutina(eliminarBloque(estado, b.id, ctx));
 });
 
 // ---------- Ciclo de vida ----------
