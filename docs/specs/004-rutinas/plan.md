@@ -28,7 +28,7 @@
 
 ## Goal
 
-Que el propietario defina la rutina de cada familiar (dos horarios de hasta 8 bloques) y que, en exploración, cada familiar vaya caminando a su espacio, salga por la entrada cuando está fuera y vuelva al terminar, con un cartel que dice quién está fuera. Que las bajas de espacios y familiares arrastren sus bloques y que los hogares de las features 001 a 003 se abran sin pérdida. Todo cubierto por 201 pruebas automáticas (150 existentes + 51 nuevas).
+Que el propietario defina la rutina de cada familiar (dos horarios de hasta 8 bloques) y que, en exploración, cada familiar vaya caminando a su espacio, salga por la entrada cuando está fuera y vuelva al terminar, con un cartel que dice quién está fuera. Que las bajas de espacios y familiares arrastren sus bloques y que los hogares de las features 001 a 003 se abran sin pérdida. Todo cubierto por 205 pruebas automáticas (150 existentes + 55 nuevas).
 
 Archivos (bajo `poc/`):
 - **Lógica:** `src/catalogo.js`, `src/fechas.js`, `src/distribucion.js` (entrada), `src/aspecto.js`, `src/hogar.js` (bloques y cascada), `src/almacen.js` (v4), `src/rutinas.js` (nuevo: operaciones, hora y lugar), `src/rutas.js` (nuevo: rutas), `src/movimiento.js` (objetivos y fases).
@@ -2298,7 +2298,7 @@ $('bloque-eliminar').addEventListener('click', () => {
 
 **Implements:** All FRs | **Satisfies:** All ACs
 
-- [ ] Run full test suite: `cd poc && npm test` — expect: `# pass 201`, `# fail 0`
+- [ ] Run full test suite: `cd poc && npm test` — expect: `# pass 205`, `# fail 0`
 - [ ] Servir en la red local con `python3 -c "import http.server as s; h = type('H', (s.SimpleHTTPRequestHandler,), {'end_headers': lambda self: (self.send_header('Cache-Control', 'no-cache'), s.SimpleHTTPRequestHandler.end_headers(self))[-1]}); s.ThreadingHTTPServer(('0.0.0.0', 8080), h).serve_forever()"` desde `poc/` y abrir `http://<IP-del-computador>:8080` en el Android, en la misma Wi-Fi y con internet para cargar Phaser. Al terminar, parar el servidor.
   > **Nota sobre la caché:** no usar `python3 -m http.server` a secas. Solo envía `Last-Modified`, y el navegador del teléfono puede mezclar módulos viejos y nuevos, y entonces el mapa no se dibuja (incidencia de la 002). Si aun así pasa, borrar los datos de navegación del sitio.
 - [ ] Verificar manualmente en el Android, marcando cada uno:
@@ -2320,9 +2320,176 @@ $('bloque-eliminar').addEventListener('click', () => {
 
 ---
 
+## Phase 9: Correcciones de la revisión de alineación (ronda 1)
+
+**Implements:** FR-3 (espacio lleno), FR-6 (cartel congelado en edición), FR-7 (nombres legibles), NFR Reliability | **Satisfies:** AC-3.5, AC-3.10, AC-6.5, AC-8.6, AC-10.11, AC-11.6
+**Files:** `poc/src/movimiento.js`, `poc/src/juego.js`, `poc/test/movimiento.test.js`, `poc/test/rutinas-lugar.test.js`, `poc/test/almacen.test.js`
+**Interfaces:** Consumes: `rutaMasCorta`, `casillasDe` (`rutas.js`, ya importados en `movimiento.js`), `objetivoDe`, `textoVuelta` (`rutinas.js`) y todo lo de las Fases 0 a 8. Produces: ninguna firma nueva; `avanzarHabitantes` cambia solo la decisión de quien no encuentra casilla libre en su espacio.
+
+La revisión de alineación (sdd-review, modo B, ronda 1) devolvió DRIFT DETECTED con un incumplimiento y cuatro correcciones menores:
+
+- **D1 (AC-3.10).** Un familiar lejos de un espacio lleno se quedaba donde estaba en lugar de ir a esperar a la casilla libre más cercana al espacio, fuera de él. Reproducido: a 30 s seguía a 15 casillas del baño lleno, en fase `planifica`.
+- **D4 (AC-6.5).** En modo edición, la hora de vuelta de la hoja del cartel se calculaba con las rutinas ya editadas, y el cartel no debe cambiar hasta tocar "Listo".
+- **D5 (AC-8.6 y FR-7).** Dos familiares en ruta en la misma casilla dibujaban sus nombres en la misma posición; el más largo podía tapar por completo al más corto.
+- **Cobertura parcial:** faltaban pruebas de AC-3.5 (al terminar el bloque pasea por toda la casa), AC-10.11 (el familiar queda libre o según los bloques que le quedan tras eliminar su espacio) y AC-11.6 (bloque activo que apunta a un familiar eliminado).
+
+Aceptados sin cambio (rulings del plan, no contradicen la spec): el cartel se dibuja alineado a la derecha contra la entrada (D2) y quien espera un espacio lleno no bloquea a quien pasea (D3).
+
+- [ ] En `test/movimiento.test.js`, agregar al final:
+```js
+
+test('AC-3.10 (lejos): un familiar lejos de un espacio lleno va a esperar a la casilla libre más cercana fuera de él y entra cuando se libera una', () => {
+  const ctx = crearCtx();
+  const estado = agregarEspacio(crearHogarInicial(ctx), 'bano', ctx); // baño interno de 4 casillas en "Dormitorio 1"
+  const d = generarDistribucion(estado);
+  const bano = banoDe(estado, espaciosDeTipo(estado, 'dormitorio')[0].id).id;
+  const jugador = { x: 1, y: 8, desde: null }; // lejos del baño y de la ruta
+  const objetivo = { tipo: 'espacio', espacioId: bano };
+  const ids = ['h-1', 'h-2', 'h-3', 'h-4', 'h-5'];
+  const objetivos = new Map(ids.map((id) => [id, objetivo]));
+  const enBano = (h) => d.espacioEn[h.y][h.x] === bano;
+  const llenos = colocarHabitantes(ids.slice(0, 4), d, jugador, azarReproducible(3), objetivos);
+  assert.equal(llenos.filter(enBano).length, 4);
+  let moviles = fijarObjetivos([...llenos, movil('h-5', d.aparicion.x - 2, d.aparicion.y)], objetivos); // h-5 empieza en la sala
+  // la casilla de espera es la libre más cercana al baño, por camino, fuera de él
+  const ocupadas = new Set(llenos.map((h) => claveCasilla(h.x, h.y)));
+  const [origen] = casillasDe(d, bano);
+  const espera = rutaMasCorta(d, origen, (x, y) => d.espacioEn[y][x] !== bano && !ocupadas.has(claveCasilla(x, y))).at(-1);
+  const largo = rutaMasCorta(d, moviles[4], (x, y) => x === espera.x && y === espera.y).length;
+  const llegada = hasta(d, moviles, jugador, (ms) => ms[4].x === espera.x && ms[4].y === espera.y && ms[4].desde === null);
+  assert.ok(llegada.t <= (largo + 1) * MS_POR_PASO, `tardó ${llegada.t} ms para ${largo} casillas`);
+  moviles = hasta(d, llegada.moviles, jugador, () => false, 5000).moviles; // sigue esperando mientras el baño siga lleno
+  assert.deepEqual([moviles[4].x, moviles[4].y, moviles[4].fase], [espera.x, espera.y, 'planifica']);
+  assert.equal(moviles.slice(0, 4).filter(enBano).length, 4);
+  // se libera una casilla: quien está junto a la salida pierde el baño como objetivo y sale, y entra h-5
+  const [salida] = casillasDe(d, bano);
+  const sale = moviles.find((h) => h.x === salida.x && h.y === salida.y).id;
+  moviles = fijarObjetivos(moviles, new Map([...objetivos, [sale, LIBRE]]));
+  moviles = hasta(d, moviles, jugador, (ms) => enBano(ms[4]) && ms[4].fase === 'pasea', 60000).moviles;
+  assert.ok(enBano(moviles[4]), 'h-5 no entró al baño');
+});
+
+test('AC-3.5: al terminar su bloque el familiar deja de limitarse a ese espacio y pasea por toda la casa', () => {
+  const estado = hogarMasGrande();
+  const d = generarDistribucion(estado);
+  const cocina = espaciosDeTipo(estado, 'cocina')[0].id;
+  const jugador = { x: 27, y: 2, desde: null };
+  const [dentro] = casillasDe(d, cocina);
+  let moviles = [movil('h-1', dentro.x, dentro.y, { objetivo: { tipo: 'espacio', espacioId: cocina } })];
+  const visitados = new Set();
+  const azar = azarReproducible(5);
+  const recorrer = (ms) => {
+    for (let t = 0; t < ms; t += 50) {
+      moviles = avanzarHabitantes(moviles, d, jugador, 50, azar);
+      verificarInvariantes(d, moviles, jugador);
+      visitados.add(d.espacioEn[moviles[0].y][moviles[0].x]);
+    }
+  };
+  recorrer(60000);
+  assert.deepEqual([...visitados], [cocina]); // con el bloque vigente nunca sale de su espacio
+  moviles = fijarObjetivos(moviles, new Map()); // el bloque terminó
+  recorrer(300000);
+  assert.ok(visitados.size >= 2, `solo visitó ${[...visitados].join(', ')}`);
+});
+```
+- [ ] En `test/rutinas-lugar.test.js`, reemplazar la línea `import { crearHogarInicial, agregarHabitante, espaciosDeTipo, familiares, mascotas, miembrosActivos } from '../src/hogar.js';` por:
+```js
+import {
+  crearHogarInicial, agregarHabitante, agregarEspacio, eliminarEspacio, espaciosDeTipo, familiares, mascotas, miembrosActivos,
+} from '../src/hogar.js';
+```
+- [ ] Agregar al final de `test/rutinas-lugar.test.js`:
+```js
+
+test('AC-10.11: tras eliminar el espacio de su bloque vigente, el familiar queda según los bloques que le quedan o libre', () => {
+  const ctx = crearCtx();
+  let e = agregarEspacio(crearHogarInicial(ctx), 'lavanderia', ctx);
+  e = agregarHabitante(e, 'familiar', { nombre: 'Diana', parentesco: 'pareja', genero: 'femenino' }, ctx).estado;
+  const diana = familiares(e)[0];
+  const lavanderia = espaciosDeTipo(e, 'lavanderia')[0];
+  for (const b of [{ inicio: 540, fin: 780, espacioId: lavanderia.id }, { inicio: 780, fin: 1080, espacioId: null }]) {
+    e = agregarBloque(e, { miembroId: diana.id, dias: 'laborables', ...b }, ctx).estado;
+  }
+  assert.deepEqual(objetivoDe(e, diana.id, a(LUNES, 10, 0)), { tipo: 'espacio', espacioId: lavanderia.id });
+  const sinLavanderia = eliminarEspacio(e, lavanderia.id, ctx);
+  assert.deepEqual(objetivoDe(sinLavanderia, diana.id, a(LUNES, 10, 0)), { tipo: 'libre' }); // ya no le queda bloque a esa hora
+  assert.deepEqual(objetivoDe(sinLavanderia, diana.id, a(LUNES, 14, 0)), { tipo: 'fuera' }); // el otro bloque sigue
+  assert.deepEqual([...objetivosDeFamiliares(sinLavanderia, a(LUNES, 10, 0)).values()], [{ tipo: 'libre' }]);
+});
+```
+- [ ] Agregar al final de `test/almacen.test.js`:
+```js
+
+test('AC-11.6: un bloque activo que apunta a un familiar eliminado vuelve ilegible el documento', () => {
+  const base = { ...hogarConBloques(crearCtx()), actividades: [] }; // sin actividades: solo los bloques apuntan a Diana
+  const diana = base.miembros[1];
+  const sinDiana = { ...base, miembros: base.miembros.map((m) => (m.id === diana.id ? { ...m, eliminadoEn: '2026-10-07T11:00:00.000Z' } : m)) };
+  assert.ok(sinDiana.bloques.some((b) => b.eliminadoEn === null && b.miembroId === diana.id));
+  const { estado, aviso } = abrirDatos(sinDiana);
+  assert.match(aviso, /No se pudo recuperar/);
+  assert.deepEqual(estado.bloques, []);
+  const todosEliminados = { ...sinDiana, bloques: sinDiana.bloques.map((b) => ({ ...b, eliminadoEn: '2026-10-07T11:00:00.000Z' })) };
+  assert.equal(abrirDatos(todosEliminados).aviso, null); // si sus bloques también están eliminados, el documento es legible
+});
+```
+- [ ] Run: `cd poc && node --test test/movimiento.test.js test/rutinas-lugar.test.js test/almacen.test.js` — expect: FAIL en la prueba `AC-3.10 (lejos)` (el familiar lejano no llega a la casilla de espera: `tardó 60000 ms` / `deepEqual` de `[x, y, fase]`); las demás pruebas nuevas pasan, porque ya se cumplían y les faltaba la prueba. Esperado: `# fail 1`.
+- [ ] En `src/movimiento.js`, dentro de `planificar`, reemplazar las líneas
+```js
+    if (hacia && hacia.length > 0) return { ...h, fase: 'ruta', ruta: hacia };
+    return { ...h, fase: 'planifica', pausaMs: ESPERA_MS };
+  };
+```
+por:
+```js
+    if (hacia && hacia.length > 0) return { ...h, fase: 'ruta', ruta: hacia };
+    // Espacio lleno (AC-3.10): va a esperar a la casilla libre más cercana al espacio, fuera de él, contando como libre la propia; si ya
+    // está en ella, espera. Desde ahí vuelve a intentarlo cada ESPERA_MS.
+    if (propio !== null) {
+      const [origen] = casillasDe(distribucion, propio);
+      const camino = rutaMasCorta(distribucion, origen, (x, y) => !dentro(x, y) && (!ocupada(x, y) || (x === h.x && y === h.y)));
+      const espera = camino?.at(-1);
+      if (espera && (espera.x !== h.x || espera.y !== h.y)) {
+        const ruta = rutaMasCorta(distribucion, h, (x, y) => x === espera.x && y === espera.y);
+        if (ruta && ruta.length > 0) return { ...h, fase: 'ruta', ruta };
+      }
+    }
+    return { ...h, fase: 'planifica', pausaMs: ESPERA_MS };
+  };
+```
+- [ ] En `src/juego.js`, reemplazar la línea `$('editar').addEventListener('click', () => {` por:
+```js
+let estadoAlEditar = null; // rutinas tal como estaban al entrar al modo edición: el cartel no cambia hasta "Listo" (AC-6.5 de la 004)
+$('editar').addEventListener('click', () => {
+  estadoAlEditar = estado;
+```
+- [ ] En `src/juego.js`, en `pintarHojaFuera`, reemplazar `elemento('small', textoVuelta(estado, h.id, ahora))` por:
+```js
+elemento('small', textoVuelta(modo === 'edicion' ? estadoAlEditar : estado, h.id, ahora))
+```
+- [ ] En `src/juego.js`, dentro de `actualizarEtiquetas`, reemplazar las líneas desde `const porCasilla = new Map();` hasta el cierre del `for` que sigue (la línea `s.etiqueta.setOrigin(0.5, debajo ? 0 : 1).setPosition(...)` y su `}`) por:
+```js
+    const porCasilla = new Map();
+    for (const h of moviles) if (h.fase !== 'fuera') porCasilla.set(`${h.x},${h.y}`, (porCasilla.get(`${h.x},${h.y}`) ?? 0) + 1);
+    const bajados = new Map(); // nombres ya puestos debajo en cada casilla: se apilan para que ninguno tape por completo a otro (FR-7)
+    const alto = 18 / this.cameras.main.zoom; // alto de una etiqueta en el mapa (12 px de letra más el relleno)
+    for (const h of moviles) {
+      const s = this.sprites.get(h.id);
+      if (!s) continue;
+      const clave = `${h.x},${h.y}`;
+      const debajo = h.fase !== 'pasea' && porCasilla.get(clave) > 1;
+      const nivel = debajo ? (bajados.get(clave) ?? 0) : 0;
+      if (debajo) bajados.set(clave, nivel + 1);
+      s.etiqueta.setOrigin(0.5, debajo ? 0 : 1).setPosition(s.cuerpo.x, s.cuerpo.y + (debajo ? TILE * 0.6 + nivel * alto : -TILE * 0.6));
+    }
+```
+- [ ] Run: `cd poc && node --check src/juego.js && npm test` — expect: sin errores de sintaxis; `# pass 205`, `# fail 0` (201 + 2 de movimiento + 1 de rutinas-lugar + 1 de almacén)
+- [ ] Commit: `fix(poc): send relatives to wait beside a full space and keep the front door sign frozen in edit mode` (cuerpo: `Plan section: Phase 9: Correcciones de la revisión de alineación (ronda 1)` y `Feature: 004-rutinas`)
+
+---
+
 ## Quickstart Validation
 
-1. `cd poc && npm test` → `# pass 201`, `# fail 0`.
+1. `cd poc && npm test` → `# pass 205`, `# fail 0`.
 2. Servir `poc/` con el comando de la Fase 7 y abrir `http://localhost:8080`: aparece el hogar con una entrada en la pared inferior de la sala.
 3. **Editar** → "+" en Familiares → nombre "Diana", Pareja, Femenino → **Guardar**. Tocar a Diana → **Rutina**. En el horario de hoy ("Lun–Vie" de lunes a viernes, "Sáb–Dom" el fin de semana), "+ Bloque" → inicio: la media hora en curso (por ejemplo 14:30 si son las 14:47), fin: una hora después, lugar "Fuera de casa" → **Guardar**: la lista muestra el bloque y "1 de 8".
 4. **Cerrar** → **Listo**: Diana no está en el mapa y junto a la entrada se ve "1 fuera". Tocar el cartel: "Fuera de casa", con "Diana · Vuelve a las 15:30".
@@ -2335,4 +2502,5 @@ $('bloque-eliminar').addEventListener('click', () => {
 
 | Date | Section | Change |
 |------|---------|--------|
+| 2026-10-07 | Phase 9 | Revisión de alineación (sdd-review, modo B, ronda 1): DRIFT DETECTED con un incumplimiento y cuatro correcciones menores. D1 (AC-3.10): un familiar lejos de un espacio lleno no iba a esperar junto a él; reproducido y corregido en `planificar`, con su prueba. D4 (AC-6.5): la hora de vuelta del cartel se congela con las rutinas al entrar a editar. D5 (AC-8.6): los nombres de familiares en ruta que comparten casilla se apilan. Se agregan pruebas de AC-3.5, AC-10.11 y AC-11.6. Rulings aceptados sin cambio: el cartel alineado a la derecha contra la entrada (D2) y que quien espera un espacio lleno no bloquee a quien pasea (D3). Total: 205 pruebas. |
 | 2026-10-07 | Phases 1, 5 y 7 | Validación del plan en una copia de `poc/` antes de guardarlo: rojo y verde en cada fase (`# pass 201`), 22 mutaciones de reglas clave detectadas (incluida la que hace que quien espera bloquee, que confirma el ruling) y prueba en un navegador con viewport de teléfono. Correcciones: los mensajes de falla esperada de las Fases 1 y 5 nombran el primer export que falta (`ahoraLocal`, `bloqueVigente`); la Fase 7 agrega `pointer-events` a la cruceta, porque sus huecos tapaban el cartel con el personaje en la casilla de aparición. |
