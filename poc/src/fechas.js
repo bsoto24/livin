@@ -29,3 +29,12 @@ export const diasEntre = (desde, hasta) => numeroDeDia(hasta) - numeroDeDia(desd
 
 // Día del calendario local de un instante: la presentación lo usa para obtener `hoy` (FR-10).
 export const fechaLocal = (instante) => `${instante.getFullYear()}-${dos(instante.getMonth() + 1)}-${dos(instante.getDate())}`;
+
+// Día de la semana de una fecha válida, de 1 (lunes) a 7 (domingo). El día 0 (1970-01-01) fue jueves (FR-2 de la 004).
+export const diaDeSemana = (texto) => ((((numeroDeDia(texto) + 3) % 7) + 7) % 7) + 1;
+
+// Minuto local del día de un instante, de 0 a 1439: la rutina se mide en minutos, sin segundos (AC-7.5 de la 004).
+export const minutoLocal = (instante) => instante.getHours() * 60 + instante.getMinutes();
+
+// Fecha y minuto locales de un instante: el `ahora` que la presentación inyecta en las rutinas (ADR-004 de movimiento).
+export const ahoraLocal = (instante) => ({ fecha: fechaLocal(instante), minuto: minutoLocal(instante) });

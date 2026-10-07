@@ -78,3 +78,8 @@ export const ICONOS = {
 export const FRECUENCIAS = [1, 2, 3, 7, 14, 30]; // días
 export const LIMITE_ACTIVIDADES = 50;
 export const MAX_NOMBRE_ACTIVIDAD = 30;
+
+// Rutinas (feature 004): horarios, paso y límite. Las claves se guardan; las etiquetas se muestran.
+export const DIAS_RUTINA = { laborables: 'Lun–Vie', finde: 'Sáb–Dom' };
+export const PASO_RUTINA = 30; // minutos
+export const LIMITE_BLOQUES = 8; // por familiar y por horario
