@@ -103,3 +103,40 @@ export function textoBajas(actividades, bloques) {
   if (partes.length === 0) return '';
   return `Se eliminará${actividades + bloques === 1 ? '' : 'n'} ${partes.join(' y ')}.`;
 }
+
+// ---------- Hora y lugar (ADR-004 de movimiento): nada se guarda; todo sale de (estado, ahora) ----------
+
+// Horario de una fecha (FR-2): de lunes a viernes, `laborables`; sábado y domingo, `finde`.
+export const horarioDelDia = (fecha) => (diaDeSemana(fecha) >= 6 ? 'finde' : 'laborables');
+
+// Bloque vigente (FR-2): el del horario de hoy que cubre el minuto actual (inicio ≤ minuto < fin), o null.
+export const bloqueVigente = (estado, miembroId, ahora) => bloquesDe(estado, miembroId, horarioDelDia(ahora.fecha))
+  .find((b) => b.inicio <= ahora.minuto && ahora.minuto < b.fin) ?? null;
+
+// Objetivo de un familiar (ADR-004): el espacio de su bloque vigente, fuera de casa, o libre si no tiene bloque vigente.
+export function objetivoDe(estado, miembroId, ahora) {
+  const bloque = bloqueVigente(estado, miembroId, ahora);
+  if (!bloque) return { tipo: 'libre' };
+  return bloque.espacioId === null ? { tipo: 'fuera' } : { tipo: 'espacio', espacioId: bloque.espacioId };
+}
+
+// Objetivos de todos los familiares, para el movimiento (FR-3). Las mascotas y el personaje del propietario no tienen rutina.
+export const objetivosDeFamiliares = (estado, ahora) => new Map(familiares(estado).map((m) => [m.id, objetivoDe(estado, m.id, ahora)]));
+
+// Fin del tramo continuo de bloques "Fuera de casa" de hoy que incluye el minuto actual, o null si no le toca estar fuera (AC-5.5).
+export function finDeSalida(estado, miembroId, ahora) {
+  let actual = bloqueVigente(estado, miembroId, ahora);
+  if (!actual || actual.espacioId !== null) return null;
+  const bloques = bloquesDe(estado, miembroId, horarioDelDia(ahora.fecha));
+  const siguienteDe = (b) => bloques.find((x) => x.inicio === b.fin && x.espacioId === null);
+  for (let s = siguienteDe(actual); s; s = siguienteDe(actual)) actual = s;
+  return actual.fin;
+}
+
+// Texto de la fila del cartel (AC-5.4 a AC-5.7): la hora a la que vuelve, "Vuelve mañana" si su salida llega a las 24:00, o
+// "Volviendo" si ya no le toca estar fuera (espera a que se libere la entrada).
+export function textoVuelta(estado, miembroId, ahora) {
+  const fin = finDeSalida(estado, miembroId, ahora);
+  if (fin === null) return 'Volviendo';
+  return fin === MINUTOS_DIA ? 'Vuelve mañana' : `Vuelve a las ${textoHora(fin)}`;
+}
