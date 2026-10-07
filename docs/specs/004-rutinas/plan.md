@@ -28,7 +28,7 @@
 
 ## Goal
 
-Que el propietario defina la rutina de cada familiar (dos horarios de hasta 8 bloques) y que, en exploración, cada familiar vaya caminando a su espacio, salga por la entrada cuando está fuera y vuelva al terminar, con un cartel que dice quién está fuera. Que las bajas de espacios y familiares arrastren sus bloques y que los hogares de las features 001 a 003 se abran sin pérdida. Todo cubierto por 205 pruebas automáticas (150 existentes + 55 nuevas).
+Que el propietario defina la rutina de cada familiar (dos horarios de hasta 8 bloques) y que, en exploración, cada familiar vaya caminando a su espacio, salga por la entrada cuando está fuera y vuelva al terminar, con un cartel que dice quién está fuera. Que las bajas de espacios y familiares arrastren sus bloques y que los hogares de las features 001 a 003 se abran sin pérdida. Todo cubierto por 207 pruebas automáticas (150 existentes + 57 nuevas).
 
 Archivos (bajo `poc/`):
 - **Lógica:** `src/catalogo.js`, `src/fechas.js`, `src/distribucion.js` (entrada), `src/aspecto.js`, `src/hogar.js` (bloques y cascada), `src/almacen.js` (v4), `src/rutinas.js` (nuevo: operaciones, hora y lugar), `src/rutas.js` (nuevo: rutas), `src/movimiento.js` (objetivos y fases).
@@ -2298,7 +2298,7 @@ $('bloque-eliminar').addEventListener('click', () => {
 
 **Implements:** All FRs | **Satisfies:** All ACs
 
-- [ ] Run full test suite: `cd poc && npm test` — expect: `# pass 205`, `# fail 0`
+- [ ] Run full test suite: `cd poc && npm test` — expect: `# pass 207`, `# fail 0`
 - [ ] Servir en la red local con `python3 -c "import http.server as s; h = type('H', (s.SimpleHTTPRequestHandler,), {'end_headers': lambda self: (self.send_header('Cache-Control', 'no-cache'), s.SimpleHTTPRequestHandler.end_headers(self))[-1]}); s.ThreadingHTTPServer(('0.0.0.0', 8080), h).serve_forever()"` desde `poc/` y abrir `http://<IP-del-computador>:8080` en el Android, en la misma Wi-Fi y con internet para cargar Phaser. Al terminar, parar el servidor.
   > **Nota sobre la caché:** no usar `python3 -m http.server` a secas. Solo envía `Last-Modified`, y el navegador del teléfono puede mezclar módulos viejos y nuevos, y entonces el mapa no se dibuja (incidencia de la 002). Si aun así pasa, borrar los datos de navegación del sitio.
 - [ ] Verificar manualmente en el Android, marcando cada uno:
@@ -2487,9 +2487,73 @@ elemento('small', textoVuelta(modo === 'edicion' ? estadoAlEditar : estado, h.id
 
 ---
 
+## Phase 10: Pruebas de AC-9.3 y AC-9.7 (revisión de alineación, ronda 1)
+
+**Implements:** FR-12 (la entrada no cambia nada más ni la validez de la posición guardada) | **Satisfies:** AC-9.3, AC-9.7
+**Files:** `poc/test/distribucion.test.js`, `poc/test/posicion.test.js`
+**Interfaces:** Consumes: `generarDistribucion`, `esTransitable`, `posicionRelativa`, `resolverPosicion` y los ayudantes ya definidos en esos archivos de prueba (`todasLasCombinaciones`, `agregar`). Produces: ningún código de producción; dos pruebas de caracterización.
+
+La revisión de alineación dejó AC-9.3 y AC-9.7 como cobertura parcial: la comparación con el generador de `main` solo se había hecho una vez, a mano. Esta fase la deja en el repositorio. La huella (SHA-256) se calculó con el generador de `main` (antes de la feature 004) sobre las 7.560 distribuciones permitidas, con la serialización de abajo; el generador de esta rama, con la casilla de la entrada vuelta a pared, da exactamente la misma, y por eso la prueba pasa desde el primer momento. Como no hay código de producción nuevo, el paso en rojo es una **mutación de comprobación** de cada prueba.
+
+- [ ] En `test/distribucion.test.js`, reemplazar la línea `import assert from 'node:assert/strict';` por:
+```js
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+```
+- [ ] Agregar al final de `test/distribucion.test.js`:
+```js
+
+test('AC-9.3: con la entrada cerrada, las 7.560 distribuciones son idénticas a las de las features anteriores', () => {
+  // Huella de las 7.560 distribuciones generadas por la feature 003 (sin entrada), con esta misma serialización.
+  const HUELLA_003 = 'f3e2f4bd336a7019084a58fc35df7d5c0adbd8c005e7880d93b1e19968f77393';
+  const huella = createHash('sha256');
+  let total = 0;
+  for (const estado of todasLasCombinaciones()) {
+    const d = generarDistribucion(estado);
+    const { entrada, ...resto } = d;
+    const tiles = d.tiles.map((fila, y) => (y === entrada.y ? fila.slice(0, entrada.x) + '#' + fila.slice(entrada.x + 1) : fila));
+    huella.update(JSON.stringify({ ...resto, tiles }));
+    total++;
+  }
+  assert.equal(total, 7560);
+  assert.equal(huella.digest('hex'), HUELLA_003);
+});
+```
+- [ ] Agregar al final de `test/posicion.test.js`:
+```js
+
+test('AC-9.7 (004): la posición guardada del personaje se restaura en la misma casilla en cualquier casilla transitable, entrada incluida', () => {
+  const ctx = crearCtx();
+  const inicial = crearHogarInicial(ctx);
+  let grande = inicial;
+  for (const tipo of ['comedor', 'cocina', 'lavanderia', 'lavanderia', 'mascota', 'mascota', 'dormitorio', 'dormitorio', 'dormitorio',
+    'oficina', 'oficina', ...Array(6).fill('bano')]) {
+    grande = agregarEspacio(grande, tipo, ctx);
+  }
+  for (const estado of [inicial, grande]) {
+    const d = generarDistribucion(estado);
+    let total = 0;
+    for (let y = 0; y < d.alto; y++) {
+      for (let x = 0; x < d.ancho; x++) {
+        if (!esTransitable(d, x, y)) continue;
+        assert.deepEqual(resolverPosicion(d, posicionRelativa(d, x, y, 'izquierda')), { x, y, direccion: 'izquierda' }, `casilla ${x},${y}`);
+        total++;
+      }
+    }
+    assert.ok(total > 100, `solo ${total} casillas transitables`);
+  }
+});
+```
+- [ ] Run: `cd poc && node --test test/distribucion.test.js test/posicion.test.js` — expect: PASS (`# pass 18`, `# fail 0`: 11 de distribución y 7 de posición)
+- [ ] Mutación de comprobación (no se commitea): en `src/distribucion.js`, agregar temporalmente, justo después de la línea `tiles[entrada.y][entrada.x] = '.';`, la línea `tiles[entrada.y][entrada.x - 1] = '.';` (abre una casilla de pared más) y correr `cd poc && node --test test/distribucion.test.js` — expect: FAIL, entre otras la prueba `AC-9.3: con la entrada cerrada, las 7.560 distribuciones son idénticas...` (el mapa dejó de ser idéntico). Quitar la línea y confirmar `git diff --stat poc/src` vacío.
+- [ ] Run: `cd poc && npm test` — expect: PASS (`# pass 207`, `# fail 0`)
+- [ ] Commit: `test(poc): pin that the front door is the only change to the maps and keeps saved positions valid` (cuerpo: `Plan section: Phase 10: Pruebas de AC-9.3 y AC-9.7 (revisión de alineación, ronda 1)` y `Feature: 004-rutinas`)
+
+---
+
 ## Quickstart Validation
 
-1. `cd poc && npm test` → `# pass 205`, `# fail 0`.
+1. `cd poc && npm test` → `# pass 207`, `# fail 0`.
 2. Servir `poc/` con el comando de la Fase 7 y abrir `http://localhost:8080`: aparece el hogar con una entrada en la pared inferior de la sala.
 3. **Editar** → "+" en Familiares → nombre "Diana", Pareja, Femenino → **Guardar**. Tocar a Diana → **Rutina**. En el horario de hoy ("Lun–Vie" de lunes a viernes, "Sáb–Dom" el fin de semana), "+ Bloque" → inicio: la media hora en curso (por ejemplo 14:30 si son las 14:47), fin: una hora después, lugar "Fuera de casa" → **Guardar**: la lista muestra el bloque y "1 de 8".
 4. **Cerrar** → **Listo**: Diana no está en el mapa y junto a la entrada se ve "1 fuera". Tocar el cartel: "Fuera de casa", con "Diana · Vuelve a las 15:30".
@@ -2502,5 +2566,6 @@ elemento('small', textoVuelta(modo === 'edicion' ? estadoAlEditar : estado, h.id
 
 | Date | Section | Change |
 |------|---------|--------|
+| 2026-10-07 | Phase 10 | AC-9.3 y AC-9.7 quedaban como cobertura parcial en la revisión de alineación (la comparación con el generador de `main` se había hecho una sola vez, a mano). Se deja en el repositorio: una huella SHA-256 de las 7.560 distribuciones calculadas con el generador de `main` (la rama, con la entrada cerrada, da la misma) y una prueba de que toda casilla transitable se restaura en la misma casilla desde una posición guardada. Total: 207 pruebas. |
 | 2026-10-07 | Phase 9 | Revisión de alineación (sdd-review, modo B, ronda 1): DRIFT DETECTED con un incumplimiento y cuatro correcciones menores. D1 (AC-3.10): un familiar lejos de un espacio lleno no iba a esperar junto a él; reproducido y corregido en `planificar`, con su prueba. D4 (AC-6.5): la hora de vuelta del cartel se congela con las rutinas al entrar a editar. D5 (AC-8.6): los nombres de familiares en ruta que comparten casilla se apilan. Se agregan pruebas de AC-3.5, AC-10.11 y AC-11.6. Rulings aceptados sin cambio: el cartel alineado a la derecha contra la entrada (D2) y que quien espera un espacio lleno no bloquee a quien pasea (D3). Total: 205 pruebas. |
 | 2026-10-07 | Phases 1, 5 y 7 | Validación del plan en una copia de `poc/` antes de guardarlo: rojo y verde en cada fase (`# pass 201`), 22 mutaciones de reglas clave detectadas (incluida la que hace que quien espera bloquee, que confirma el ruling) y prueba en un navegador con viewport de teléfono. Correcciones: los mensajes de falla esperada de las Fases 1 y 5 nombran el primer export que falta (`ahoraLocal`, `bloqueVigente`); la Fase 7 agrega `pointer-events` a la cruceta, porque sus huecos tapaban el cartel con el personaje en la casilla de aparición. |
