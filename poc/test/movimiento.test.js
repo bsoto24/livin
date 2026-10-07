@@ -683,3 +683,57 @@ test('AC-3.4, AC-3.6: fijarObjetivos solo cambia a quien tiene un objetivo nuevo
   const [libre] = fijarObjetivos([enSuEspacio], new Map());
   assert.deepEqual([libre.objetivo, libre.fase], [LIBRE, 'planifica']);
 });
+
+test('AC-3.10 (lejos): un familiar lejos de un espacio lleno va a esperar a la casilla libre más cercana fuera de él y entra cuando se libera una', () => {
+  const ctx = crearCtx();
+  const estado = agregarEspacio(crearHogarInicial(ctx), 'bano', ctx); // baño interno de 4 casillas en "Dormitorio 1"
+  const d = generarDistribucion(estado);
+  const bano = banoDe(estado, espaciosDeTipo(estado, 'dormitorio')[0].id).id;
+  const jugador = { x: 1, y: 8, desde: null }; // lejos del baño y de la ruta
+  const objetivo = { tipo: 'espacio', espacioId: bano };
+  const ids = ['h-1', 'h-2', 'h-3', 'h-4', 'h-5'];
+  const objetivos = new Map(ids.map((id) => [id, objetivo]));
+  const enBano = (h) => d.espacioEn[h.y][h.x] === bano;
+  const llenos = colocarHabitantes(ids.slice(0, 4), d, jugador, azarReproducible(3), objetivos);
+  assert.equal(llenos.filter(enBano).length, 4);
+  let moviles = fijarObjetivos([...llenos, movil('h-5', d.aparicion.x - 2, d.aparicion.y)], objetivos); // h-5 empieza en la sala
+  // la casilla de espera es la libre más cercana al baño, por camino, fuera de él
+  const ocupadas = new Set(llenos.map((h) => claveCasilla(h.x, h.y)));
+  const [origen] = casillasDe(d, bano);
+  const espera = rutaMasCorta(d, origen, (x, y) => d.espacioEn[y][x] !== bano && !ocupadas.has(claveCasilla(x, y))).at(-1);
+  const largo = rutaMasCorta(d, moviles[4], (x, y) => x === espera.x && y === espera.y).length;
+  const llegada = hasta(d, moviles, jugador, (ms) => ms[4].x === espera.x && ms[4].y === espera.y && ms[4].desde === null);
+  assert.ok(llegada.t <= (largo + 1) * MS_POR_PASO, `tardó ${llegada.t} ms para ${largo} casillas`);
+  moviles = hasta(d, llegada.moviles, jugador, () => false, 5000).moviles; // sigue esperando mientras el baño siga lleno
+  assert.deepEqual([moviles[4].x, moviles[4].y, moviles[4].fase], [espera.x, espera.y, 'planifica']);
+  assert.equal(moviles.slice(0, 4).filter(enBano).length, 4);
+  // se libera una casilla: quien está junto a la salida pierde el baño como objetivo y sale, y entra h-5
+  const [salida] = casillasDe(d, bano);
+  const sale = moviles.find((h) => h.x === salida.x && h.y === salida.y).id;
+  moviles = fijarObjetivos(moviles, new Map([...objetivos, [sale, LIBRE]]));
+  moviles = hasta(d, moviles, jugador, (ms) => enBano(ms[4]) && ms[4].fase === 'pasea', 60000).moviles;
+  assert.ok(enBano(moviles[4]), 'h-5 no entró al baño');
+});
+
+test('AC-3.5: al terminar su bloque el familiar deja de limitarse a ese espacio y pasea por toda la casa', () => {
+  const estado = hogarMasGrande();
+  const d = generarDistribucion(estado);
+  const cocina = espaciosDeTipo(estado, 'cocina')[0].id;
+  const jugador = { x: 27, y: 2, desde: null };
+  const [dentro] = casillasDe(d, cocina);
+  let moviles = [movil('h-1', dentro.x, dentro.y, { objetivo: { tipo: 'espacio', espacioId: cocina } })];
+  const visitados = new Set();
+  const azar = azarReproducible(5);
+  const recorrer = (ms) => {
+    for (let t = 0; t < ms; t += 50) {
+      moviles = avanzarHabitantes(moviles, d, jugador, 50, azar);
+      verificarInvariantes(d, moviles, jugador);
+      visitados.add(d.espacioEn[moviles[0].y][moviles[0].x]);
+    }
+  };
+  recorrer(60000);
+  assert.deepEqual([...visitados], [cocina]); // con el bloque vigente nunca sale de su espacio
+  moviles = fijarObjetivos(moviles, new Map()); // el bloque terminó
+  recorrer(300000);
+  assert.ok(visitados.size >= 2, `solo visitó ${[...visitados].join(', ')}`);
+});

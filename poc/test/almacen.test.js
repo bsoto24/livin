@@ -423,3 +423,15 @@ test('AC-11.8: el documento guardado no tiene posiciones, objetivos ni datos de 
       'espacioId', 'fin', 'hogarId', 'id', 'inicio', 'miembroId']);
   }
 });
+
+test('AC-11.6: un bloque activo que apunta a un familiar eliminado vuelve ilegible el documento', () => {
+  const base = { ...hogarConBloques(crearCtx()), actividades: [] }; // sin actividades: solo los bloques apuntan a Diana
+  const diana = base.miembros[1];
+  const sinDiana = { ...base, miembros: base.miembros.map((m) => (m.id === diana.id ? { ...m, eliminadoEn: '2026-10-07T11:00:00.000Z' } : m)) };
+  assert.ok(sinDiana.bloques.some((b) => b.eliminadoEn === null && b.miembroId === diana.id));
+  const { estado, aviso } = abrirDatos(sinDiana);
+  assert.match(aviso, /No se pudo recuperar/);
+  assert.deepEqual(estado.bloques, []);
+  const todosEliminados = { ...sinDiana, bloques: sinDiana.bloques.map((b) => ({ ...b, eliminadoEn: '2026-10-07T11:00:00.000Z' })) };
+  assert.equal(abrirDatos(todosEliminados).aviso, null); // si sus bloques también están eliminados, el documento es legible
+});

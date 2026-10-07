@@ -1,7 +1,9 @@
 // test/rutinas-lugar.test.js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { crearHogarInicial, agregarHabitante, espaciosDeTipo, familiares, mascotas, miembrosActivos } from '../src/hogar.js';
+import {
+  crearHogarInicial, agregarHabitante, agregarEspacio, eliminarEspacio, espaciosDeTipo, familiares, mascotas, miembrosActivos,
+} from '../src/hogar.js';
 import {
   agregarBloque, horarioDelDia, bloqueVigente, objetivoDe, objetivosDeFamiliares, finDeSalida, textoVuelta, textoHora, MINUTOS_DIA,
 } from '../src/rutinas.js';
@@ -92,4 +94,20 @@ test('las funciones de hora y lugar son puras y repiten el resultado con los mis
   assert.equal(textoVuelta(e, diana.id, ahora), textoVuelta(e, diana.id, ahora));
   assert.deepEqual(e, copia);
   assert.deepEqual(ahora, a(LUNES, 10, 0));
+});
+
+test('AC-10.11: tras eliminar el espacio de su bloque vigente, el familiar queda según los bloques que le quedan o libre', () => {
+  const ctx = crearCtx();
+  let e = agregarEspacio(crearHogarInicial(ctx), 'lavanderia', ctx);
+  e = agregarHabitante(e, 'familiar', { nombre: 'Diana', parentesco: 'pareja', genero: 'femenino' }, ctx).estado;
+  const diana = familiares(e)[0];
+  const lavanderia = espaciosDeTipo(e, 'lavanderia')[0];
+  for (const b of [{ inicio: 540, fin: 780, espacioId: lavanderia.id }, { inicio: 780, fin: 1080, espacioId: null }]) {
+    e = agregarBloque(e, { miembroId: diana.id, dias: 'laborables', ...b }, ctx).estado;
+  }
+  assert.deepEqual(objetivoDe(e, diana.id, a(LUNES, 10, 0)), { tipo: 'espacio', espacioId: lavanderia.id });
+  const sinLavanderia = eliminarEspacio(e, lavanderia.id, ctx);
+  assert.deepEqual(objetivoDe(sinLavanderia, diana.id, a(LUNES, 10, 0)), { tipo: 'libre' }); // ya no le queda bloque a esa hora
+  assert.deepEqual(objetivoDe(sinLavanderia, diana.id, a(LUNES, 14, 0)), { tipo: 'fuera' }); // el otro bloque sigue
+  assert.deepEqual([...objetivosDeFamiliares(sinLavanderia, a(LUNES, 10, 0)).values()], [{ tipo: 'libre' }]);
 });

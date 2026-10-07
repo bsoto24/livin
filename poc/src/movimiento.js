@@ -201,6 +201,17 @@ export function avanzarHabitantes(moviles, distribucion, jugador, dtMs, azar) {
     const hacia = rutaMasCorta(distribucion, h, (x, y) => dentro(x, y) && !ocupada(x, y))
       ?? (compartida ? rutaMasCorta(distribucion, h, (x, y) => !ocupada(x, y)) : null);
     if (hacia && hacia.length > 0) return { ...h, fase: 'ruta', ruta: hacia };
+    // Espacio lleno (AC-3.10): va a esperar a la casilla libre más cercana al espacio, fuera de él, contando como libre la propia; si ya
+    // está en ella, espera. Desde ahí vuelve a intentarlo cada ESPERA_MS.
+    if (propio !== null) {
+      const [origen] = casillasDe(distribucion, propio);
+      const camino = rutaMasCorta(distribucion, origen, (x, y) => !dentro(x, y) && (!ocupada(x, y) || (x === h.x && y === h.y)));
+      const espera = camino?.at(-1);
+      if (espera && (espera.x !== h.x || espera.y !== h.y)) {
+        const ruta = rutaMasCorta(distribucion, h, (x, y) => x === espera.x && y === espera.y);
+        if (ruta && ruta.length > 0) return { ...h, fase: 'ruta', ruta };
+      }
+    }
     return { ...h, fase: 'planifica', pausaMs: ESPERA_MS };
   };
 

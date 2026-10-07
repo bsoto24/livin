@@ -333,11 +333,16 @@ class Escena extends Phaser.Scene {
     // En una casilla compartida, el nombre de quien va en ruta pasa debajo de su cuerpo para no tapar el otro (AC-8.6 de la 004).
     const porCasilla = new Map();
     for (const h of moviles) if (h.fase !== 'fuera') porCasilla.set(`${h.x},${h.y}`, (porCasilla.get(`${h.x},${h.y}`) ?? 0) + 1);
+    const bajados = new Map(); // nombres ya puestos debajo en cada casilla: se apilan para que ninguno tape por completo a otro (FR-7)
+    const alto = 18 / this.cameras.main.zoom; // alto de una etiqueta en el mapa (12 px de letra más el relleno)
     for (const h of moviles) {
       const s = this.sprites.get(h.id);
       if (!s) continue;
-      const debajo = h.fase !== 'pasea' && porCasilla.get(`${h.x},${h.y}`) > 1;
-      s.etiqueta.setOrigin(0.5, debajo ? 0 : 1).setPosition(s.cuerpo.x, s.cuerpo.y + (debajo ? TILE * 0.6 : -TILE * 0.6));
+      const clave = `${h.x},${h.y}`;
+      const debajo = h.fase !== 'pasea' && porCasilla.get(clave) > 1;
+      const nivel = debajo ? (bajados.get(clave) ?? 0) : 0;
+      if (debajo) bajados.set(clave, nivel + 1);
+      s.etiqueta.setOrigin(0.5, debajo ? 0 : 1).setPosition(s.cuerpo.x, s.cuerpo.y + (debajo ? TILE * 0.6 + nivel * alto : -TILE * 0.6));
     }
     this.colocarBurbujas();
     if (modo !== 'exploracion') return; // en edición se ve todo el hogar: las etiquetas quedan centradas
@@ -438,7 +443,9 @@ function mostrarExploracion(visible) {
   $('panel').style.display = visible ? 'none' : 'block';
 }
 
+let estadoAlEditar = null; // rutinas tal como estaban al entrar al modo edición: el cartel no cambia hasta "Listo" (AC-6.5 de la 004)
 $('editar').addEventListener('click', () => {
+  estadoAlEditar = estado;
   if (moviendo) return;
   cerrarHoja(); // la hoja de exploración ofrece "Hecho"; en edición se vuelve a abrir desde la burbuja con Editar y Eliminar
   guardarPosicion();
@@ -769,7 +776,7 @@ function pintarHojaFuera() {
   for (const h of fuera) {
     const conPendientes = tienePendientesSinEspacio(h.id);
     const datos = elemento('span');
-    datos.append(elemento('strong', buscarMiembro(estado, h.id).nombre), elemento('small', textoVuelta(estado, h.id, ahora)));
+    datos.append(elemento('strong', buscarMiembro(estado, h.id).nombre), elemento('small', textoVuelta(modo === 'edicion' ? estadoAlEditar : estado, h.id, ahora)));
     const item = elemento('div', undefined, 'item');
     item.append(elemento('span', conPendientes ? '!' : '', 'icono'), datos, elemento('span'));
     if (modo === 'edicion') {
