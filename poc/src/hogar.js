@@ -36,8 +36,10 @@ export function crearHogarInicial(ctx) {
     id: ctx.nuevoId(), hogarId, nombre: 'Personaje 1', cuentaId,
     tipo: 'persona', parentesco: null, genero: null, especie: null, ...a(),
   };
-  // Documento versión 3 (ADR-003 de modelo de actividades): el hogar empieza sin actividades.
-  return { version: 3, cuentas: [cuenta], hogares: [hogar], membresias: [membresia], espacios, miembros: [miembro], actividades: [] };
+  // Documento versión 4 (ADR-004 de modelo de rutinas): el hogar empieza sin actividades ni bloques de rutina.
+  return {
+    version: 4, cuentas: [cuenta], hogares: [hogar], membresias: [membresia], espacios, miembros: [miembro], actividades: [], bloques: [],
+  };
 }
 
 // ---------- Consultas ----------
@@ -294,6 +296,12 @@ function darDeBajaActividades(estado, afectada, ahora, ctx) {
   const actividades = estado.actividades.map((a) => (a.eliminadoEn === null && afectada(a) ? { ...tocar(a, ctx), eliminadoEn: ahora } : a));
   return { ...estado, actividades };
 }
+
+// ---------- Bloques de rutina (feature 004): consultas ----------
+
+export const bloquesActivos = (estado) => estado.bloques.filter((b) => b.eliminadoEn === null);
+export const bloquesDeEspacios = (estado, ids) => bloquesActivos(estado).filter((b) => ids.includes(b.espacioId)).length;
+export const bloquesDeMiembro = (estado, id) => bloquesActivos(estado).filter((b) => b.miembroId === id).length;
 
 export const MENSAJES_ERROR = {
   vacio: 'El nombre no puede estar vacío.',
