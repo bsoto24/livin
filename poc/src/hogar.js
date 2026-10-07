@@ -126,23 +126,26 @@ export function agregarEspacio(estado, tipo, ctx) {
   return { ...estado, espacios: [...estado.espacios, nuevo] };
 }
 
-// Qué pasaría al eliminar este espacio (para decidir si se pide confirmación). `actividades` cuenta las pendientes
-// que se eliminarían con él, incluidas las de su baño interno si se elimina con él (FR-9 de la 003).
+// Qué pasaría al eliminar este espacio (para decidir si se pide confirmación). `actividades` cuenta las pendientes y `bloques`
+// los bloques de rutina que se eliminarían con él, incluidos los de su baño interno si se elimina con él (FR-9 de la 003 y
+// de la 004).
 export function consecuenciasDeEliminar(estado, id) {
   const espacio = buscarEspacio(estado, id);
   const bano = espacio ? banoDe(estado, espacio.id) : null;
   const banoSeElimina = Boolean(bano) && siguienteDestinoBano(estado, id) === null;
+  const eliminados = banoSeElimina ? [id, bano.id] : [id];
   return {
     tieneNombrePersonalizado: Boolean(espacio?.nombrePersonalizado),
     banoSeElimina,
     banoSeMueve: Boolean(bano) && !banoSeElimina,
-    actividades: pendientesDeEspacios(estado, banoSeElimina ? [id, bano.id] : [id]),
+    actividades: pendientesDeEspacios(estado, eliminados),
+    bloques: bloquesDeEspacios(estado, eliminados),
   };
 }
 
 export const requiereConfirmacion = (estado, id) => {
   const c = consecuenciasDeEliminar(estado, id);
-  return c.tieneNombrePersonalizado || c.banoSeElimina || c.actividades > 0;
+  return c.tieneNombrePersonalizado || c.banoSeElimina || c.actividades > 0 || c.bloques > 0;
 };
 
 export function eliminarEspacio(estado, id, ctx) {
@@ -155,9 +158,11 @@ export function eliminarEspacio(estado, id, ctx) {
   if (bano && destino) cambios.push({ ...tocar(bano, ctx), contenidoEn: destino.id });
   if (bano && !destino) cambios.push({ ...tocar(bano, ctx), eliminadoEn: ahora });
   let resultado = reemplazar(estado, cambios);
-  // Baja en cascada de las actividades del espacio y, si se elimina con él, de su baño interno (FR-9 de la 003).
+  // Baja en cascada de las actividades y de los bloques de rutina del espacio y, si se elimina con él, de su baño interno
+  // (FR-9 de la 003 y de la 004). Si el baño se mueve, conserva los suyos.
   const eliminados = bano && !destino ? [id, bano.id] : [id];
   resultado = darDeBajaActividades(resultado, (a) => eliminados.includes(a.espacioId), ahora, ctx);
+  resultado = darDeBajaBloques(resultado, (b) => eliminados.includes(b.espacioId), ahora, ctx);
   // Recompactar el orden de los restantes del mismo tipo (solo cambia el nombre automático).
   const restantes = espaciosDeTipo(resultado, espacio.tipo);
   const reordenados = restantes.filter((e, i) => e.orden !== i + 1).map((e) => ({ ...tocar(e, ctx), orden: restantes.indexOf(e) + 1 }));
@@ -275,13 +280,14 @@ export function puedeEliminarMiembro(estado, id) {
   return Boolean(miembro) && !esPropietario(estado, miembro);
 }
 
-// Borrado lógico (FR-4, FR-10 de la 002): el registro queda con su fecha de eliminación; no afecta a los espacios
-// ni a los demás miembros. Sus actividades se dan de baja en la misma operación (FR-9 de la 003).
+// Borrado lógico (FR-4, FR-10 de la 002): el registro queda con su fecha de eliminación; no afecta a los espacios ni a los
+// demás miembros. Sus actividades y sus bloques de rutina se dan de baja en la misma operación (FR-9 de la 003 y de la 004).
 export function eliminarHabitante(estado, id, ctx) {
   if (!puedeEliminarMiembro(estado, id)) return estado;
   const ahora = ctx.ahora();
   const miembros = estado.miembros.map((m) => (m.id === id ? { ...tocar(m, ctx), eliminadoEn: ahora } : m));
-  return darDeBajaActividades({ ...estado, miembros }, (a) => a.miembroId === id, ahora, ctx);
+  const sinActividades = darDeBajaActividades({ ...estado, miembros }, (a) => a.miembroId === id, ahora, ctx);
+  return darDeBajaBloques(sinActividades, (b) => b.miembroId === id, ahora, ctx);
 }
 
 // ---------- Actividades (feature 003): consultas y bajas en cascada ----------
@@ -302,6 +308,12 @@ function darDeBajaActividades(estado, afectada, ahora, ctx) {
 export const bloquesActivos = (estado) => estado.bloques.filter((b) => b.eliminadoEn === null);
 export const bloquesDeEspacios = (estado, ids) => bloquesActivos(estado).filter((b) => ids.includes(b.espacioId)).length;
 export const bloquesDeMiembro = (estado, id) => bloquesActivos(estado).filter((b) => b.miembroId === id).length;
+
+// Baja lógica, con la misma fecha, de todos los bloques activos que cumplen `afectado` (FR-9 de la 004).
+function darDeBajaBloques(estado, afectado, ahora, ctx) {
+  const bloques = estado.bloques.map((b) => (b.eliminadoEn === null && afectado(b) ? { ...tocar(b, ctx), eliminadoEn: ahora } : b));
+  return { ...estado, bloques };
+}
 
 export const MENSAJES_ERROR = {
   vacio: 'El nombre no puede estar vacío.',
