@@ -1,6 +1,6 @@
 # ADR-002-movimiento-habitantes-modulo-puro: Movimiento aleatorio de los habitantes como módulo puro con azar inyectado
 
-**Status:** Accepted
+**Status:** Accepted (ampliado por [004-movimiento-hacia-objetivo-reloj](004-movimiento-hacia-objetivo-reloj.md): los familiares con rutina caminan hacia un objetivo y, en ruta, pueden cruzarse con otros habitantes)
 **Date:** 2026-10-05
 **Feature:** 002-familiares-y-mascotas
 
