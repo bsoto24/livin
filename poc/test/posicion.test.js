@@ -87,3 +87,25 @@ test('AC-5.1, AC-5.3 (002): un habitante bloquea el paso del jugador y deja pasa
   assert.deepEqual(paso(d, inicio, 'abajo', new Set()), { x: inicio.x, y: inicio.y + 1, direccion: 'abajo', movio: true });
   assert.deepEqual(paso(d, inicio, 'abajo'), { x: inicio.x, y: inicio.y + 1, direccion: 'abajo', movio: true });
 });
+
+test('AC-9.7 (004): la posición guardada del personaje se restaura en la misma casilla en cualquier casilla transitable, entrada incluida', () => {
+  const ctx = crearCtx();
+  const inicial = crearHogarInicial(ctx);
+  let grande = inicial;
+  for (const tipo of ['comedor', 'cocina', 'lavanderia', 'lavanderia', 'mascota', 'mascota', 'dormitorio', 'dormitorio', 'dormitorio',
+    'oficina', 'oficina', ...Array(6).fill('bano')]) {
+    grande = agregarEspacio(grande, tipo, ctx);
+  }
+  for (const estado of [inicial, grande]) {
+    const d = generarDistribucion(estado);
+    let total = 0;
+    for (let y = 0; y < d.alto; y++) {
+      for (let x = 0; x < d.ancho; x++) {
+        if (!esTransitable(d, x, y)) continue;
+        assert.deepEqual(resolverPosicion(d, posicionRelativa(d, x, y, 'izquierda')), { x, y, direccion: 'izquierda' }, `casilla ${x},${y}`);
+        total++;
+      }
+    }
+    assert.ok(total > 100, `solo ${total} casillas transitables`);
+  }
+});

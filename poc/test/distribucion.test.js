@@ -1,6 +1,7 @@
 // test/distribucion.test.js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { crearHogarInicial, agregarEspacio, eliminarEspacio, espaciosDeTipo, espaciosActivos, banoDe, banoComun, cuartosEnOrden } from '../src/hogar.js';
 import { generarDistribucion, esTransitable } from '../src/distribucion.js';
 import { paso } from '../src/posicion.js';
@@ -284,4 +285,20 @@ test('AC-9.5, FR-12: el jugador puede pisar la entrada pero no salir por ella', 
     assert.deepEqual(paso(d, d.entrada, 'abajo'), { x: d.entrada.x, y: d.entrada.y, direccion: 'abajo', movio: false });
     for (const lado of ['izquierda', 'derecha']) assert.equal(paso(d, d.entrada, lado).movio, false);
   }
+});
+
+test('AC-9.3: con la entrada cerrada, las 7.560 distribuciones son idénticas a las de las features anteriores', () => {
+  // Huella de las 7.560 distribuciones generadas por la feature 003 (sin entrada), con esta misma serialización.
+  const HUELLA_003 = 'f3e2f4bd336a7019084a58fc35df7d5c0adbd8c005e7880d93b1e19968f77393';
+  const huella = createHash('sha256');
+  let total = 0;
+  for (const estado of todasLasCombinaciones()) {
+    const d = generarDistribucion(estado);
+    const { entrada, ...resto } = d;
+    const tiles = d.tiles.map((fila, y) => (y === entrada.y ? fila.slice(0, entrada.x) + '#' + fila.slice(entrada.x + 1) : fila));
+    huella.update(JSON.stringify({ ...resto, tiles }));
+    total++;
+  }
+  assert.equal(total, 7560);
+  assert.equal(huella.digest('hex'), HUELLA_003);
 });
