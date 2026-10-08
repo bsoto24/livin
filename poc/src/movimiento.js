@@ -245,3 +245,42 @@ export function avanzarHabitantes(moviles, distribucion, jugador, dtMs, azar) {
     return pasear(h, sobranteMs);
   });
 }
+
+// Cambio de jugador (FR-2 a FR-4 de la 005, ADR-005 de jugador activo). Pura y sin azar. `saliente` es { id, x, y, direccion } de quien
+// jugaba (o null si ya no existe) y `nuevoId` es uno de los móviles. El nuevo jugador sale de los móviles y toma la casilla que
+// ocupaba (o a la que se dirigía); un familiar fuera de casa aparece en la entrada, o en la casilla libre más cercana por camino
+// si está ocupada. El saliente pasa a ser un móvil en su casilla con el objetivo de su rutina (`objetivos`) o libre. Quien comparte
+// casilla con el nuevo jugador se aparta a la libre más cercana, sin perder su objetivo.
+export function cambiarJugador(moviles, saliente, nuevoId, distribucion, objetivos = new Map()) {
+  const entrante = moviles.find((h) => h.id === nuevoId);
+  const resto = moviles.filter((h) => h.id !== nuevoId);
+  const clave = (c) => claveCasilla(c.x, c.y);
+  const ocupadas = ocupadasPorHabitantes(resto);
+  if (saliente) ocupadas.add(clave(saliente));
+  let casilla = { x: entrante.x, y: entrante.y };
+  if (entrante.fase === 'fuera') {
+    const { entrada } = distribucion;
+    casilla = ocupadas.has(clave(entrada))
+      ? rutaMasCorta(distribucion, entrada, (x, y) => !ocupadas.has(claveCasilla(x, y))).at(-1)
+      : { x: entrada.x, y: entrada.y };
+  }
+  const jugador = { id: nuevoId, x: casilla.x, y: casilla.y, direccion: entrante.direccion ?? 'abajo' };
+
+  const choca = (h) => h.fase !== 'fuera' && (clave(h) === clave(casilla) || (h.desde !== null && clave(h.desde) === clave(casilla)));
+  const tomadas = ocupadasPorHabitantes(resto.filter((h) => !choca(h)));
+  tomadas.add(clave(casilla));
+  if (saliente) tomadas.add(clave(saliente));
+  const aparte = new Map();
+  for (const h of resto.filter(choca)) {
+    const libre = rutaMasCorta(distribucion, h, (x, y) => !tomadas.has(claveCasilla(x, y))).at(-1);
+    tomadas.add(clave(libre));
+    aparte.set(h.id, nuevoMovil(h.id, libre.x, libre.y, h.objetivo, h.objetivo.tipo === 'libre' ? 'pasea' : 'planifica'));
+  }
+
+  const lista = resto.map((h) => aparte.get(h.id) ?? h);
+  if (saliente) {
+    const objetivo = objetivos.get(saliente.id) ?? LIBRE;
+    lista.push(nuevoMovil(saliente.id, saliente.x, saliente.y, objetivo, objetivo.tipo === 'libre' ? 'pasea' : 'planifica'));
+  }
+  return { jugador, moviles: lista };
+}

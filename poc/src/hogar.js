@@ -324,6 +324,21 @@ function darDeBajaBloques(estado, afectado, ahora, ctx) {
   return { ...estado, bloques };
 }
 
+// ---------- Jugador activo (feature 005) ----------
+
+export const propietarioDe = (estado) => miembrosActivos(estado).find((m) => esPropietario(estado, m)) ?? null;
+
+// Pueden jugar el propietario y los familiares activos, el propietario primero; las mascotas no (FR-1 de la 005).
+export const personasQueJuegan = (estado) => [propietarioDe(estado), ...familiares(estado)];
+export const puedeJugar = (estado, id) => personasQueJuegan(estado).some((m) => m.id === id);
+
+// Quién juega al abrir la app (FR-6 de la 005): la persona guardada junto a la posición si todavía puede jugar; si no hay ninguna
+// guardada (un hogar de una feature anterior) o ya no existe, el propietario.
+export function jugadorInicial(estado, guardada) {
+  const id = guardada?.jugadorId;
+  return typeof id === 'string' && puedeJugar(estado, id) ? id : propietarioDe(estado).id;
+}
+
 export const MENSAJES_ERROR = {
   vacio: 'El nombre no puede estar vacío.',
   largo: 'El nombre puede tener como máximo 20 caracteres.',
