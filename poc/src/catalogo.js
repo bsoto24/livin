@@ -83,3 +83,7 @@ export const MAX_NOMBRE_ACTIVIDAD = 30;
 export const DIAS_RUTINA = { laborables: 'Lun–Vie', finde: 'Sáb–Dom' };
 export const PASO_RUTINA = 30; // minutos
 export const LIMITE_BLOQUES = 8; // por familiar y por horario
+
+// Intercambios (feature 005): estados de una propuesta y límite de propuestas vigentes. Las claves se guardan; las etiquetas se muestran.
+export const ESTADOS_INTERCAMBIO = { pendiente: 'Pendiente', aceptado: 'Aceptado', rechazado: 'Rechazado', retirado: 'Retirado' };
+export const LIMITE_INTERCAMBIOS = 20;

@@ -1,7 +1,7 @@
 // test/almacen.test.js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { crearAlmacen, iniciarSesion, migrarAV2, migrarAV3, migrarAV4, CLAVE_DATOS, CLAVE_POSICION } from '../src/almacen.js';
+import { crearAlmacen, iniciarSesion, migrarAV2, migrarAV3, migrarAV4, migrarAV5, CLAVE_DATOS, CLAVE_POSICION } from '../src/almacen.js';
 import {
   agregarEspacio, renombrarEspacio, espaciosDeTipo, crearHogarInicial, agregarHabitante, eliminarHabitante, familiares, mascotas,
 } from '../src/hogar.js';
@@ -69,7 +69,7 @@ test('Error: si falla el guardado se informa sin lanzar', () => {
 
 // Documento como lo guardaba la feature 001: versión 1, sin actividades y miembros sin tipo, parentesco, género ni especie.
 function comoV1(estado) {
-  const { actividades, bloques, ...resto } = estado;
+  const { actividades, bloques, intercambios, ...resto } = estado;
   return { ...resto, version: 1, miembros: estado.miembros.map(({ tipo, parentesco, genero, especie, ...m }) => m) };
 }
 
@@ -90,7 +90,7 @@ test('AC-9.1: los habitantes y sus datos se guardan y se restauran igual', () =>
   assert.deepEqual(mascotas(estado).map((m) => [m.nombre, m.especie]), [['Firulais', 'perro']]);
 });
 
-test('AC-9.3 (002), AC-8.3 (003), AC-11.3 (004): un hogar de la feature 001 se abre sin aviso y se guarda como versión 4 en el siguiente guardado', () => {
+test('AC-9.3 (002), AC-8.3 (003), AC-11.3 (004): un hogar de la feature 001 se abre sin aviso y se guarda como versión 5 en el siguiente guardado', () => {
   const ctx = crearCtx();
   let e = agregarEspacio(crearHogarInicial(ctx), 'dormitorio', ctx);
   e = renombrarEspacio(e, espaciosDeTipo(e, 'dormitorio')[1].id, 'Cuarto de Bryam', ctx).estado;
@@ -99,10 +99,10 @@ test('AC-9.3 (002), AC-8.3 (003), AC-11.3 (004): un hogar de la feature 001 se a
   const almacen = crearAlmacen(storage);
   const { estado, aviso } = iniciarSesion(almacen, crearCtx());
   assert.equal(aviso, null);
-  assert.deepEqual(estado, e); // mismos espacios, nombres y personaje, sin actividades ni bloques; ya en versión 4 en memoria
+  assert.deepEqual(estado, e); // mismos espacios, nombres y personaje, sin actividades ni bloques; ya en versión 5 en memoria
   assert.equal(storage.datos.get(CLAVE_DATOS), textoV1); // abrir no reescribe el documento
   almacen.guardar(estado);
-  assert.equal(JSON.parse(storage.datos.get(CLAVE_DATOS)).version, 4);
+  assert.equal(JSON.parse(storage.datos.get(CLAVE_DATOS)).version, 5);
 });
 
 test('AC-9.4: tras migrar, el personaje del propietario conserva nombre y cuenta y no recibe parentesco ni género', () => {
@@ -205,7 +205,7 @@ test('AC-9.5: un miembro activo sin tipo hace ilegible el documento', () => {
 
 // Documento como lo guardaba la feature 002: versión 2 y sin actividades.
 function comoV2(estado) {
-  const { actividades, bloques, ...resto } = estado;
+  const { actividades, bloques, intercambios, ...resto } = estado;
   return { ...resto, version: 2 };
 }
 
@@ -214,7 +214,7 @@ function actividadGuardada(estado, id, extra = {}) {
   const [, diana] = estado.miembros;
   return {
     id, hogarId: estado.hogares[0].id, nombre: 'Lavar los platos', icono: 'platos', miembroId: diana.id,
-    espacioId: espaciosDeTipo(estado, 'cocina')[0].id, tipo: 'puntual', vence: '2026-10-06', frecuenciaDias: null, hechaEn: null,
+    espacioId: espaciosDeTipo(estado, 'cocina')[0].id, tipo: 'puntual', vence: '2026-10-06', frecuenciaDias: null, hechaEn: null, devolverA: null,
     creadoEn: '2026-10-06T10:00:00.000Z', actualizadoEn: '2026-10-06T10:00:00.000Z',
     creadoPor: 'cuenta-1', actualizadoPor: 'cuenta-1', eliminadoEn: null, ...extra,
   };
@@ -244,17 +244,17 @@ test('AC-8.1 (003): las actividades se guardan y se restauran igual', () => {
   assert.deepEqual(estado, e);
 });
 
-test('AC-8.4 (003), AC-11.4 (004): un hogar de la feature 002 se abre sin aviso, sin actividades ni bloques, y se guarda como versión 4 en el siguiente guardado', () => {
+test('AC-8.4 (003), AC-11.4 (004): un hogar de la feature 002 se abre sin aviso, sin actividades ni bloques, y se guarda como versión 5 en el siguiente guardado', () => {
   const e = hogarConHabitantes(crearCtx());
   const textoV2 = JSON.stringify(comoV2(e));
   const storage = almacenEnMemoria({ [CLAVE_DATOS]: textoV2 });
   const almacen = crearAlmacen(storage);
   const { estado, aviso } = iniciarSesion(almacen, crearCtx());
   assert.equal(aviso, null);
-  assert.deepEqual(estado, e); // mismos espacios y habitantes, sin actividades ni bloques; ya en versión 4 en memoria
+  assert.deepEqual(estado, e); // mismos espacios y habitantes, sin actividades ni bloques; ya en versión 5 en memoria
   assert.equal(storage.datos.get(CLAVE_DATOS), textoV2); // abrir no reescribe el documento
   almacen.guardar(estado);
-  assert.equal(JSON.parse(storage.datos.get(CLAVE_DATOS)).version, 4);
+  assert.equal(JSON.parse(storage.datos.get(CLAVE_DATOS)).version, 5);
 });
 
 test('migrarAV3 es pura: no modifica el documento de entrada y solo agrega la lista de actividades vacía', () => {
@@ -317,8 +317,8 @@ test('AC-8.6 (003): una actividad eliminada con datos inválidos no vuelve ilegi
 
 // Documento como lo guardaba la feature 003: versión 3 y sin bloques de rutina.
 function comoV3(estado) {
-  const { bloques, ...resto } = estado;
-  return { ...resto, version: 3 };
+  const { bloques, intercambios, ...resto } = estado;
+  return { ...resto, version: 3, actividades: estado.actividades.map(({ devolverA, ...a }) => a) };
 }
 
 // Bloque guardado tal como lo escribe la feature 004 (para probar el almacén sin depender de sus operaciones).
@@ -345,27 +345,27 @@ function hogarConBloques(ctx) {
 
 const conBloque = (base, nuevo) => ({ ...base, bloques: base.bloques.map((b) => (b.id === nuevo.id ? nuevo : b)) });
 
-test('AC-11.1, AC-12.3: los bloques de rutina se guardan y se restauran igual, en versión 4', () => {
+test('AC-11.1, AC-12.3: los bloques de rutina se guardan y se restauran igual, en versión 5', () => {
   const almacen = crearAlmacen(almacenEnMemoria());
   const e = hogarConBloques(crearCtx());
   assert.deepEqual(almacen.guardar(e), { ok: true });
   const { estado, aviso } = iniciarSesion(almacen, crearCtx());
   assert.equal(aviso, null);
   assert.deepEqual(estado, e);
-  assert.equal(estado.version, 4);
+  assert.equal(estado.version, 5);
 });
 
-test('AC-11.5: un hogar de la feature 003 se abre sin aviso, sin bloques, y se guarda como versión 4 en el siguiente guardado', () => {
+test('AC-11.5: un hogar de la feature 003 se abre sin aviso, sin bloques, y se guarda como versión 5 en el siguiente guardado', () => {
   const e = hogarConActividades(crearCtx());
   const textoV3 = JSON.stringify(comoV3(e));
   const storage = almacenEnMemoria({ [CLAVE_DATOS]: textoV3 });
   const almacen = crearAlmacen(storage);
   const { estado, aviso } = iniciarSesion(almacen, crearCtx());
   assert.equal(aviso, null);
-  assert.deepEqual(estado, e); // mismos espacios, habitantes y actividades, sin bloques; ya en versión 4 en memoria
+  assert.deepEqual(estado, e); // mismos espacios, habitantes y actividades, sin bloques; ya en versión 5 en memoria
   assert.equal(storage.datos.get(CLAVE_DATOS), textoV3); // abrir no reescribe el documento
   almacen.guardar(estado);
-  assert.equal(JSON.parse(storage.datos.get(CLAVE_DATOS)).version, 4);
+  assert.equal(JSON.parse(storage.datos.get(CLAVE_DATOS)).version, 5);
 });
 
 test('migrarAV4 es pura: no modifica el documento de entrada y solo agrega la lista de bloques vacía', () => {
@@ -417,7 +417,7 @@ test('AC-11.8: el documento guardado no tiene posiciones, objetivos ni datos de 
   const storage = almacenEnMemoria();
   crearAlmacen(storage).guardar(hogarConBloques(crearCtx()));
   const guardado = JSON.parse(storage.datos.get(CLAVE_DATOS));
-  assert.deepEqual(Object.keys(guardado).sort(), ['actividades', 'bloques', 'cuentas', 'espacios', 'hogares', 'membresias', 'miembros', 'version']);
+  assert.deepEqual(Object.keys(guardado).sort(), ['actividades', 'bloques', 'cuentas', 'espacios', 'hogares', 'intercambios', 'membresias', 'miembros', 'version']);
   for (const b of guardado.bloques) {
     assert.deepEqual(Object.keys(b).sort(), ['actualizadoEn', 'actualizadoPor', 'creadoEn', 'creadoPor', 'dias', 'eliminadoEn',
       'espacioId', 'fin', 'hogarId', 'id', 'inicio', 'miembroId']);
@@ -434,4 +434,155 @@ test('AC-11.6: un bloque activo que apunta a un familiar eliminado vuelve ilegib
   assert.deepEqual(estado.bloques, []);
   const todosEliminados = { ...sinDiana, bloques: sinDiana.bloques.map((b) => ({ ...b, eliminadoEn: '2026-10-07T11:00:00.000Z' })) };
   assert.equal(abrirDatos(todosEliminados).aviso, null); // si sus bloques también están eliminados, el documento es legible
+});
+
+// Documento como lo guardaba la feature 004: versión 4, sin intercambios ni regreso pendiente en las actividades.
+function comoV4(estado) {
+  const { intercambios, ...resto } = estado;
+  return { ...resto, version: 4, actividades: estado.actividades.map(({ devolverA, ...a }) => a) };
+}
+
+// Propuesta guardada tal como la escribe la feature 005 (para probar el almacén sin depender de sus operaciones).
+function intercambioGuardado(estado, id, extra = {}) {
+  const [propietario, diana] = estado.miembros;
+  return {
+    id, hogarId: estado.hogares[0].id, proponenteId: propietario.id, destinatarioId: diana.id,
+    actividadOfrecidaId: 'act-5', actividadPedidaId: 'act-4',
+    marcaOfrecida: '2026-10-08T10:00:00.000Z', marcaPedida: '2026-10-08T10:00:00.000Z',
+    estado: 'pendiente', respondidoEn: null,
+    creadoEn: '2026-10-08T10:00:00.000Z', actualizadoEn: '2026-10-08T10:00:00.000Z',
+    creadoPor: 'cuenta-1', actualizadoPor: 'cuenta-1', eliminadoEn: null, ...extra,
+  };
+}
+
+// Hogar con un intercambio ya aceptado ("Barrer", repetitiva, está con Diana y vuelve al propietario; los platos pasaron al
+// propietario) y una propuesta pendiente ("Basura" del propietario por "Plantas" de Diana).
+function hogarConIntercambios(ctx) {
+  const e = hogarConBloques(ctx);
+  const [propietario, diana] = e.miembros;
+  const [act1, act2, act3] = e.actividades;
+  return {
+    ...e,
+    actividades: [
+      { ...act1, miembroId: propietario.id },
+      { ...act2, miembroId: diana.id, devolverA: propietario.id },
+      act3,
+      actividadGuardada(e, 'act-4', { nombre: 'Plantas', icono: 'plantas', espacioId: null }),
+      actividadGuardada(e, 'act-5', { nombre: 'Basura', icono: 'basura', miembroId: propietario.id, espacioId: null }),
+    ],
+    intercambios: [
+      intercambioGuardado(e, 'int-1', {
+        estado: 'aceptado', actividadOfrecidaId: 'act-2', actividadPedidaId: 'act-1', respondidoEn: '2026-10-08T11:00:00.000Z',
+      }),
+      intercambioGuardado(e, 'int-2'),
+    ],
+  };
+}
+
+const conIntercambio = (base, nuevo) => ({ ...base, intercambios: base.intercambios.map((i) => (i.id === nuevo.id ? nuevo : i)) });
+
+test('AC-10.1 (005): los intercambios y el regreso pendiente se guardan y se restauran igual, en versión 5', () => {
+  const almacen = crearAlmacen(almacenEnMemoria());
+  const e = hogarConIntercambios(crearCtx());
+  assert.deepEqual(almacen.guardar(e), { ok: true });
+  const { estado, aviso } = iniciarSesion(almacen, crearCtx());
+  assert.equal(aviso, null);
+  assert.deepEqual(estado, e);
+  assert.equal(estado.version, 5);
+  assert.equal(estado.actividades[1].devolverA, e.miembros[0].id);
+});
+
+test('AC-10.3 (005): un hogar de la feature 004 se abre sin aviso, sin intercambios ni regresos, y se guarda como versión 5 en el siguiente guardado', () => {
+  const e = hogarConBloques(crearCtx());
+  const textoV4 = JSON.stringify(comoV4(e));
+  const storage = almacenEnMemoria({ [CLAVE_DATOS]: textoV4 });
+  const almacen = crearAlmacen(storage);
+  const { estado, aviso } = iniciarSesion(almacen, crearCtx());
+  assert.equal(aviso, null);
+  assert.deepEqual(estado, e); // mismos espacios, habitantes, actividades y bloques, sin intercambios; ya en versión 5 en memoria
+  assert.ok(estado.actividades.every((a) => a.devolverA === null));
+  assert.equal(storage.datos.get(CLAVE_DATOS), textoV4); // abrir no reescribe el documento
+  almacen.guardar(estado);
+  assert.equal(JSON.parse(storage.datos.get(CLAVE_DATOS)).version, 5);
+});
+
+test('migrarAV5 es pura: no modifica el documento de entrada y solo agrega el regreso vacío y la lista de intercambios vacía', () => {
+  const v4 = comoV4(hogarConBloques(crearCtx()));
+  const copia = structuredClone(v4);
+  const v5 = migrarAV5(v4);
+  assert.deepEqual(v4, copia);
+  assert.equal(v5.version, 5);
+  assert.deepEqual(v5.intercambios, []);
+  assert.ok(v5.actividades.every((a) => a.devolverA === null));
+  assert.deepEqual(comoV4(v5), v4);
+});
+
+test('AC-10.4 (005): un regreso pendiente inválido en una actividad activa vuelve ilegible el documento', () => {
+  const base = hogarConIntercambios(crearCtx());
+  const [act1, act2] = base.actividades;
+  const [, diana, firulais] = base.miembros;
+  const { devolverA, ...sinCampo } = act2;
+  const variantes = [
+    { ...act2, devolverA: 'no-existe' },
+    { ...act2, devolverA: diana.id }, // su propio responsable
+    { ...act2, devolverA: firulais.id }, // una mascota
+    { ...act1, devolverA: diana.id }, // una puntual no recuerda a nadie
+    sinCampo,
+  ];
+  for (const mala of variantes) {
+    const { estado, aviso } = abrirDatos(conActividad(base, mala));
+    assert.match(aviso, /No se pudo recuperar/, JSON.stringify(mala));
+    assert.deepEqual(estado.intercambios, []);
+    assert.equal(estado.miembros.length, 1);
+  }
+});
+
+test('AC-10.5 (005): un documento v5 sin lista de intercambios, o con una propuesta pendiente inválida, es ilegible', () => {
+  const base = hogarConIntercambios(crearCtx());
+  const [, pendiente] = base.intercambios;
+  const { intercambios, ...sinLista } = base;
+  assert.match(abrirDatos(sinLista).aviso, /No se pudo recuperar/);
+  const variantes = [
+    { ...pendiente, estado: 'anulado' },
+    { ...pendiente, estado: 'toString' },
+    { ...pendiente, proponenteId: 'no-existe' },
+    { ...pendiente, destinatarioId: 'no-existe' },
+    { ...pendiente, actividadOfrecidaId: 'no-existe' },
+    { ...pendiente, actividadPedidaId: 'no-existe' },
+    { ...pendiente, marcaOfrecida: null },
+    { ...pendiente, marcaPedida: 7 },
+  ];
+  for (const malo of variantes) {
+    const { estado, aviso } = abrirDatos(conIntercambio(base, malo));
+    assert.match(aviso, /No se pudo recuperar/, JSON.stringify(malo));
+    assert.deepEqual(estado.intercambios, []);
+  }
+});
+
+test('AC-10.6 (005): una propuesta ya respondida con datos inválidos, o una actividad eliminada con un regreso inválido, no vuelve ilegible el documento', () => {
+  const base = hogarConIntercambios(crearCtx());
+  const malo = { ...base.intercambios[0], proponenteId: 'no-existe', actividadPedidaId: 'no-existe', marcaOfrecida: null };
+  for (const resuelto of ['aceptado', 'rechazado', 'retirado']) {
+    const guardado = conIntercambio(base, { ...malo, estado: resuelto });
+    const { estado, aviso } = abrirDatos(guardado);
+    assert.equal(aviso, null, resuelto);
+    assert.deepEqual(estado, JSON.parse(JSON.stringify(guardado)));
+  }
+  const eliminada = { ...base.actividades[1], devolverA: 'no-existe', eliminadoEn: '2026-10-08T12:00:00.000Z' };
+  const guardado = conActividad(base, eliminada);
+  const { estado, aviso } = abrirDatos(guardado);
+  assert.equal(aviso, null);
+  assert.deepEqual(estado, JSON.parse(JSON.stringify(guardado)));
+});
+
+test('AC-10.7 (005): el documento guardado no tiene vigencia calculada, números de propuestas ni posiciones', () => {
+  const storage = almacenEnMemoria();
+  crearAlmacen(storage).guardar(hogarConIntercambios(crearCtx()));
+  const guardado = JSON.parse(storage.datos.get(CLAVE_DATOS));
+  assert.deepEqual(Object.keys(guardado).sort(), ['actividades', 'bloques', 'cuentas', 'espacios', 'hogares', 'intercambios', 'membresias',
+    'miembros', 'version']);
+  for (const i of guardado.intercambios) {
+    assert.deepEqual(Object.keys(i).sort(), ['actividadOfrecidaId', 'actividadPedidaId', 'actualizadoEn', 'actualizadoPor', 'creadoEn',
+      'creadoPor', 'destinatarioId', 'eliminadoEn', 'estado', 'hogarId', 'id', 'marcaOfrecida', 'marcaPedida', 'proponenteId', 'respondidoEn']);
+  }
 });
