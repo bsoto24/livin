@@ -1,6 +1,6 @@
 // src/almacen.js
 import { crearHogarInicial } from './hogar.js';
-import { PARENTESCOS, GENEROS, ESPECIES, ICONOS, FRECUENCIAS } from './catalogo.js';
+import { PARENTESCOS, GENEROS, ESPECIES, ICONOS, FRECUENCIAS, DIAS_RUTINA, PASO_RUTINA } from './catalogo.js';
 import { esFechaValida } from './fechas.js';
 
 export const CLAVE_DATOS = 'livin:datos:v1';
@@ -48,6 +48,26 @@ function actividadesValidas(estado) {
   });
 }
 
+const esMinuto = (n, min, max) => Number.isInteger(n) && n % PASO_RUTINA === 0 && n >= min && n <= max;
+
+// Reglas de los bloques de rutina en la versión 4 (ADR-004 de modelo de rutinas, FR-10 de la 004). Solo se validan los no
+// eliminados: horario de la lista, minutos múltiplos de 30 con el fin posterior al inicio, un familiar activo, un espacio activo
+// o "Fuera de casa" (null), y sin superposición con otro bloque del mismo familiar y horario.
+function bloquesValidos(estado) {
+  if (!Array.isArray(estado.bloques)) return false;
+  const propietaria = estado.membresias.find((m) => m.rol === 'propietario' && m.eliminadoEn === null)?.cuentaId;
+  const familiares = new Set(estado.miembros
+    .filter((m) => m.eliminadoEn === null && m.tipo === 'persona' && m.cuentaId !== propietaria).map((m) => m.id));
+  const espacios = new Set(estado.espacios.filter((e) => e.eliminadoEn === null).map((e) => e.id));
+  const activos = estado.bloques.filter((b) => b.eliminadoEn === null);
+  const bienFormados = activos.every((b) => enLista(DIAS_RUTINA, b.dias) && esMinuto(b.inicio, 0, 1440 - PASO_RUTINA)
+    && esMinuto(b.fin, PASO_RUTINA, 1440) && b.fin > b.inicio && familiares.has(b.miembroId)
+    && (b.espacioId === null || espacios.has(b.espacioId)));
+  if (!bienFormados) return false;
+  return activos.every((a, i) => activos.slice(i + 1)
+    .every((b) => a.miembroId !== b.miembroId || a.dias !== b.dias || a.fin <= b.inicio || b.fin <= a.inicio));
+}
+
 // Migración pura v1 → v2: todo miembro existente pasa a ser una persona sin parentesco, género ni especie.
 export function migrarAV2(estado) {
   return {
@@ -62,6 +82,11 @@ export function migrarAV3(estado) {
   return { ...estado, version: 3, actividades: [] };
 }
 
+// Migración pura v3 → v4: el hogar pasa a tener una lista de bloques de rutina, vacía.
+export function migrarAV4(estado) {
+  return { ...estado, version: 4, bloques: [] };
+}
+
 export function crearAlmacen(storage) {
   return {
     cargar() {
@@ -69,9 +94,15 @@ export function crearAlmacen(storage) {
         const texto = storage.getItem(CLAVE_DATOS);
         if (texto === null) return { estado: null, error: null };
         const estado = JSON.parse(texto);
-        if (estado?.version === 1 && tieneHogarValido(estado)) return { estado: migrarAV3(migrarAV2(estado)), error: null };
-        if (estado?.version === 2 && tieneHogarValido(estado) && miembrosValidos(estado)) return { estado: migrarAV3(estado), error: null };
+        if (estado?.version === 1 && tieneHogarValido(estado)) return { estado: migrarAV4(migrarAV3(migrarAV2(estado))), error: null };
+        if (estado?.version === 2 && tieneHogarValido(estado) && miembrosValidos(estado)) {
+          return { estado: migrarAV4(migrarAV3(estado)), error: null };
+        }
         if (estado?.version === 3 && tieneHogarValido(estado) && miembrosValidos(estado) && actividadesValidas(estado)) {
+          return { estado: migrarAV4(estado), error: null };
+        }
+        if (estado?.version === 4 && tieneHogarValido(estado) && miembrosValidos(estado) && actividadesValidas(estado)
+          && bloquesValidos(estado)) {
           return { estado, error: null };
         }
         return { estado: null, error: 'ilegible' };
@@ -91,8 +122,8 @@ export function crearAlmacen(storage) {
   };
 }
 
-// Arranque de la app (FR-1 y FR-10 de la 001, FR-9 de la 002, FR-11 de la 003): recupera el hogar (migrándolo si es
-// de una versión anterior) o crea el inicial.
+// Arranque de la app (FR-1 y FR-10 de la 001, FR-9 de la 002, FR-11 de la 003, FR-10 de la 004): recupera el hogar
+// (migrándolo si es de una versión anterior) o crea el inicial.
 export function iniciarSesion(almacen, ctx) {
   const { estado, error } = almacen.cargar();
   if (estado) return { estado, aviso: null };

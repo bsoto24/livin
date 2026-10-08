@@ -44,6 +44,22 @@
     #hoja .botones { display: flex; gap: 6px; }
     #hoja button { padding: 6px 10px; background: #2a221c; color: #f2ead3; }
     #hoja .peligro { background: #a32d2d; }
+    #hoja .item.tocable { cursor: pointer; }
+    #cruceta { pointer-events: none; } /* los huecos de la cruceta dejan pasar el toque al mapa: cartel y burbujas (AC-5.4) */
+    #cruceta button { pointer-events: auto; }
+    #ficha .rutina { width: 100%; padding: 8px; margin: 4px 0; background: #2a221c; color: #f2ead3; }
+    #rutina, #ficha-bloque { position: fixed; inset: 0; background: rgba(0, 0, 0, .55); display: none; align-items: center; justify-content: center; }
+    #rutina section, #ficha-bloque form { background: #f2ead3; color: #2a221c; padding: 16px; border-radius: 12px; width: min(340px, 90vw);
+      max-height: 80vh; overflow-y: auto; box-sizing: border-box; }
+    #rutina header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    #rutina button, #ficha-bloque .acciones button { padding: 6px 10px; background: #2a221c; color: #f2ead3; }
+    #rutina .selector { display: flex; gap: 6px; margin-bottom: 8px; }
+    #rutina .selector button[aria-pressed="false"] { background: #d9cfb4; color: #2a221c; }
+    #rutina .bloque { padding: 10px 0; border-top: 1px solid #d9cfb4; cursor: pointer; }
+    #ficha-bloque select { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; margin: 4px 0; }
+    #ficha-bloque .error { color: #a32d2d; min-height: 1.2em; font-size: 13px; }
+    #ficha-bloque .acciones { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+    #ficha-bloque .acciones .peligro { background: #a32d2d; margin-right: auto; }
     #aviso { position: fixed; top: calc(56px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); background: #2a221c;
       color: #f2ead3; padding: 8px 14px; border-radius: 8px; display: none; max-width: 86vw; }
     #depuracion { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 8px; color: #9fe1cb; font: 12px monospace; }
@@ -74,6 +90,7 @@
       <select id="ficha-parentesco" aria-label="Parentesco"></select>
       <select id="ficha-genero" aria-label="Género"></select>
       <select id="ficha-especie" aria-label="Especie"></select>
+      <button type="button" id="ficha-rutina" class="rutina">Rutina</button>
       <div class="error" id="ficha-error"></div>
       <div class="acciones">
         <button type="button" class="peligro" id="ficha-eliminar">Eliminar</button>
@@ -101,6 +118,31 @@
         <button type="button" class="peligro" id="actividad-eliminar">Eliminar</button>
         <button type="button" id="actividad-cancelar">Cancelar</button>
         <button type="submit" id="actividad-guardar">Guardar</button>
+      </div>
+    </form>
+  </div>
+  <div id="rutina">
+    <section aria-label="Rutina del familiar">
+      <header><strong id="rutina-titulo"></strong><button type="button" id="rutina-cerrar">Cerrar</button></header>
+      <div class="selector" role="group" aria-label="Horario">
+        <button type="button" data-dias="laborables">Lun–Vie</button>
+        <button type="button" data-dias="finde">Sáb–Dom</button>
+      </div>
+      <div class="fila cabecera"><span>Bloques</span><span class="cuenta" id="rutina-cuenta"></span><button type="button" id="rutina-agregar">+ Bloque</button></div>
+      <div id="rutina-lista"></div>
+    </section>
+  </div>
+  <div id="ficha-bloque">
+    <form>
+      <strong id="bloque-titulo"></strong>
+      <select id="bloque-inicio" aria-label="Inicio"></select>
+      <select id="bloque-fin" aria-label="Fin"></select>
+      <select id="bloque-lugar" aria-label="Lugar"></select>
+      <div class="error" id="bloque-error"></div>
+      <div class="acciones">
+        <button type="button" class="peligro" id="bloque-eliminar">Eliminar</button>
+        <button type="button" id="bloque-cancelar">Cancelar</button>
+        <button type="submit" id="bloque-guardar">Guardar</button>
       </div>
     </form>
   </div>

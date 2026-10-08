@@ -69,6 +69,10 @@ export function generarDistribucion(estado) {
   rects[sala.id] = { x: xCentro, y: altoComedor, w: CENTRO.ancho, h: filasCentro.length - altoComedor };
   const filaAparicion = filasCentro.findIndex((f) => f.includes('*'));
   const aparicion = { x: xCentro + filasCentro[filaAparicion].indexOf('*'), y: filaAparicion };
+  // Entrada del hogar (FR-12 de la 004): la casilla de la pared inferior de la sala bajo la de aparición. Pertenece a la sala
+  // y no lleva a ninguna parte; el resto de la distribución no cambia.
+  const entrada = { x: aparicion.x, y: filasCentro.length - 1 };
+  tiles[entrada.y][entrada.x] = '.';
 
   const pasillos = [];
   const colocarZona = (piezas, x0, lado, conPasillo, xPasillo, altoZona) => {
@@ -113,7 +117,7 @@ export function generarDistribucion(estado) {
   return {
     ancho, alto,
     tiles: tiles.map((fila) => fila.join('')),
-    espacioEn, rects, puertas, pasillos, aparicion,
+    espacioEn, rects, puertas, pasillos, aparicion, entrada,
   };
 }
 

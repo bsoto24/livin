@@ -93,3 +93,15 @@ test('FR-6: ubicarBurbujas pone la de un espacio en su casilla fija y la de un m
   );
   assert.deepEqual(ubicarBurbujas(lista, d, new Map()).map((b) => b.tipo), ['espacio']);
 });
+
+test('AC-9.6: ni los objetos del suelo ni las burbujas se ponen en la entrada', () => {
+  const e = hogarConBanos();
+  const d = generarDistribucion(e);
+  const enEntrada = (c) => c.x === d.entrada.x && c.y === d.entrada.y;
+  assert.equal(d.espacioEn[d.entrada.y][d.entrada.x], espaciosDeTipo(e, 'sala')[0].id);
+  for (const espacio of espaciosActivos(e)) {
+    assert.ok(!casillasLibres(d, espacio.id).some(enEntrada), espacio.tipo);
+    assert.ok(!enEntrada(casillaDeBurbuja(d, espacio.id)), espacio.tipo);
+    for (const limpieza of ['desordenado', 'desastre']) assert.ok(!objetosDelSuelo(d, espacio.id, limpieza).some(enEntrada), espacio.tipo);
+  }
+});

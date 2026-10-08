@@ -1,7 +1,7 @@
 // test/fechas.test.js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { numeroDeDia, esFechaValida, sumarDias, diasEntre, fechaLocal } from '../src/fechas.js';
+import { numeroDeDia, esFechaValida, sumarDias, diasEntre, fechaLocal, diaDeSemana, minutoLocal, ahoraLocal } from '../src/fechas.js';
 
 test('FR-1, FR-11: solo son válidas las fechas reales con formato AAAA-MM-DD', () => {
   for (const valida of ['2026-10-06', '2024-02-29', '2000-01-01', '2099-12-31']) assert.equal(esFechaValida(valida), true, valida);
@@ -46,4 +46,25 @@ test('AC-5.5, FR-10: fechaLocal da el mismo día a las 00:00 y a las 23:59 de la
   assert.equal(fechaLocal(new Date(2026, 9, 6, 0, 0, 0)), '2026-10-06');
   assert.equal(fechaLocal(new Date(2026, 9, 6, 23, 59, 59)), '2026-10-06');
   assert.equal(fechaLocal(new Date(2026, 0, 5, 12, 0)), '2026-01-05');
+});
+
+test('AC-7.3, FR-2 (004): diaDeSemana va de 1 (lunes) a 7 (domingo), también entre meses, años y antes de 1970', () => {
+  assert.deepEqual(
+    ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11', '2026-10-12'].map(diaDeSemana),
+    [1, 2, 3, 4, 5, 6, 7, 1],
+  );
+  assert.deepEqual(['1970-01-01', '1969-12-31', '2024-02-29', '2026-01-01', '2025-12-31'].map(diaDeSemana), [4, 3, 4, 4, 3]);
+  let dia = '2024-01-01'; // lunes
+  for (let i = 0; i < 400; i++) {
+    assert.equal(diaDeSemana(dia), (i % 7) + 1, dia);
+    dia = sumarDias(dia, 1);
+  }
+});
+
+test('AC-7.5, FR-2 (004): el minuto local no depende de los segundos y ahoraLocal da la fecha y el minuto', () => {
+  assert.equal(minutoLocal(new Date(2026, 9, 9, 0, 0, 0)), 0);
+  assert.equal(minutoLocal(new Date(2026, 9, 9, 9, 30, 0)), 570);
+  assert.equal(minutoLocal(new Date(2026, 9, 9, 23, 59, 0)), 1439);
+  assert.equal(minutoLocal(new Date(2026, 9, 9, 23, 59, 59)), 1439);
+  assert.deepEqual(ahoraLocal(new Date(2026, 9, 9, 18, 0, 30)), { fecha: '2026-10-09', minuto: 1080 });
 });
