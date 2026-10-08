@@ -487,3 +487,85 @@ test('el estado derivado es puro: no modifica el estado y repite el resultado co
   assert.deepEqual(calcular(), calcular());
   assert.deepEqual(e, copia);
 });
+
+// ---------- Regreso pendiente (feature 005): una repetitiva en poder de otra persona vuelve a su responsable al hacerla ----------
+
+// Deja una actividad en poder de `quien` recordando a su responsable original (lo que hará aceptar un intercambio).
+const enPoderDe = (estado, id, quien) => ({
+  ...estado,
+  actividades: estado.actividades.map((a) => (a.id === id ? { ...a, devolverA: a.miembroId, miembroId: quien } : a)),
+});
+
+test('FR-9 (005): toda actividad nueva nace sin regreso pendiente', () => {
+  const ctx = crearCtx();
+  const base = hogarBase(ctx);
+  const e = alta(alta(base, datos(base), ctx), datos(base, { tipo: 'repetitiva', frecuenciaDias: 7 }), ctx);
+  assert.deepEqual(e.actividades.map((a) => a.devolverA), [null, null]);
+});
+
+test('AC-8.4 (005): "Hecho" en una repetitiva con regreso pendiente la devuelve a su responsable con su nuevo vencimiento', () => {
+  const ctx = crearCtx();
+  const base = hogarBase(ctx);
+  const propietario = miembrosActivos(base)[0];
+  let e = alta(base, datos(base, { tipo: 'repetitiva', frecuenciaDias: 3, vence: '2026-10-04', miembroId: propietario.id }), ctx);
+  const { id } = ultima(e);
+  e = enPoderDe(e, id, diana(e).id);
+  const despues = marcarHecha(e, id, HOY, ctx);
+  const a = buscarActividad(despues, id);
+  assert.deepEqual([a.miembroId, a.devolverA, a.vence, a.hechaEn], [propietario.id, null, '2026-10-09', null]);
+  assert.equal(contarActividades(despues), 1);
+});
+
+test('AC-8.5 (005): una puntual en poder de otra persona no recuerda a nadie y "Hecho" solo la deja hecha', () => {
+  const ctx = crearCtx();
+  const base = hogarBase(ctx);
+  let e = alta(base, datos(base, { miembroId: miembrosActivos(base)[0].id }), ctx);
+  const { id } = ultima(e);
+  e = { ...e, actividades: e.actividades.map((a) => ({ ...a, miembroId: diana(e).id })) };
+  const a = marcarHecha(e, id, HOY, ctx).actividades.find((x) => x.id === id);
+  assert.deepEqual([a.miembroId, a.hechaEn, a.devolverA], [diana(e).id, HOY, null]);
+});
+
+test('AC-8.10 (005): si el responsable original ya no está activo, la repetitiva se queda con quien la tiene', () => {
+  const ctx = crearCtx();
+  const base = hogarBase(ctx);
+  const propietario = miembrosActivos(base)[0];
+  let e = alta(base, datos(base, { tipo: 'repetitiva', frecuenciaDias: 7, miembroId: propietario.id }), ctx);
+  const { id } = ultima(e);
+  e = enPoderDe(e, id, diana(e).id);
+  const sinOriginal = { ...e, miembros: e.miembros.map((m) => (m.id === propietario.id ? { ...m, eliminadoEn: '2026-10-06T00:00:00.000Z' } : m)) };
+  const a = buscarActividad(marcarHecha(sinOriginal, id, HOY, ctx), id);
+  assert.deepEqual([a.miembroId, a.devolverA, a.vence], [diana(e).id, null, '2026-10-13']);
+});
+
+test('AC-8.11, AC-8.12 (005): reasignar o volver puntual borra el regreso; guardar sin cambiar a la persona lo conserva', () => {
+  const ctx = crearCtx();
+  const base = hogarBase(ctx);
+  const propietario = miembrosActivos(base)[0];
+  let e = alta(base, datos(base, { tipo: 'repetitiva', frecuenciaDias: 7, miembroId: propietario.id }), ctx);
+  const { id } = ultima(e);
+  e = enPoderDe(e, id, diana(e).id);
+  const a = buscarActividad(e, id);
+  const datosDe = (extra) => buscarActividad(editarActividad(e, id, { ...a, ...extra }, ctx).estado, id);
+  assert.deepEqual([datosDe({ nombre: 'Otro nombre' }).miembroId, datosDe({ nombre: 'Otro nombre' }).devolverA], [diana(e).id, propietario.id]);
+  assert.equal(datosDe({ miembroId: mascotas(e)[0].id }).devolverA, null);
+  assert.deepEqual([datosDe({ miembroId: propietario.id }).miembroId, datosDe({ miembroId: propietario.id }).devolverA], [propietario.id, null]);
+  const puntual = datosDe({ tipo: 'puntual' });
+  assert.deepEqual([puntual.tipo, puntual.devolverA, puntual.miembroId], ['puntual', null, diana(e).id]);
+});
+
+test('AC-8.13 (005): eliminar al responsable original borra el regreso; eliminar a quien la tiene la elimina y se cuenta en sus pendientes', () => {
+  const ctx = crearCtx();
+  let base = agregarHabitante(hogarBase(ctx), 'familiar', { nombre: 'Luis', parentesco: 'hermano', genero: 'masculino' }, ctx).estado;
+  const luis = familiares(base)[1];
+  let e = alta(base, datos(base, { tipo: 'repetitiva', frecuenciaDias: 7, miembroId: luis.id }), ctx);
+  const { id } = ultima(e);
+  e = enPoderDe(e, id, diana(e).id);
+  const sinLuis = eliminarHabitante(e, luis.id, ctx);
+  const a = buscarActividad(sinLuis, id);
+  assert.deepEqual([a.miembroId, a.devolverA], [diana(e).id, null]);
+  assert.equal(pendientesDeMiembro(e, diana(e).id), 1);
+  const sinDiana = eliminarHabitante(e, diana(e).id, ctx);
+  assert.equal(buscarActividad(sinDiana, id), null);
+  assert.notEqual(sinDiana.actividades.find((x) => x.id === id).eliminadoEn, null);
+});

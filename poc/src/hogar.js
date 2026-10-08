@@ -282,13 +282,15 @@ export function puedeEliminarMiembro(estado, id) {
 }
 
 // Borrado lógico (FR-4, FR-10 de la 002): el registro queda con su fecha de eliminación; no afecta a los espacios ni a los
-// demás miembros. Sus actividades y sus bloques de rutina se dan de baja en la misma operación (FR-9 de la 003 y de la 004).
+// demás miembros. Sus actividades y sus bloques de rutina se dan de baja en la misma operación (FR-9 de la 003 y de la 004), y
+// las repetitivas que debían volver a él se quedan con quien las tiene (FR-9 de la 005).
 export function eliminarHabitante(estado, id, ctx) {
   if (!puedeEliminarMiembro(estado, id)) return estado;
   const ahora = ctx.ahora();
   const miembros = estado.miembros.map((m) => (m.id === id ? { ...tocar(m, ctx), eliminadoEn: ahora } : m));
   const sinActividades = darDeBajaActividades({ ...estado, miembros }, (a) => a.miembroId === id, ahora, ctx);
-  return darDeBajaBloques(sinActividades, (b) => b.miembroId === id, ahora, ctx);
+  const sinRegresos = quitarRegresosA(sinActividades, id, ctx);
+  return darDeBajaBloques(sinRegresos, (b) => b.miembroId === id, ahora, ctx);
 }
 
 // ---------- Actividades (feature 003): consultas y bajas en cascada ----------
@@ -301,6 +303,12 @@ export const pendientesDeMiembro = (estado, id) => actividadesPendientes(estado)
 // Baja lógica, con la misma fecha, de todas las actividades no eliminadas (pendientes y hechas) que cumplen `afectada` (FR-9 de la 003).
 function darDeBajaActividades(estado, afectada, ahora, ctx) {
   const actividades = estado.actividades.map((a) => (a.eliminadoEn === null && afectada(a) ? { ...tocar(a, ctx), eliminadoEn: ahora } : a));
+  return { ...estado, actividades };
+}
+
+// Las actividades activas que debían volver a esta persona dejan de recordarla (FR-9 de la 005).
+function quitarRegresosA(estado, id, ctx) {
+  const actividades = estado.actividades.map((a) => (a.eliminadoEn === null && a.devolverA === id ? { ...tocar(a, ctx), devolverA: null } : a));
   return { ...estado, actividades };
 }
 
