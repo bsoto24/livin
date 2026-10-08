@@ -3,8 +3,8 @@
 **Feature:** 004-rutinas
 **Fase del plan:** Phase 8: Integration Verification
 **Fecha:** 2026-10-07
-**Código verificado:** rama `feat/004-rutinas` en `03ad63f` (carpeta `poc/`)
-**Estado:** verificación automática y en navegador de escritorio **completa**; verificación en el teléfono Android **pendiente** (sección "Pendiente en el Android").
+**Código verificado:** rama `feat/004-rutinas` en `03ad63f` (carpeta `poc/`); en el teléfono, `main` en `1ecf48c` (la fusión, con el mismo código en `poc/`)
+**Estado:** verificación automática, en navegador de escritorio y en el teléfono Android **completa** (sección "Verificado en el Android").
 
 ## Resultado automático
 
@@ -40,23 +40,39 @@ Sobre una copia del código y, para lo último, sobre el código de la rama:
 - Al empezar el bloque siguiente (cambio a las 00:30 con la app abierta), el familiar vuelve a entrar por la entrada y camina hasta la cocina; con el personaje en la casilla de arriba, esperó y entró cuando este se apartó.
 - Eliminar a un familiar con bloques pide confirmación: "¿Eliminar a "Diana"? Se eliminarán 2 bloques de rutina."
 
-## Pendiente en el Android
+## Verificado en el Android
 
-Servir `poc/` por la red local con la cabecera `Cache-Control: no-cache` (ver la lección de la caché de módulos en `docs/lessons/`), abrir `http://<IP-del-computador>:8080` en el teléfono y apagar el servidor al terminar:
+**Fecha:** 2026-10-08
+**Origen de las pruebas:** servidor estático de la carpeta `poc/` por la red local (`http://<IP-del-computador>:8080`, HTTP sin cifrar), con la cabecera `Cache-Control: no-cache`, abierto desde el teléfono. El servidor se apagó al terminar.
 
-```bash
-cd poc && python3 -c "import http.server as s; h = type('H', (s.SimpleHTTPRequestHandler,), {'end_headers': lambda self: (self.send_header('Cache-Control', 'no-cache'), s.SimpleHTTPRequestHandler.end_headers(self))[-1]}); s.ThreadingHTTPServer(('0.0.0.0', 8080), h).serve_forever()"
-```
+La verificación manual en un dispositivo Android real **no encontró fallos** en ningún punto de la lista de la Fase 8.
 
-- [ ] **Rendimiento (AC-8.7):** 60 fps o más con 8 familiares cuyos bloques empiezan a la vez en espacios lejanos del hogar más grande, 4 mascotas y 50 actividades, durante el cambio de bloque y 30 s después.
-- [ ] **Tiempo de respuesta (AC-6.2, AC-5.15):** `regen` por debajo de 100 ms en 10 "Listo" seguidos con rutinas cargadas.
-- [ ] **Legibilidad y tamaño:** cartel ("n fuera !"), filas de su hoja, textos de la ficha y de la rutina, y nombres de los personajes.
-- [ ] **Posición y área táctil del cartel (D2):** con el zoom de exploración y con el de edición, el cartel no tapa la entrada ni nada más, y tocar cualquier punto de su dibujo abre la hoja.
-- [ ] **Nombres que se apilan (D5, AC-8.6):** dos familiares en ruta que se cruzan en un pasillo: ambos nombres se distinguen y no tapan a otros personajes (el apilado usa 18 px por nombre, una estimación).
-- [ ] **Espera junto a un espacio lleno (D1):** un familiar que espera en una puerta o un pasillo puede bloquear al jugador; ver cómo se siente.
-- [ ] **Cruceta y cartel (AC-5.14):** al soltar un dedo sobre un botón de la cruceta no se abre la hoja del cartel ni una burbuja.
-- [ ] **Hora (AC-7.6 a AC-7.9):** cambio de bloque con la app abierta; volver de segundo plano tras horas (los familiares caminan hacia donde corresponde); reabrir la app tras horas (aparecen donde corresponde); si se puede, dejar la app abierta un viernes a medianoche.
-- [ ] **Listas nativas (AC-1.4, AC-2.1):** los selectores de inicio (48 valores), fin y lugar se ven y se eligen bien.
-- [ ] **Nombres como texto (AC-1.12):** un espacio llamado `<b>x</b>` se ve como texto en la lista de lugares, en la rutina y en las confirmaciones.
-- [ ] **Cierre inesperado (AC-11.9):** matar la app y reabrirla pierde como máximo el último cambio.
-- [ ] Anotar el modelo del teléfono y los valores de `fps` y `regen` aquí.
+| Dato | Valor |
+|---|---|
+| Fotogramas por segundo (indicador en pantalla) | 60 fps |
+| `regen` (indicador en pantalla) | 3 ms |
+| Puntos de la lista que fallaron | ninguno |
+| Dispositivo | no se indicó en esta ronda (las verificaciones anteriores fueron en un Samsung Galaxy S23 Ultra con Android 16) |
+
+Metas de la spec: 60 fps o más (AC-8.7) y `regen` por debajo de 100 ms (AC-6.2, AC-5.15). Con los valores reportados se cumplen ambas; los 60 fps están exactamente en el límite de la meta.
+
+Quien probó recorrió la lista del teléfono y reportó que ningún punto falló. Cubre:
+
+- Rendimiento con 8 familiares cuyos bloques empiezan a la vez, 4 mascotas y 50 actividades, y `regen` en cambios consecutivos con rutinas cargadas.
+- Legibilidad y tamaño del cartel, de las filas de su hoja, de la ficha y de la rutina, y de los nombres de los personajes.
+- Posición y área táctil del cartel con los dos zooms (D2) y el comportamiento de la cruceta frente al cartel (AC-5.14).
+- Nombres que se apilan entre familiares en ruta (D5, AC-8.6) y la espera junto a un espacio lleno (D1).
+- Cambio de bloque con la app abierta, vuelta desde segundo plano y reapertura de la app tras horas (AC-7.6 a AC-7.9).
+- Listas nativas de inicio, fin y lugar (AC-1.4, AC-2.1), nombres como texto (AC-1.12) y cierre inesperado (AC-11.9).
+
+### Lo que este registro no incluye
+
+- No se anotó el modelo del teléfono en esta ronda.
+- El reporte es global ("sin fallos"): no se registró punto por punto qué se hizo en cada casilla, ni el peor `regen` de los 10 "Listo" seguidos, solo el valor del indicador (3 ms). No se anotaron observaciones visuales ni de sensación de uso (por ejemplo, cómo se siente que un familiar espere en una puerta).
+- No se registró si se dejó la app abierta un viernes a medianoche (punto opcional de AC-7.9).
+- No se registró si el teléfono migró un hogar de la feature 003 o ya traía datos de esta versión. Esa ruta está cubierta por pruebas automáticas.
+- Las pruebas fueron en un solo teléfono.
+
+### Asuntos abiertos
+
+- **Rulings aceptados** (sin acción): D2 (el cartel es más ancho que una casilla, alineado a la derecha contra la entrada) y D3 (quien espera un espacio lleno no bloquea a quien pasea).
