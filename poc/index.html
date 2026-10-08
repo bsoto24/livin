@@ -89,6 +89,7 @@
   <div id="depuracion"></div>
   <button id="editar">Editar</button>
   <button id="juega">Juega</button>
+  <button id="intercambios">Intercambios</button>
   <div id="cruceta">
     <button data-dir="arriba" aria-label="Arriba">▲</button>
     <button data-dir="izquierda" aria-label="Izquierda">◀</button>
@@ -129,6 +130,7 @@
       <input id="actividad-nombre" maxlength="30" autocomplete="off" placeholder="Nombre de la actividad">
       <select id="actividad-icono" aria-label="Icono"></select>
       <select id="actividad-miembro" aria-label="Asignada a"></select>
+      <small class="nota" id="actividad-nota"></small>
       <select id="actividad-espacio" aria-label="Espacio"></select>
       <select id="actividad-tipo" aria-label="Tipo"></select>
       <input id="actividad-vence" type="date" aria-label="Vence">
@@ -171,6 +173,29 @@
       <header><strong>¿Quién juega?</strong><button type="button" id="quien-cerrar">Cerrar</button></header>
       <div id="quien-lista"></div>
     </section>
+  </div>
+  <div id="panel-intercambios" class="modal">
+    <section aria-label="Intercambios">
+      <header><strong>Intercambios</strong><button type="button" id="intercambios-cerrar">Cerrar</button></header>
+      <strong class="subtitulo">Recibidas</strong>
+      <div id="intercambios-recibidas"></div>
+      <strong class="subtitulo">Enviadas</strong>
+      <div id="intercambios-enviadas"></div>
+      <button type="button" id="intercambios-proponer" class="ancho">Proponer</button>
+      <div class="error" id="intercambios-motivo"></div>
+    </section>
+  </div>
+  <div id="ficha-intercambio" class="modal">
+    <form>
+      <strong>Proponer intercambio</strong>
+      <select id="intercambio-ofrecida" aria-label="Tu actividad"></select>
+      <select id="intercambio-pedida" aria-label="Por la de"></select>
+      <div class="error" id="intercambio-error"></div>
+      <div class="acciones">
+        <button type="button" id="intercambio-cancelar">Cancelar</button>
+        <button type="submit" id="intercambio-guardar">Proponer</button>
+      </div>
+    </form>
   </div>
   <div id="aviso" role="status"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.1/phaser.min.js"></script>

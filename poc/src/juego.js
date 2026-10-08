@@ -26,6 +26,10 @@ import {
   textoHora, textoBloque, textoBajas, objetivosDeFamiliares, textoVuelta,
 } from './rutinas.js';
 import { INSIGNIAS, objetosDelSuelo, casillaDeBurbuja, ubicarBurbujas } from './aspecto.js';
+import {
+  numeroRecibidas, intercambiosDe, actividadesOfrecibles, actividadesPedibles, motivoSinPropuesta, proponer, aceptar, rechazar, retirar,
+  quitar, esVigente, textoPropuesta, textoIntercambio, MENSAJES_INTERCAMBIO,
+} from './intercambios.js';
 import { ahoraLocal } from './fechas.js';
 
 const TILE = 16;
@@ -458,6 +462,7 @@ function mostrarExploracion(visible) {
   $('cruceta').style.display = visible ? 'grid' : 'none';
   $('editar').style.display = visible ? 'block' : 'none';
   $('juega').style.display = visible ? 'block' : 'none';
+  $('intercambios').style.display = visible ? 'block' : 'none';
   $('panel').style.display = visible ? 'none' : 'block';
 }
 
@@ -518,6 +523,8 @@ function aplicarActividades(nuevo) {
   guardarEstado(); // se guarda en el momento en que se aplica (AC-8.2 de la 003)
   if (modo === 'edicion') pintarPanel();
   if (hojaActual) pintarHoja();
+  actualizarBotones(); // cambia el número de propuestas recibidas
+  if (intercambiosAbierto()) pintarIntercambios(); // AC-7.11
 }
 
 // El día cambió con la app abierta (FR-10 de la 003): burbujas, estados y objetos se recalculan con la nueva fecha.
@@ -612,7 +619,8 @@ function pintarActividades() {
     const fila = elemento('div', undefined, 'fila actividad');
     const lugar = a.espacioId ? nombreVisible(estado, buscarEspacio(estado, a.espacioId)) : 'Sin espacio';
     const datos = elemento('span');
-    datos.append(elemento('strong', a.nombre), elemento('small', `${buscarMiembro(estado, a.miembroId).nombre} · ${lugar} · ${textoPlazo(a, hoy)}`));
+    const nota = textoIntercambio(estado, a); // AC-8.6
+    datos.append(elemento('strong', a.nombre), elemento('small', `${buscarMiembro(estado, a.miembroId).nombre} · ${lugar} · ${textoPlazo(a, hoy)}${nota ? ` · ${nota}` : ''}`));
     fila.append(elemento('span', GLIFO_ICONO[a.icono], 'icono'), datos);
     fila.addEventListener('click', () => abrirFichaActividad(a.id));
     cont.append(fila);
@@ -765,7 +773,8 @@ function pintarHoja() {
   cont.replaceChildren();
   for (const a of lista) {
     const datos = elemento('span');
-    datos.append(elemento('strong', a.nombre), elemento('small', `${buscarMiembro(estado, a.miembroId).nombre} · ${textoPlazo(a, hoy)}`));
+    const nota = textoIntercambio(estado, a); // AC-8.6
+    datos.append(elemento('strong', a.nombre), elemento('small', `${buscarMiembro(estado, a.miembroId).nombre} · ${textoPlazo(a, hoy)}${nota ? ` · ${nota}` : ''}`));
     const botones = elemento('span', undefined, 'botones');
     if (modo === 'exploracion') {
       const hecho = elemento('button', 'Hecho');
@@ -829,6 +838,7 @@ function abrirFichaActividad(id) {
   opciones($('actividad-icono'), Object.entries(ICONOS).map(([clave, texto]) => [clave, `${GLIFO_ICONO[clave]} ${texto}`]), a?.icono ?? 'otra');
   const miembros = [propietario(), ...habitantes(estado)];
   opciones($('actividad-miembro'), [['', 'Asignar a…'], ...miembros.map((m) => [m.id, m.nombre])], a?.miembroId ?? '');
+  $('actividad-nota').textContent = a ? textoIntercambio(estado, a) : ''; // AC-8.6
   opciones($('actividad-espacio'), [['', 'Sin espacio'], ...espaciosActivos(estado).map((e) => [e.id, nombreVisible(estado, e)])], a?.espacioId ?? '');
   opciones($('actividad-tipo'), [['puntual', 'Puntual'], ['repetitiva', 'Repetitiva']], a?.tipo ?? 'puntual');
   $('actividad-vence').value = a?.vence ?? hoy;
@@ -984,6 +994,8 @@ $('bloque-eliminar').addEventListener('click', () => {
 
 function actualizarBotones() {
   $('juega').textContent = `Juega: ${buscarMiembro(estado, jugador.id).nombre}`;
+  const n = numeroRecibidas(estado, jugador.id);
+  $('intercambios').textContent = n > 0 ? `Intercambios (${n})` : 'Intercambios'; // AC-6.1
 }
 
 const cerrarQuien = () => { $('quien').style.display = 'none'; };
@@ -991,6 +1003,7 @@ const cerrarQuien = () => { $('quien').style.display = 'none'; };
 function cerrarPaneles() {
   cerrarHoja();
   cerrarQuien();
+  cerrarIntercambios();
 }
 
 // Lista "¿Quién juega?" (AC-1.3, AC-3.1): el propietario y los familiares; un familiar fuera de casa también se puede elegir.
@@ -1038,6 +1051,85 @@ function pasarElJuegoAlPropietario() {
 
 $('juega').addEventListener('click', abrirQuien);
 $('quien-cerrar').addEventListener('click', cerrarQuien);
+
+// ---------- Intercambios (FR-7 a FR-11 de la 005) ----------
+const MOTIVOS_SIN_PROPUESTA = { limite: MENSAJES_INTERCAMBIO.limite, nada: 'No hay actividades para intercambiar' };
+
+const intercambiosAbierto = () => $('panel-intercambios').style.display === 'flex';
+function abrirIntercambios() {
+  pintarIntercambios();
+  $('panel-intercambios').style.display = 'flex';
+}
+function cerrarIntercambios() {
+  $('panel-intercambios').style.display = 'none';
+  cerrarFichaIntercambio();
+}
+
+// Panel de quien juega (AC-6.2): sus propuestas recibidas (Aceptar, Rechazar) y enviadas (Retirar); una que dejó de ser vigente
+// se muestra como "Ya no vigente" y solo ofrece "Quitar" (AC-7.8).
+function pintarIntercambios() {
+  const { recibidas, enviadas } = intercambiosDe(estado, jugador.id);
+  pintarListaIntercambios($('intercambios-recibidas'), recibidas, 'recibida');
+  pintarListaIntercambios($('intercambios-enviadas'), enviadas, 'enviada');
+  const motivo = motivoSinPropuesta(estado, jugador.id);
+  $('intercambios-proponer').disabled = motivo !== null; // AC-6.6, AC-6.7
+  $('intercambios-motivo').textContent = motivo ? MOTIVOS_SIN_PROPUESTA[motivo] : '';
+}
+
+function pintarListaIntercambios(cont, lista, vista) {
+  cont.replaceChildren(...(lista.length === 0 ? [elemento('p', 'Ninguna')] : lista.map((i) => {
+    const vigente = esVigente(estado, i);
+    const datos = elemento('span');
+    datos.append(elemento('strong', textoPropuesta(estado, i, vista)));
+    if (!vigente) datos.append(elemento('small', 'Ya no vigente'));
+    const botones = elemento('span', undefined, 'botones');
+    const accion = (texto, operacion, clase) => {
+      const boton = elemento('button', texto, clase);
+      boton.addEventListener('click', () => responderIntercambio(operacion(estado, i.id, jugador.id, ctx)));
+      botones.append(boton);
+    };
+    if (!vigente) accion('Quitar', quitar);
+    else if (vista === 'recibida') { accion('Aceptar', aceptar); accion('Rechazar', rechazar, 'peligro'); }
+    else accion('Retirar', retirar);
+    const fila = elemento('div', undefined, 'item');
+    fila.append(datos, botones);
+    return fila;
+  })));
+}
+
+// Los cambios de intercambios usan el mismo camino que los de actividades: guardan, redibujan burbujas y estados y repintan la hoja.
+function responderIntercambio(r) {
+  if (!r.ok) { avisar(MENSAJES_INTERCAMBIO[r.error]); return; }
+  aplicarActividades(r.estado);
+}
+
+// Ficha de proponer (AC-6.3, AC-6.4): dos listas sin valor inicial; guardar se activa con las dos elegidas.
+function abrirFichaIntercambio() {
+  const ofrecibles = actividadesOfrecibles(estado, jugador.id);
+  const pedibles = actividadesPedibles(estado, jugador.id);
+  opciones($('intercambio-ofrecida'), [['', 'Tu actividad…'], ...ofrecibles.map((a) => [a.id, `${a.nombre} · ${textoPlazo(a, hoy)}`])], '');
+  opciones($('intercambio-pedida'), [['', 'Por la de…'], ...pedibles.map((a) => [a.id, `${a.nombre} · ${buscarMiembro(estado, a.miembroId).nombre}`])], '');
+  $('intercambio-error').textContent = '';
+  actualizarFichaIntercambio();
+  $('ficha-intercambio').style.display = 'flex';
+}
+const actualizarFichaIntercambio = () => {
+  $('intercambio-guardar').disabled = $('intercambio-ofrecida').value === '' || $('intercambio-pedida').value === '';
+};
+const cerrarFichaIntercambio = () => { $('ficha-intercambio').style.display = 'none'; };
+
+$('intercambios').addEventListener('click', abrirIntercambios);
+$('intercambios-cerrar').addEventListener('click', cerrarIntercambios);
+$('intercambios-proponer').addEventListener('click', abrirFichaIntercambio);
+$('intercambio-cancelar').addEventListener('click', cerrarFichaIntercambio);
+for (const campo of ['intercambio-ofrecida', 'intercambio-pedida']) $(campo).addEventListener('change', actualizarFichaIntercambio);
+$('ficha-intercambio').querySelector('form').addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  const r = proponer(estado, { proponenteId: jugador.id, ofrecidaId: $('intercambio-ofrecida').value, pedidaId: $('intercambio-pedida').value }, ctx);
+  if (!r.ok) { $('intercambio-error').textContent = MENSAJES_INTERCAMBIO[r.error]; return; } // AC-6.9
+  cerrarFichaIntercambio();
+  aplicarActividades(r.estado);
+});
 
 // ---------- Ciclo de vida ----------
 document.addEventListener('visibilitychange', () => {
