@@ -1,15 +1,17 @@
 // src/juego.js
 /* global Phaser */
 import {
-  TIPOS, ETIQUETAS, PARENTESCOS, GENEROS, ESPECIES, LIMITES_HABITANTES, ICONOS, FRECUENCIAS, LIMITE_ACTIVIDADES, DIAS_RUTINA, LIMITE_BLOQUES, MAX_ESTRELLAS,
+  TIPOS, ETIQUETAS, ASPECTOS, DATOS_ASPECTO, ASPECTO_INICIAL, ESPECIES, DATOS_ESPECIE, ESPECIE_INICIAL, LIMITES_HABITANTES, ICONOS, FRECUENCIAS,
+  LIMITE_ACTIVIDADES, DIAS_RUTINA, LIMITE_BLOQUES, MAX_ESTRELLAS,
 } from './catalogo.js';
 import {
   espaciosActivos, buscarEspacio, contar, puedeAgregar, puedeQuitar, puedeEliminar, agregarEspacio, quitarUltimo,
   ultimoDeTipo, eliminarEspacio, requiereConfirmacion, consecuenciasDeEliminar, siguienteDestinoBano,
   nombreVisible, nombreAutomatico, renombrarEspacio, renombrarMiembro, MENSAJES_ERROR,
-  habitantes, buscarMiembro, esPropietario, contarHabitantes, puedeAgregarHabitante, agregarHabitante, editarHabitante,
+  habitantes, familiares, mascotas, buscarMiembro, esPropietario, contarHabitantes, puedeAgregarHabitante, agregarHabitante, editarHabitante,
   eliminarHabitante, pendientesDeMiembro, bloquesDeMiembro, personasQueJuegan, puedeJugar, jugadorInicial,
 } from './hogar.js';
+import { SECCIONES, textoPestana, accionDeToque } from './secciones.js';
 import { generarDistribucion } from './distribucion.js';
 import { crearAlmacen, iniciarSesion } from './almacen.js';
 import { posicionRelativa, resolverPosicion, paso } from './posicion.js';
@@ -53,9 +55,8 @@ const ESTILO_ETIQUETA = {
   fontFamily: 'system-ui, sans-serif', fontSize: '12px', color: '#2a221c',
   backgroundColor: 'rgba(242,234,211,0.85)', padding: { x: 3, y: 2 },
 };
-// Aspecto de los habitantes (FR-8), arte de marcador: personas de 12×14 según su género, mascotas de 8×8 según su especie.
-const COLOR_FAMILIAR = { femenino: 0xe8833a, masculino: 0x3a7bd5, otro: 0x8e6bbf };
-const COLOR_MASCOTA = { perro: 0x9c6b3c, gato: 0x7d7d7d, otro: 0x4f9d69 };
+// Aspecto de los habitantes (FR-8 de la 002, FR-5 y FR-6 de la 007), arte de marcador: personas de 12×14 —más pequeñas si son niños— y
+// mascotas de 8×8; los colores y la escala salen del catálogo.
 const COLOR_BORDE_HABITANTE = 0x2a221c;
 // Actividades (FR-5 y FR-6 de la 003), arte de marcador: iconos como emoji del sistema y objetos como cuadrados de colores.
 const GLIFO_ICONO = { platos: '🍽️', barrer: '🧹', ropa: '🧺', basura: '🗑️', limpiar: '🧽', compras: '🛒', plantas: '🪴', mascota: '🐾', otra: '📌' };
@@ -70,10 +71,13 @@ const ESTILO_CARTEL = { ...ESTILO_ETIQUETA, color: '#ffffff', backgroundColor: '
 const COLOR_PROPIETARIO = 0xd4537e;
 const COLOR_RESALTE = '#ffd166';
 function colorDe(miembro) {
-  if (miembro.tipo === 'mascota') return COLOR_MASCOTA[miembro.especie];
+  if (miembro.tipo === 'mascota') return DATOS_ESPECIE[miembro.especie].color;
   if (esPropietario(estado, miembro)) return COLOR_PROPIETARIO;
-  return COLOR_FAMILIAR[miembro.genero ?? 'otro'];
+  return DATOS_ASPECTO[miembro.aspecto].color;
 }
+const escalaDe = (miembro) => (miembro.tipo === 'persona' && miembro.aspecto !== null ? DATOS_ASPECTO[miembro.aspecto].escala : 1);
+const colorCss = (color) => `#${color.toString(16).padStart(6, '0')}`;
+const iconoDeMiembro = (miembro) => (miembro.tipo === 'mascota' ? DATOS_ESPECIE[miembro.especie].icono : (DATOS_ASPECTO[miembro.aspecto]?.icono ?? '🧑'));
 
 const $ = (id) => document.getElementById(id);
 // Si el navegador bloquea el almacenamiento, hasta acceder a localStorage lanza; se usa uno que siempre falla
@@ -165,7 +169,10 @@ class Escena extends Phaser.Scene {
     this.etiquetaPersonaje = this.add.text(0, 0, '', ESTILO_ETIQUETA).setOrigin(0.5, 1).setDepth(PROF_ETIQUETA_PERSONAJE);
     this.cartel = this.add.text(0, 0, '', ESTILO_CARTEL).setOrigin(1, 0.5).setDepth(PROF_BURBUJA).setVisible(false); // FR-5 de la 004
     this.firmaCartel = null;
-    this.teclas = this.input.keyboard.createCursorKeys();
+    // Solo las cuatro flechas y sin captura global del teclado: `createCursorKeys` también captura Espacio y Mayúsculas, y cancelaba esa tecla en
+    // los campos de texto del navegador de escritorio (FR-13 de la 007).
+    const { UP, DOWN, LEFT, RIGHT } = Phaser.Input.Keyboard.KeyCodes;
+    this.teclas = this.input.keyboard.addKeys({ up: UP, down: DOWN, left: LEFT, right: RIGHT }, false);
     // En exploración responden el cartel y las burbujas; en edición, también personajes y espacios (FR-8 de la 003, FR-5 de la 004).
     this.input.on('pointerup', (p) => tocarMapa(Math.floor(p.worldX / TILE), Math.floor(p.worldY / TILE), this.tocaCartel(p.worldX, p.worldY)));
     this.scale.on('resize', () => (modo === 'edicion' ? this.encuadrarHogar() : null));
@@ -233,7 +240,7 @@ class Escena extends Phaser.Scene {
   // Nombre, color y resalte de quien juega (AC-2.8 de la 005): su etiqueta lleva un fondo de color que no tienen las demás.
   dibujarJugador(escala) {
     const miembro = buscarMiembro(estado, jugador.id);
-    this.cuerpoPersonaje.setFillStyle(colorDe(miembro));
+    this.cuerpoPersonaje.setFillStyle(colorDe(miembro)).setSize(12 * escalaDe(miembro), 14 * escalaDe(miembro));
     this.etiquetaPersonaje.setText(miembro.nombre).setScale(escala).setBackgroundColor(COLOR_RESALTE).setFontStyle('bold');
   }
 
@@ -299,7 +306,7 @@ class Escena extends Phaser.Scene {
       const miembro = buscarMiembro(estado, h.id);
       const cuerpo = miembro.tipo === 'mascota'
         ? this.add.rectangle(0, 0, 8, 8, colorDe(miembro))
-        : this.add.rectangle(0, 0, 12, 14, colorDe(miembro));
+        : this.add.rectangle(0, 0, 12 * escalaDe(miembro), 14 * escalaDe(miembro), colorDe(miembro));
       cuerpo.setStrokeStyle(1, COLOR_BORDE_HABITANTE).setDepth(PROF_PERSONAJE)
         .setPosition(h.x * TILE + TILE / 2, h.y * TILE + TILE / 2);
       const etiqueta = this.add.text(cuerpo.x, cuerpo.y - TILE * 0.6, miembro.nombre, ESTILO_ETIQUETA)
@@ -399,7 +406,7 @@ class Escena extends Phaser.Scene {
 
   encuadrarHogar() {
     const cam = this.cameras.main;
-    const altoPanel = $('panel').offsetHeight;
+    const altoPanel = $('drawer').offsetHeight + $('barra').offsetHeight; // el hogar completo se ve por encima del drawer y de la barra (AC-1.6)
     const zoom = Math.min(cam.width / (distribucion.ancho * TILE), (cam.height - altoPanel) / (distribucion.alto * TILE)) * 0.95;
     cam.stopFollow();
     cam.setZoom(zoom);
@@ -461,44 +468,87 @@ for (const boton of document.querySelectorAll('#cruceta button')) {
   }
 }
 
-// ---------- Modo edición ----------
-function mostrarExploracion(visible) {
-  $('cruceta').style.display = visible ? 'grid' : 'none';
-  $('editar').style.display = visible ? 'block' : 'none';
-  $('juega').style.display = visible ? 'block' : 'none';
-  $('intercambios').style.display = visible ? 'block' : 'none';
-  $('historial').style.display = visible ? 'block' : 'none';
-  $('panel').style.display = visible ? 'none' : 'block';
+// ---------- Barra y drawers (FR-1 y FR-2 de la 007) ----------
+let seccion = null; // sección abierta: 'espacios' | 'familia' | 'actividades' | 'intercambios'; null en exploración
+let pestanaActividades = 'pendientes'; // 'pendientes' | 'hechas'
+let estadoAlEditar = null; // rutinas tal como estaban al entrar al modo edición: el cartel no cambia hasta "Listo" (AC-6.5 de la 004)
+
+// La barra se arma desde las secciones: una pestaña por sección, siempre visible (AC-1.1, AC-1.7).
+for (const s of SECCIONES) {
+  const pestana = elemento('button', undefined, 'pestana');
+  pestana.type = 'button';
+  pestana.dataset.seccion = s.clave;
+  pestana.append(elemento('span', s.icono, 'icono'), elemento('small', s.etiqueta, 'etiqueta'));
+  pestana.addEventListener('click', () => abrirSeccion(s.clave));
+  $('barra').append(pestana);
 }
 
-let estadoAlEditar = null; // rutinas tal como estaban al entrar al modo edición: el cartel no cambia hasta "Listo" (AC-6.5 de la 004)
-$('editar').addEventListener('click', () => {
+// Muestra u oculta la cruceta, el drawer y su sección, y marca la pestaña activa (AC-1.3, AC-1.7).
+function mostrarChrome() {
+  const edicion = seccion !== null;
+  $('cruceta').style.display = edicion ? 'none' : 'grid';
+  $('drawer').style.display = edicion ? 'block' : 'none';
+  for (const el of document.querySelectorAll('#drawer .seccion')) el.style.display = el.id === `sec-${seccion}` ? 'block' : 'none';
+  for (const b of document.querySelectorAll('#barra .pestana')) b.setAttribute('aria-pressed', String(b.dataset.seccion === seccion));
+  $('drawer-titulo').textContent = SECCIONES.find((s) => s.clave === seccion)?.etiqueta ?? '';
+}
+
+// Cierra fichas, hojas y selectores abiertos sin guardar nada (AC-1.11, AC-12.4).
+function cerrarFichasYHojas() {
+  cerrarHoja();
+  cerrarFicha();
+  cerrarFichaActividad();
+  cerrarFichaIntercambio();
+  cerrarSelectorIconos();
+  cerrarQuien();
+  $('rutina').style.display = 'none';
+  rutinaActual = null;
+  cerrarFichaBloque();
+}
+
+// Entra al modo edición: los habitantes quedan quietos en la casilla a la que se dirigían (AC-7.2 de la 002). Espera si hay un paso en curso.
+function entrarEdicion() {
+  if (moviendo) return false;
   estadoAlEditar = estado;
-  if (moviendo) return;
-  cerrarHoja(); // la hoja de exploración ofrece "Hecho"; en edición se vuelve a abrir desde la burbuja con Editar y Eliminar
   guardarPosicion();
   modo = 'edicion';
-  moviles = congelarHabitantes(moviles); // quietos en la casilla a la que se dirigían (AC-7.2 de la 002)
-  mostrarExploracion(false);
-  pintarPanel();
-  escena().encuadrarHogar();
-});
+  moviles = congelarHabitantes(moviles);
+  return true;
+}
 
-$('listo').addEventListener('click', () => {
-  cerrarHoja();
+// Abre el drawer de una sección (AC-1.3); con otro abierto, cambia de sección sin salir de la edición ni mover la cámara (AC-1.4); tocar la
+// pestaña activa cierra el drawer (AC-1.5).
+function abrirSeccion(clave) {
+  if (clave === seccion) { cerrarSeccion(); return; }
+  const entrando = seccion === null;
+  if (entrando && !entrarEdicion()) return;
+  cerrarFichasYHojas();
+  seccion = clave;
+  if (clave === 'actividades') pestanaActividades = 'pendientes'; // AC-7.1
+  mostrarChrome();
+  pintarDrawer();
+  if (entrando) escena().encuadrarHogar(); // el drawer ya tiene su altura fija: el hogar completo se ve por encima (AC-1.6)
+}
+
+// Vuelve a exploración con la cámara siguiendo a quien juega (AC-1.5, AC-3.8 de la 001).
+function cerrarSeccion() {
+  cerrarFichasYHojas();
+  seccion = null;
   modo = 'exploracion';
   jugador = { id: jugador.id, ...resolverPosicion(distribucion, posGuardada) };
   guardarPosicion();
   ahora = ahoraLocal(new Date());
   // FR-6 de la 004: primero el jugador; después cada familiar donde dice su rutina en este momento, con los cambios hechos en edición.
   moviles = colocarHabitantes(idsHabitantes(), distribucion, casillaJugador(), azar, objetivosDeFamiliares(estado, ahora));
-  mostrarExploracion(true);
+  mostrarChrome();
   const s = escena();
   s.redibujar();
   s.colocarPersonaje();
   s.seguirPersonaje();
   actualizarBotones(); // el nombre de quien juega pudo cambiar en la edición
-});
+}
+
+$('listo').addEventListener('click', cerrarSeccion);
 
 function aplicar(nuevo) {
   if (nuevo === estado) return;
@@ -513,8 +563,8 @@ function aplicar(nuevo) {
   ultimaRegeneracionMs = performance.now() - t0; // medición de la meta de 100 ms (NFR)
   guardarEstado(); // cada cambio del modo edición se guarda al aplicarse (FR-10 de la 001, AC-9.2)
   s.colocarPersonaje();
+  pintarDrawer(); // antes de reencuadrar: el drawer tiene altura fija, pero su contenido puede cambiar
   s.encuadrarHogar();
-  pintarPanel();
   if (hojaActual) pintarHoja();
 }
 
@@ -526,19 +576,17 @@ function aplicarActividades(nuevo) {
   escena().refrescarActividades();
   ultimaRegeneracionMs = performance.now() - t0; // misma meta de 100 ms (AC-6.10 de la 003)
   guardarEstado(); // se guarda en el momento en que se aplica (AC-8.2 de la 003)
-  if (modo === 'edicion') pintarPanel();
+  if (seccion) pintarDrawer();
   if (hojaActual) pintarHoja();
   actualizarBotones(); // cambia el número de propuestas recibidas
-  if (intercambiosAbierto()) pintarIntercambios(); // AC-7.11
 }
 
 // El día cambió con la app abierta (FR-10 de la 003): burbujas, estados y objetos se recalculan con la nueva fecha.
 function cambiarDia(fecha) {
   hoy = fecha;
   escena().refrescarActividades();
-  if (modo === 'edicion') pintarPanel();
+  if (seccion) pintarDrawer();
   if (hojaActual) pintarHoja();
-  if (historialAbierto()) pintarHistorial(); // AC-2.5: "Hoy" y "Ayer" se recalculan con el día nuevo
 }
 
 // El minuto cambió en exploración (FR-3 de la 004): cada familiar con un objetivo nuevo empieza a ir a su lugar.
@@ -561,7 +609,24 @@ function confirmarEliminacion(id) {
   return window.confirm(partes.join(' '));
 }
 
-function pintarPanel() {
+// Pinta el drawer de la sección abierta (FR-3, FR-4, FR-7 y FR-12 de la 007).
+function pintarDrawer() {
+  if (seccion === 'espacios') pintarEspacios();
+  else if (seccion === 'familia') pintarFamilia();
+  else if (seccion === 'actividades') pintarActividades();
+  else if (seccion === 'intercambios') pintarIntercambios();
+}
+
+// Los textos escritos por el usuario se insertan siempre como texto, nunca como marcado (NFR de seguridad de la 003).
+function elemento(etiqueta, texto, clase) {
+  const el = document.createElement(etiqueta);
+  if (texto !== undefined) el.textContent = texto;
+  if (clase) el.className = clase;
+  return el;
+}
+
+// Drawer "Espacios" (AC-3.1): un contador por tipo de espacio con − y +; sin habitantes ni actividades.
+function pintarEspacios() {
   const cont = $('contadores');
   cont.replaceChildren();
   for (const tipo of TIPOS) {
@@ -583,37 +648,54 @@ function pintarPanel() {
     mas.addEventListener('click', () => aplicar(agregarEspacio(estado, tipo, ctx)));
     cont.append(fila);
   }
-  pintarHabitantes();
-  pintarActividades();
 }
 
-// Sección "Habitantes" del panel (FR-4, AC-7.1): contador "n de límite" y botón "+" por clase.
-function pintarHabitantes() {
-  const cont = $('habitantes');
+// Drawer "Familia" (AC-4.1 a AC-4.7): Familiares y Mascotas, cada una con su contador "n de límite", su "+" y la lista de sus habitantes.
+function pintarFamilia() {
+  const cont = $('sec-familia');
   cont.replaceChildren();
-  for (const [clase, titulo] of [['familiar', 'Familiares'], ['mascota', 'Mascotas']]) {
-    const fila = document.createElement('div');
-    fila.className = 'fila habitante';
-    fila.innerHTML = `<span>${titulo}</span><span class="cuenta">${contarHabitantes(estado, clase)} de ${LIMITES_HABITANTES[clase]}</span>`
-      + `<button aria-label="Agregar ${clase}">+</button>`;
-    const mas = fila.querySelector('button');
+  const secciones = [
+    ['familiar', 'Familiares', familiares(estado), 'Aún no hay familiares'],
+    ['mascota', 'Mascotas', mascotas(estado), 'Aún no hay mascotas'],
+  ];
+  for (const [clase, titulo, lista, vacio] of secciones) {
+    const mas = elemento('button', '+');
+    mas.setAttribute('aria-label', `Agregar ${clase}`);
     mas.disabled = !puedeAgregarHabitante(estado, clase);
     mas.addEventListener('click', () => abrirFichaHabitante(clase, null));
-    cont.append(fila);
+    const cabecera = elemento('div', undefined, 'fila cabecera');
+    cabecera.append(elemento('strong', titulo), elemento('span', `${contarHabitantes(estado, clase)} de ${LIMITES_HABITANTES[clase]}`, 'cuenta'), mas);
+    cont.append(cabecera);
+    if (lista.length === 0) cont.append(elemento('p', vacio, 'nota'));
+    for (const m of lista) {
+      const fila = elemento('div', undefined, 'fila actividad');
+      fila.append(elemento('span', iconoDeMiembro(m), 'icono'), elemento('strong', m.nombre));
+      fila.addEventListener('click', () => abrirFichaHabitante(clase, m.id));
+      cont.append(fila);
+    }
   }
 }
 
-// Los textos escritos por el usuario se insertan siempre como texto, nunca como marcado (NFR de seguridad de la 003).
-function elemento(etiqueta, texto, clase) {
-  const el = document.createElement(etiqueta);
-  if (texto !== undefined) el.textContent = texto;
-  if (clase) el.className = clase;
-  return el;
+// Drawer "Actividades" (AC-7.1 a AC-7.9): las pestañas Pendientes y Hechas (el historial de la 006).
+function pintarActividades() {
+  for (const b of document.querySelectorAll('#sec-actividades [data-pestana]')) b.setAttribute('aria-pressed', String(b.dataset.pestana === pestanaActividades));
+  $('pendientes').style.display = pestanaActividades === 'pendientes' ? 'block' : 'none';
+  $('hechas').style.display = pestanaActividades === 'hechas' ? 'block' : 'none';
+  if (pestanaActividades === 'pendientes') pintarPendientes();
+  else pintarHistorial();
 }
 
-// Sección "Actividades" del panel (FR-8, AC-6.1 de la 003): contador "n de 50", alta y lista de todas las pendientes.
-function pintarActividades() {
-  const cont = $('actividades');
+for (const boton of document.querySelectorAll('#sec-actividades [data-pestana]')) {
+  boton.addEventListener('click', () => {
+    pestanaActividades = boton.dataset.pestana;
+    if (pestanaActividades === 'hechas') reiniciarFiltroHistorial(); // AC-7.5: el filtro vuelve a "Todos"
+    pintarActividades();
+  });
+}
+
+// Pestaña "Pendientes" (AC-7.2, FR-8 de la 003): contador "n de 50", alta y lista de todas las pendientes.
+function pintarPendientes() {
+  const cont = $('pendientes');
   cont.replaceChildren();
   const cabecera = elemento('div', undefined, 'fila cabecera');
   const mas = elemento('button', '+ Actividad');
@@ -634,30 +716,55 @@ function pintarActividades() {
 }
 
 // ---------- Fichas ----------
-let fichaActual = null; // { tipo: 'espacio' | 'propietario' | 'habitante', id, clase? }
+let fichaActual = null; // { tipo: 'espacio' | 'propietario' | 'habitante', id, clase?, icono? }
 
-function llenarSelect(select, lista, valor) {
-  select.replaceChildren(new Option('Elegir…', ''), ...Object.entries(lista).map(([clave, texto]) => new Option(texto, clave)));
-  select.value = valor ?? '';
+// Opciones del selector de iconos de un habitante: los aspectos de un familiar o las especies de una mascota (AC-5.2, AC-6.2).
+function opcionesDeIcono(clase) {
+  return clase === 'familiar'
+    ? Object.entries(ASPECTOS).map(([clave, etiqueta]) => [clave, DATOS_ASPECTO[clave].icono, etiqueta])
+    : Object.entries(ESPECIES).map(([clave, etiqueta]) => [clave, DATOS_ESPECIE[clave].icono, etiqueta]);
 }
+const glifoDeIcono = (clase, clave) => (clase === 'familiar' ? DATOS_ASPECTO[clave].icono : DATOS_ESPECIE[clave].icono);
 
-function mostrarCampos({ parentesco = false, genero = false, especie = false }) {
-  $('ficha-parentesco').style.display = parentesco ? 'block' : 'none';
-  $('ficha-genero').style.display = genero ? 'block' : 'none';
-  $('ficha-especie').style.display = especie ? 'block' : 'none';
+// Selector de iconos (AC-5.2, AC-6.2, AC-8.7): una rejilla de [clave, icono, etiqueta] con la actual marcada; al elegir una, se cierra y llama a `alElegir`.
+function abrirSelectorIconos(titulo, opcionesLista, actual, alElegir) {
+  $('selector-titulo').textContent = titulo;
+  $('selector-lista').replaceChildren(...opcionesLista.map(([clave, icono, etiqueta]) => {
+    const boton = elemento('button', undefined, 'opcion-icono');
+    boton.type = 'button';
+    boton.setAttribute('aria-pressed', String(clave === actual));
+    boton.append(elemento('span', icono, 'icono'), elemento('small', etiqueta));
+    boton.addEventListener('click', () => { cerrarSelectorIconos(); alElegir(clave); });
+    return boton;
+  }));
+  $('selector-iconos').style.display = 'flex';
 }
+const cerrarSelectorIconos = () => { $('selector-iconos').style.display = 'none'; };
+$('selector-cerrar').addEventListener('click', cerrarSelectorIconos);
 
-// Solo el alta de un habitante (id null) deshabilita guardar hasta tener nombre y todos sus datos elegidos (AC-1.3, AC-2.3).
-// La edición de un habitante existente lo deja activo: un nombre vacío llega a editarHabitante, que lo rechaza y se muestra el mensaje (AC-3.5).
+// Solo el alta de un habitante (id null) deshabilita guardar hasta tener nombre (AC-5.1, AC-6.1). La edición de un habitante existente lo
+// deja activo: un nombre vacío llega a editarHabitante, que lo rechaza y se muestra el mensaje.
 function actualizarGuardar() {
-  if (fichaActual?.tipo !== 'habitante' || fichaActual.id) { $('ficha-guardar').disabled = false; return; }
-  const datosElegidos = fichaActual.clase === 'familiar'
-    ? $('ficha-parentesco').value !== '' && $('ficha-genero').value !== ''
-    : $('ficha-especie').value !== '';
-  $('ficha-guardar').disabled = $('ficha-nombre').value.trim() === '' || !datosElegidos;
+  const alta = fichaActual?.tipo === 'habitante' && !fichaActual.id;
+  $('ficha-guardar').disabled = alta && $('ficha-nombre').value.trim() === '';
 }
 
-// Ficha de un espacio o del personaje del propietario (como en la 001: solo renombrar; Eliminar solo en espacios).
+function pintarIconoFicha() {
+  const boton = $('ficha-icono');
+  boton.style.display = 'block';
+  boton.textContent = glifoDeIcono(fichaActual.clase, fichaActual.icono);
+  boton.setAttribute('aria-label', fichaActual.clase === 'familiar' ? 'Elegir aspecto' : 'Elegir especie');
+}
+
+$('ficha-icono').addEventListener('click', () => {
+  const { clase, icono } = fichaActual;
+  abrirSelectorIconos(clase === 'familiar' ? 'Aspecto' : 'Especie', opcionesDeIcono(clase), icono, (clave) => {
+    fichaActual.icono = clave;
+    pintarIconoFicha();
+  });
+});
+
+// Ficha de un espacio o del personaje del propietario (como en la 001: solo renombrar; Eliminar solo en espacios; sin icono, AC-5.10).
 function abrirFicha(tipo, id) {
   fichaActual = { tipo, id };
   const esEspacio = tipo === 'espacio';
@@ -666,7 +773,7 @@ function abrirFicha(tipo, id) {
   $('ficha-titulo').textContent = esEspacio ? nombreVisible(estado, espacio) : miembro.nombre;
   $('ficha-nombre').value = esEspacio ? (espacio.nombrePersonalizado ?? '') : miembro.nombre;
   $('ficha-nombre').placeholder = esEspacio ? nombreAutomatico(estado, espacio) : 'Nombre del personaje';
-  mostrarCampos({});
+  $('ficha-icono').style.display = 'none';
   $('ficha-rutina').style.display = 'none'; // solo los familiares tienen rutina (AC-1.1 de la 004)
   $('ficha-guardar').textContent = 'Renombrar';
   $('ficha-error').textContent = '';
@@ -676,18 +783,17 @@ function abrirFicha(tipo, id) {
   $('ficha').style.display = 'flex';
 }
 
-// Ficha de un habitante (FR-4): alta si `id` es null; edición si no. Familiar: nombre, parentesco y género; mascota: nombre y especie.
+// Ficha de un habitante (AC-5.1, AC-5.6, AC-6.1, AC-6.5): alta si `id` es null; edición si no. Un botón de icono (aspecto o especie) a la izquierda
+// del nombre, con "Neutro" u "Otro" por omisión en el alta (AC-5.3, AC-6.3).
 function abrirFichaHabitante(clase, id) {
-  fichaActual = { tipo: 'habitante', id, clase };
   const miembro = id ? buscarMiembro(estado, id) : null;
   const familiar = clase === 'familiar';
+  const icono = miembro ? (familiar ? miembro.aspecto : miembro.especie) : (familiar ? ASPECTO_INICIAL : ESPECIE_INICIAL);
+  fichaActual = { tipo: 'habitante', id, clase, icono };
   $('ficha-titulo').textContent = miembro ? miembro.nombre : (familiar ? 'Nuevo familiar' : 'Nueva mascota');
   $('ficha-nombre').value = miembro?.nombre ?? '';
   $('ficha-nombre').placeholder = familiar ? 'Nombre del familiar' : 'Nombre de la mascota';
-  llenarSelect($('ficha-parentesco'), PARENTESCOS, miembro?.parentesco);
-  llenarSelect($('ficha-genero'), GENEROS, miembro?.genero);
-  llenarSelect($('ficha-especie'), ESPECIES, miembro?.especie);
-  mostrarCampos(familiar ? { parentesco: true, genero: true } : { especie: true });
+  pintarIconoFicha();
   $('ficha-rutina').style.display = miembro && familiar ? 'block' : 'none'; // AC-1.1 de la 004
   $('ficha-guardar').textContent = 'Guardar';
   $('ficha-error').textContent = '';
@@ -705,22 +811,29 @@ function abrirFichaDeMiembro(miembro) {
   else abrirFichaHabitante(miembro.tipo === 'mascota' ? 'mascota' : 'familiar', miembro.id);
 }
 
-// Al tocar el mapa (FR-8 de la 003, FR-5 de la 004): en exploración responden el cartel y las burbujas; en edición la prioridad es
-// personaje del propietario, habitante, cartel, burbuja y espacio (AC-5.13 de la 004).
+const burbujaEn = (x, y) => ubicarBurbujas(burbujas(estado, hoy), distribucion, posicionesDeMiembros()).find((b) => b.x === x && b.y === y) ?? null;
+
+// Al tocar el mapa. En exploración responden el cartel y las burbujas (FR-8 de la 003, FR-5 de la 004). En edición responde solo lo de la sección
+// abierta, según `accionDeToque` (FR-2 de la 007): Espacios, la ficha del espacio; Familia, la del propietario o el habitante y el cartel;
+// Actividades, la hoja de la burbuja; Intercambios, nada.
 function tocarMapa(x, y, enCartel) {
   if (modo === 'exploracion' && enCartel) { abrirHoja({ tipo: 'fuera' }); return; }
   if (y < 0 || y >= distribucion.alto || x < 0 || x >= distribucion.ancho) return;
-  const burbuja = ubicarBurbujas(burbujas(estado, hoy), distribucion, posicionesDeMiembros()).find((b) => b.x === x && b.y === y);
   if (modo === 'exploracion') {
+    const burbuja = burbujaEn(x, y);
     if (burbuja) abrirHoja(burbuja);
     return;
   }
   const ocupante = x === jugador.x && y === jugador.y ? jugador : moviles.find((h) => h.fase !== 'fuera' && h.x === x && h.y === y);
-  if (ocupante) { abrirFichaDeMiembro(buscarMiembro(estado, ocupante.id)); return; } // AC-4.4 y AC-4.5 de la 005
-  if (enCartel) { abrirHoja({ tipo: 'fuera' }); return; }
-  if (burbuja) { abrirHoja(burbuja); return; }
   const clave = distribucion.espacioEn[y][x];
-  if (clave && buscarEspacio(estado, clave)) abrirFicha('espacio', clave);
+  const accion = accionDeToque(seccion, {
+    ocupante: ocupante?.id ?? null, enCartel, burbuja: burbujaEn(x, y), espacioId: clave && buscarEspacio(estado, clave) ? clave : null,
+  });
+  if (!accion) return;
+  if (accion.tipo === 'ficha-espacio') abrirFicha('espacio', accion.id);
+  else if (accion.tipo === 'ficha-miembro') abrirFichaDeMiembro(buscarMiembro(estado, accion.id));
+  else if (accion.tipo === 'hoja-fuera') abrirHoja({ tipo: 'fuera' });
+  else if (accion.tipo === 'hoja') abrirHoja(accion.lugar);
 }
 
 $('ficha').querySelector('form').addEventListener('submit', (ev) => {
@@ -731,7 +844,7 @@ $('ficha').querySelector('form').addEventListener('submit', (ev) => {
   if (tipo === 'espacio') r = renombrarEspacio(estado, id, texto, ctx);
   else if (tipo === 'propietario') r = renombrarMiembro(estado, id, texto, ctx);
   else {
-    const datos = { nombre: texto, parentesco: $('ficha-parentesco').value, genero: $('ficha-genero').value, especie: $('ficha-especie').value };
+    const datos = clase === 'familiar' ? { nombre: texto, aspecto: fichaActual.icono } : { nombre: texto, especie: fichaActual.icono };
     r = id ? editarHabitante(estado, id, datos, ctx) : agregarHabitante(estado, clase, datos, ctx);
   }
   if (!r.ok) { $('ficha-error').textContent = MENSAJES_ERROR[r.error]; return; }
@@ -739,7 +852,6 @@ $('ficha').querySelector('form').addEventListener('submit', (ev) => {
   aplicar(r.estado);
 });
 $('ficha-nombre').addEventListener('input', () => { $('ficha-error').textContent = ''; actualizarGuardar(); });
-for (const campo of ['ficha-parentesco', 'ficha-genero', 'ficha-especie']) $(campo).addEventListener('change', actualizarGuardar);
 $('ficha-cancelar').addEventListener('click', cerrarFicha);
 $('ficha-eliminar').addEventListener('click', () => {
   const { tipo, id } = fichaActual;
@@ -999,19 +1111,12 @@ $('bloque-eliminar').addEventListener('click', () => {
 // ---------- Quién juega (FR-1 a FR-6 de la 005) ----------
 
 function actualizarBotones() {
-  $('juega').textContent = `Juega: ${buscarMiembro(estado, jugador.id).nombre}`;
-  const n = numeroRecibidas(estado, jugador.id);
-  $('intercambios').textContent = n > 0 ? `Intercambios (${n})` : 'Intercambios'; // AC-6.1
+  $('juega').textContent = `Juega: ${buscarMiembro(estado, jugador.id).nombre}`; // AC-12.1
+  const pestana = document.querySelector('#barra [data-seccion="intercambios"] .etiqueta');
+  pestana.textContent = textoPestana('intercambios', numeroRecibidas(estado, jugador.id)); // AC-1.8
 }
 
 const cerrarQuien = () => { $('quien').style.display = 'none'; };
-// Al cambiar de jugador se cierran las hojas y los paneles abiertos (AC-2.9).
-function cerrarPaneles() {
-  cerrarHoja();
-  cerrarQuien();
-  cerrarIntercambios();
-  cerrarHistorial();
-}
 
 // Lista "¿Quién juega?" (AC-1.3, AC-3.1): el propietario y los familiares; un familiar fuera de casa también se puede elegir.
 function abrirQuien() {
@@ -1037,14 +1142,16 @@ function elegirJugador(id) {
   const t0 = performance.now();
   const saliente = { id: jugador.id, x: jugador.x, y: jugador.y, direccion: jugador.direccion };
   const r = cambiarJugador(moviles, saliente, id, distribucion, objetivosDeFamiliares(estado, ahora));
-  moviles = r.moviles;
+  moviles = modo === 'edicion' ? congelarHabitantes(r.moviles) : r.moviles; // en edición nadie camina (AC-12.4)
   jugador = r.jugador;
-  cerrarPaneles();
+  cerrarFichasYHojas(); // AC-12.4
   guardarPosicion(); // AC-5.2
   actualizarBotones();
   const s = escena();
   s.colocarPersonaje();
-  s.seguirPersonaje(); // centra la cámara y rehace etiquetas, nombres, burbujas y cartel
+  if (modo === 'edicion') s.encuadrarHogar(); // la cámara sigue en el encuadre completo (AC-12.4)
+  else s.seguirPersonaje(); // centra la cámara y rehace etiquetas, nombres, burbujas y cartel
+  if (seccion) pintarDrawer(); // el drawer sigue en su pestaña, con el contenido de la nueva persona (AC-12.3)
   ultimaRegeneracionMs = performance.now() - t0; // meta de 100 ms (AC-2.10)
 }
 
@@ -1059,18 +1166,8 @@ function pasarElJuegoAlPropietario() {
 $('juega').addEventListener('click', abrirQuien);
 $('quien-cerrar').addEventListener('click', cerrarQuien);
 
-// ---------- Intercambios (FR-7 a FR-11 de la 005) ----------
+// ---------- Intercambios (FR-7 a FR-11 de la 005, FR-12 de la 007) ----------
 const MOTIVOS_SIN_PROPUESTA = { limite: MENSAJES_INTERCAMBIO.limite, nada: 'No hay actividades para intercambiar' };
-
-const intercambiosAbierto = () => $('panel-intercambios').style.display === 'flex';
-function abrirIntercambios() {
-  pintarIntercambios();
-  $('panel-intercambios').style.display = 'flex';
-}
-function cerrarIntercambios() {
-  $('panel-intercambios').style.display = 'none';
-  cerrarFichaIntercambio();
-}
 
 // Panel de quien juega (AC-6.2): sus propuestas recibidas (Aceptar, Rechazar) y enviadas (Retirar); una que dejó de ser vigente
 // se muestra como "Ya no vigente" y solo ofrece "Quitar" (AC-7.8).
@@ -1125,8 +1222,6 @@ const actualizarFichaIntercambio = () => {
 };
 const cerrarFichaIntercambio = () => { $('ficha-intercambio').style.display = 'none'; };
 
-$('intercambios').addEventListener('click', abrirIntercambios);
-$('intercambios-cerrar').addEventListener('click', cerrarIntercambios);
 $('intercambios-proponer').addEventListener('click', abrirFichaIntercambio);
 $('intercambio-cancelar').addEventListener('click', cerrarFichaIntercambio);
 for (const campo of ['intercambio-ofrecida', 'intercambio-pedida']) $(campo).addEventListener('change', actualizarFichaIntercambio);
@@ -1139,18 +1234,14 @@ $('ficha-intercambio').querySelector('form').addEventListener('submit', (ev) => 
 });
 
 // ---------- Historial y calificaciones (FR-3 a FR-6 de la 006) ----------
-const historialAbierto = () => $('panel-historial').style.display === 'flex';
-let filtroHistorial = null; // null = "Todos"; si no, el id de un miembro. Vuelve a "Todos" cada vez que se abre el panel (AC-3.10)
+let filtroHistorial = null; // null = "Todos"; si no, el id de un miembro. Vuelve a "Todos" cada vez que se muestra la pestaña "Hechas" (AC-3.10)
 
-function abrirHistorial() {
+// El filtro vuelve a "Todos" cada vez que se muestra la pestaña "Hechas" (AC-3.10 de la 006, AC-7.5 de la 007). Ofrece las personas y solo las
+// mascotas con alguna entrada.
+function reiniciarFiltroHistorial() {
   filtroHistorial = null;
   opciones($('historial-filtro'), [['', 'Todos'], ...miembrosDelFiltro(estado).map((m) => [m.id, m.nombre])], '');
   $('historial-error').textContent = '';
-  pintarHistorial();
-  $('panel-historial').style.display = 'flex';
-}
-function cerrarHistorial() {
-  $('panel-historial').style.display = 'none';
 }
 
 // Lista del panel (AC-2.3, AC-2.6): el resumen del miembro elegido y una fila por entrada, de la más reciente a la más antigua.
@@ -1201,15 +1292,12 @@ function aplicarHistorial(r) {
   const t0 = performance.now();
   estado = r.estado;
   guardarEstado();
-  const seccion = $('panel-historial').querySelector('section');
-  const desplazamiento = seccion.scrollTop;
+  const desplazamiento = $('drawer').scrollTop;
   pintarHistorial();
-  seccion.scrollTop = desplazamiento;
+  $('drawer').scrollTop = desplazamiento;
   ultimaRegeneracionMs = performance.now() - t0;
 }
 
-$('historial').addEventListener('click', abrirHistorial);
-$('historial-cerrar').addEventListener('click', cerrarHistorial);
 $('historial-filtro').addEventListener('change', () => {
   filtroHistorial = $('historial-filtro').value || null;
   pintarHistorial();
@@ -1220,4 +1308,5 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden' && modo === 'exploracion') guardarPosicion();
 });
 actualizarBotones();
+mostrarChrome();
 if (inicio.aviso) avisar(inicio.aviso);
