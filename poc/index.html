@@ -175,14 +175,21 @@
   <div id="ficha-actividad">
     <form>
       <strong id="actividad-titulo"></strong>
-      <input id="actividad-nombre" maxlength="30" autocomplete="off" placeholder="Nombre de la actividad">
-      <select id="actividad-icono" aria-label="Icono"></select>
-      <select id="actividad-miembro" aria-label="Asignada a"></select>
+      <div class="fila-nombre">
+        <button type="button" id="actividad-icono" class="icono-boton"></button>
+        <input id="actividad-nombre" maxlength="30" autocomplete="off" placeholder="Nombre de la actividad">
+      </div>
+      <div id="actividad-sugerencias" class="chips"></div>
+      <span class="subtitulo">Quién</span>
+      <div id="actividad-quien" class="circulos"></div>
       <small class="nota" id="actividad-nota"></small>
-      <select id="actividad-espacio" aria-label="Espacio"></select>
-      <select id="actividad-tipo" aria-label="Tipo"></select>
-      <input id="actividad-vence" type="date" aria-label="Vence">
-      <select id="actividad-frecuencia" aria-label="Frecuencia"></select>
+      <div class="resumen-ficha"><span id="actividad-resumen"></span><button type="button" id="actividad-cambiar">Cambiar</button></div>
+      <div id="actividad-mas">
+        <label>Fecha <input id="actividad-vence" type="date"></label>
+        <label>Recurrencia <select id="actividad-recurrencia"></select></label>
+        <span class="subtitulo">Lugares</span>
+        <div id="actividad-lugares" class="chips"></div>
+      </div>
       <div class="error" id="actividad-error"></div>
       <div class="acciones">
         <button type="button" class="peligro" id="actividad-eliminar">Eliminar</button>

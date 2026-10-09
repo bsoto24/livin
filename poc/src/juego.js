@@ -1,7 +1,7 @@
 // src/juego.js
 /* global Phaser */
 import {
-  TIPOS, ETIQUETAS, ASPECTOS, DATOS_ASPECTO, ASPECTO_INICIAL, ESPECIES, DATOS_ESPECIE, ESPECIE_INICIAL, LIMITES_HABITANTES, ICONOS, FRECUENCIAS,
+  TIPOS, ETIQUETAS, ASPECTOS, DATOS_ASPECTO, ASPECTO_INICIAL, ESPECIES, DATOS_ESPECIE, ESPECIE_INICIAL, LIMITES_HABITANTES, ICONOS,
   LIMITE_ACTIVIDADES, DIAS_RUTINA, LIMITE_BLOQUES, MAX_ESTRELLAS,
 } from './catalogo.js';
 import {
@@ -20,7 +20,7 @@ import {
   MS_POR_PASO, colocarHabitantes, avanzarHabitantes, sincronizarHabitantes, congelarHabitantes, ocupadasPorHabitantes, fijarObjetivos, cambiarJugador,
 } from './movimiento.js';
 import {
-  contarActividades, puedeAgregarActividad, buscarActividad, agregarActividad, editarActividad, eliminarActividad, marcarHecha,
+  contarActividades, puedeAgregarActividad, buscarActividad, agregarActividades, editarActividad, eliminarActividad, marcarHecha,
   limpiezaDeEspacio, burbujas, actividadesDelLugar, listaDelPanel, textoPlazo, MENSAJES_ACTIVIDAD,
 } from './actividades.js';
 import {
@@ -36,6 +36,9 @@ import {
   entradasDelHistorial, entradasDe, miembrosDelFiltro, textoLinea, textoResumen, textoVacio, estadoDeCalificacion, textoCalificacion,
   calificar, quitarCalificacion, MENSAJES_HISTORIAL,
 } from './historial.js';
+import {
+  sugerenciasPara, iconoDeFicha, iconoDeEdicion, OPCIONES_RECURRENCIA, datosDeRecurrencia, valorDeRecurrencia, resumenDeFicha, inicialDe,
+} from './formularios.js';
 import { ahoraLocal } from './fechas.js';
 
 const TILE = 16;
@@ -939,54 +942,98 @@ function pintarHojaFuera() {
   $('hoja').style.display = 'block';
 }
 
-// ---------- Ficha de una actividad (FR-1 y FR-8 de la 003) ----------
+// ---------- Ficha de una actividad (FR-8 y FR-9 de la 007) ----------
 let actividadEnFicha = null; // id de la actividad en edición, o null en un alta
+let fichaAct = null; // estado de la ficha abierta: { quien, lugares (Set de ids), icono ({ icono, editable, manual }), desplegada }
 
 function opciones(select, pares, valor) {
   select.replaceChildren(...pares.map(([clave, texto]) => new Option(texto, clave)));
   select.value = valor;
 }
 
-// Alta: nombre vacío, icono "Otra", miembro sin elegir, "Sin espacio", "Puntual", fecha de hoy (AC-1.1).
+// Alta (AC-8.1, AC-9.2, AC-9.4): nombre vacío, icono 📌, quien juega, hoy, una vez y sin lugar. Edición: los datos de la actividad (AC-8.15).
 function abrirFichaActividad(id) {
   actividadEnFicha = id;
   const a = id ? buscarActividad(estado, id) : null;
+  fichaAct = {
+    quien: a ? a.miembroId : jugador.id,
+    lugares: new Set(a?.espacioId ? [a.espacioId] : []),
+    icono: a ? iconoDeEdicion(a.nombre, a.icono) : iconoDeFicha('', null),
+    desplegada: false,
+  };
   $('actividad-titulo').textContent = a ? a.nombre : 'Nueva actividad';
   $('actividad-nombre').value = a?.nombre ?? '';
-  opciones($('actividad-icono'), Object.entries(ICONOS).map(([clave, texto]) => [clave, `${GLIFO_ICONO[clave]} ${texto}`]), a?.icono ?? 'otra');
-  const miembros = [propietario(), ...habitantes(estado)];
-  opciones($('actividad-miembro'), [['', 'Asignar a…'], ...miembros.map((m) => [m.id, m.nombre])], a?.miembroId ?? '');
-  $('actividad-nota').textContent = a ? textoIntercambio(estado, a) : ''; // AC-8.6
-  opciones($('actividad-espacio'), [['', 'Sin espacio'], ...espaciosActivos(estado).map((e) => [e.id, nombreVisible(estado, e)])], a?.espacioId ?? '');
-  opciones($('actividad-tipo'), [['puntual', 'Puntual'], ['repetitiva', 'Repetitiva']], a?.tipo ?? 'puntual');
   $('actividad-vence').value = a?.vence ?? hoy;
-  const frecuencias = FRECUENCIAS.map((n) => [String(n), n === 1 ? 'Cada día' : `Cada ${n} días`]);
-  opciones($('actividad-frecuencia'), [['', 'Elegir frecuencia…'], ...frecuencias], a?.frecuenciaDias ? String(a.frecuenciaDias) : '');
+  opciones($('actividad-recurrencia'), OPCIONES_RECURRENCIA, a ? valorDeRecurrencia(a) : '0');
+  $('actividad-nota').textContent = a ? textoIntercambio(estado, a) : ''; // AC-8.6 de la 005
   $('actividad-error').textContent = '';
   $('actividad-eliminar').style.display = a ? 'block' : 'none';
-  actualizarFichaActividad();
+  pintarFichaActividad();
   $('ficha-actividad').style.display = 'flex';
 }
 
-// La frecuencia solo se ve en las repetitivas (AC-1.2). En un alta, guardar se activa con nombre, miembro y, si es
-// repetitiva, frecuencia (AC-1.6). En una edición queda activo: un nombre vacío llega a editarActividad, que lo
-// rechaza con su mensaje (AC-6.5).
-function actualizarFichaActividad() {
-  const repetitiva = $('actividad-tipo').value === 'repetitiva';
-  $('actividad-frecuencia').style.display = repetitiva ? 'block' : 'none';
-  if (actividadEnFicha) { $('actividad-guardar').disabled = false; return; }
-  $('actividad-guardar').disabled = $('actividad-nombre').value.trim() === '' || $('actividad-miembro').value === ''
-    || (repetitiva && $('actividad-frecuencia').value === '');
+// Repinta lo que depende del estado de la ficha: icono, sugerencias, responsable, lugares y resumen; y habilita Guardar.
+function pintarFichaActividad() {
+  const texto = $('actividad-nombre').value;
+  const icono = $('actividad-icono');
+  icono.textContent = GLIFO_ICONO[fichaAct.icono.icono];
+  icono.setAttribute('aria-disabled', String(!fichaAct.icono.editable));
+  icono.setAttribute('aria-label', fichaAct.icono.editable ? 'Elegir icono' : 'Icono de la sugerencia');
+  $('actividad-sugerencias').replaceChildren(...sugerenciasPara(texto).map((s) => { // AC-8.2, AC-8.3
+    const chip = elemento('button', `${GLIFO_ICONO[s.icono]} ${s.nombre}`, 'chip');
+    chip.type = 'button';
+    chip.addEventListener('click', () => { $('actividad-nombre').value = s.nombre; alCambiarNombre(); }); // AC-8.5
+    return chip;
+  }));
+  $('actividad-quien').replaceChildren(...personasQueJuegan(estado).map((m) => { // AC-9.1: personas, nunca mascotas
+    const circulo = elemento('button', inicialDe(m.nombre), 'circulo');
+    circulo.type = 'button';
+    circulo.style.background = colorCss(colorDe(m));
+    circulo.setAttribute('aria-label', m.nombre);
+    circulo.setAttribute('aria-pressed', String(m.id === fichaAct.quien));
+    circulo.addEventListener('click', () => { fichaAct.quien = m.id; pintarFichaActividad(); }); // AC-9.3
+    return circulo;
+  }));
+  const espacios = espaciosActivos(estado);
+  $('actividad-lugares').replaceChildren(...espacios.map((e) => { // AC-10.1
+    const chip = elemento('button', nombreVisible(estado, e), 'chip');
+    chip.type = 'button';
+    chip.setAttribute('aria-pressed', String(fichaAct.lugares.has(e.id)));
+    chip.addEventListener('click', () => alTocarLugar(e.id));
+    return chip;
+  }));
+  $('actividad-resumen').textContent = resumenDeFicha({
+    vence: $('actividad-vence').value, hoy, recurrencia: $('actividad-recurrencia').value,
+    lugares: espacios.filter((e) => fichaAct.lugares.has(e.id)).map((e) => nombreVisible(estado, e)),
+  });
+  $('actividad-mas').style.display = fichaAct.desplegada ? 'block' : 'none';
+  $('actividad-cambiar').textContent = fichaAct.desplegada ? 'Ocultar' : 'Cambiar';
+  // En un alta, guardar se activa con nombre y responsable (AC-8.12). En una edición queda activo: un nombre vacío llega a editarActividad,
+  // que lo rechaza con su mensaje (AC-6.5 de la 003).
+  $('actividad-guardar').disabled = actividadEnFicha === null && ($('actividad-nombre').value.trim() === '' || fichaAct.quien === '');
 }
 
-const cerrarFichaActividad = () => { $('ficha-actividad').style.display = 'none'; actividadEnFicha = null; };
+// Al crear, los lugares son de selección múltiple (AC-10.1); al editar, de selección única y se pueden desmarcar (AC-10.8).
+function alTocarLugar(id) {
+  if (actividadEnFicha) fichaAct.lugares = new Set(fichaAct.lugares.has(id) ? [] : [id]);
+  else if (fichaAct.lugares.has(id)) fichaAct.lugares.delete(id);
+  else fichaAct.lugares.add(id);
+  pintarFichaActividad();
+}
+
+// Al cambiar el texto del nombre, el icono se recalcula (AC-8.5 a AC-8.11): fijo con una sugerencia, a mano o genérico si no.
+function alCambiarNombre() {
+  fichaAct.icono = iconoDeFicha($('actividad-nombre').value, fichaAct.icono.manual);
+  $('actividad-error').textContent = '';
+  pintarFichaActividad();
+}
+
+const cerrarFichaActividad = () => { $('ficha-actividad').style.display = 'none'; actividadEnFicha = null; fichaAct = null; };
 
 function datosDeFichaActividad() {
-  const frecuencia = $('actividad-frecuencia').value;
   return {
-    nombre: $('actividad-nombre').value, icono: $('actividad-icono').value, miembroId: $('actividad-miembro').value,
-    espacioId: $('actividad-espacio').value || null, tipo: $('actividad-tipo').value, vence: $('actividad-vence').value,
-    frecuenciaDias: frecuencia === '' ? null : Number(frecuencia),
+    nombre: $('actividad-nombre').value, icono: fichaAct.icono.icono, miembroId: fichaAct.quien, espacioId: [...fichaAct.lugares][0] ?? null,
+    vence: $('actividad-vence').value, ...datosDeRecurrencia($('actividad-recurrencia').value),
   };
 }
 
@@ -998,16 +1045,30 @@ function confirmarYEliminarActividad(id) {
   return true;
 }
 
+// Guardar: una edición cambia solo esa actividad; un alta crea una por cada lugar marcado, o una sin espacio (AC-9.9, AC-10.2, AC-10.3).
 $('ficha-actividad').querySelector('form').addEventListener('submit', (ev) => {
   ev.preventDefault();
   const datos = datosDeFichaActividad();
-  const r = actividadEnFicha ? editarActividad(estado, actividadEnFicha, datos, ctx) : agregarActividad(estado, datos, ctx);
+  const r = actividadEnFicha
+    ? editarActividad(estado, actividadEnFicha, datos, ctx)
+    : agregarActividades(estado, datos, [...fichaAct.lugares], ctx);
   if (!r.ok) { $('actividad-error').textContent = MENSAJES_ACTIVIDAD[r.error]; return; }
   cerrarFichaActividad();
   aplicarActividades(r.estado);
 });
-$('actividad-nombre').addEventListener('input', () => { $('actividad-error').textContent = ''; actualizarFichaActividad(); });
-for (const campo of ['actividad-miembro', 'actividad-tipo', 'actividad-frecuencia']) $(campo).addEventListener('change', actualizarFichaActividad);
+$('actividad-nombre').addEventListener('input', alCambiarNombre);
+$('actividad-icono').addEventListener('click', () => {
+  if (!fichaAct.icono.editable) return; // con una sugerencia el icono es el suyo (AC-8.5)
+  const lista = Object.entries(ICONOS).map(([clave, etiqueta]) => [clave, GLIFO_ICONO[clave], etiqueta]);
+  abrirSelectorIconos('Icono de la actividad', lista, fichaAct.icono.icono, (clave) => {
+    fichaAct.icono = iconoDeFicha($('actividad-nombre').value, clave); // AC-8.7
+    pintarFichaActividad();
+  });
+});
+for (const campo of ['actividad-vence', 'actividad-recurrencia']) {
+  $(campo).addEventListener('input', () => { $('actividad-error').textContent = ''; pintarFichaActividad(); });
+}
+$('actividad-cambiar').addEventListener('click', () => { fichaAct.desplegada = !fichaAct.desplegada; pintarFichaActividad(); }); // AC-9.5
 $('actividad-cancelar').addEventListener('click', cerrarFichaActividad);
 $('actividad-eliminar').addEventListener('click', () => {
   if (confirmarYEliminarActividad(actividadEnFicha)) cerrarFichaActividad();
