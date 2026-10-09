@@ -1,2 +1,2 @@
-- [Estado de Livin](livin-project-state.md) — 001, 002, 003 y 004 (rutinas) verificadas en Android y subidas; la 005 (jugador activo e intercambios) también, mergeada y subida; sigue la 006 (calificaciones)
+- [Estado de Livin](livin-project-state.md) — 001 a 005 verificadas en Android y subidas; la 006 (calificaciones e historial) mergeada y subida el 2026-10-09, falta verificarla en el teléfono
 - [Docs in Spanish](docs-in-spanish.md) — specs/ADRs/foundation and domain vocabulary are Spanish; chat is English
