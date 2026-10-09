@@ -10,7 +10,9 @@ import {
 import {
   agregarActividad, editarActividad, eliminarActividad, marcarHecha, buscarActividad, contarActividades, puedeAgregarActividad,
   atraso, porHacer, limpiezaDeEspacio, burbujas, actividadesDelLugar, listaDelPanel, textoPlazo, MENSAJES_ACTIVIDAD,
+  agregarActividades,
 } from '../src/actividades.js';
+import { LIMITE_ACTIVIDADES } from '../src/catalogo.js';
 import { crearCtx, agregarActividadLegada } from './ayuda.js';
 
 const HOY = '2026-10-06';
@@ -603,4 +605,98 @@ test('AC-11.6: "Dar de comer a la mascota" y "Pasear al perro" se asignan a una 
     const con = alta(e, datos(e, { nombre, icono: 'mascota', espacioId: null }), ctx);
     assert.equal(ultima(con).miembroId, diana(e).id);
   }
+});
+
+// ---------- Feature 007: una actividad en varios lugares ----------
+
+test('AC-10.3, AC-10.4, AC-10.5, AC-10.11: n lugares crean n actividades independientes con los mismos datos, en el orden de los espacios', () => {
+  const ctx = crearCtx();
+  const e = agregarEspacio(hogarBase(ctx), 'dormitorio', ctx);
+  const [d1, d2] = espaciosDeTipo(e, 'dormitorio');
+  const sala = espaciosDeTipo(e, 'sala')[0];
+  // se piden en otro orden: se crean en el orden en que los espacios se crearon (sala, dormitorio 1, dormitorio 2)
+  const r = agregarActividades(e, datos(e, { nombre: 'Barrer', icono: 'barrer' }), [d2.id, sala.id, d1.id], ctx);
+  assert.equal(r.ok, true, r.error);
+  const nuevas = r.estado.actividades.slice(e.actividades.length);
+  assert.deepEqual(nuevas.map((a) => a.espacioId), [sala.id, d1.id, d2.id]);
+  assert.ok(nuevas.every((a) => a.nombre === 'Barrer' && a.icono === 'barrer' && a.miembroId === diana(e).id && a.vence === HOY
+    && a.tipo === 'puntual' && a.hechaEn === null));
+  assert.equal(new Set(nuevas.map((a) => a.id)).size, 3);
+  assert.equal(contarActividades(r.estado), 3);
+  const { actividades: _despues, ...restoDespues } = r.estado;
+  const { actividades: _antes, ...restoAntes } = e;
+  assert.deepEqual(restoDespues, restoAntes); // no cambia ningún espacio, miembro, bloque, intercambio ni entrada
+});
+
+test('AC-10.2: sin ningún lugar se crea una sola actividad sin espacio', () => {
+  const ctx = crearCtx();
+  const e = hogarBase(ctx);
+  const r = agregarActividades(e, datos(e), [], ctx); // `datos` trae la cocina, que se ignora
+  assert.equal(r.ok, true, r.error);
+  const nuevas = r.estado.actividades.slice(e.actividades.length);
+  assert.deepEqual(nuevas.map((a) => a.espacioId), [null]);
+});
+
+test('AC-10.6: el tope de 50 pendientes se respeta con todo o nada (48, 49, 50 y 51)', () => {
+  const ctx = crearCtx();
+  const base = agregarEspacio(hogarBase(ctx), 'dormitorio', ctx);
+  const lugares = espaciosActivos(base).map((x) => x.id);
+  const llenar = (n) => {
+    let e = base;
+    for (let i = 0; i < n; i += 1) e = alta(e, datos(e, { nombre: `A${i}` }), ctx);
+    return e;
+  };
+  let r = agregarActividades(llenar(48), datos(base), lugares.slice(0, 2), ctx); // 48 + 2 = 50
+  assert.equal(r.ok, true);
+  assert.equal(contarActividades(r.estado), LIMITE_ACTIVIDADES);
+  const e49 = llenar(49);
+  r = agregarActividades(e49, datos(base), lugares.slice(0, 2), ctx); // 49 + 2 = 51
+  assert.deepEqual([r.ok, r.error], [false, 'limite-varios']);
+  assert.equal(r.estado, e49);
+  assert.equal(agregarActividades(e49, datos(base), lugares.slice(0, 1), ctx).ok, true); // 49 + 1 = 50
+  const e50 = llenar(50);
+  r = agregarActividades(e50, datos(base), lugares.slice(0, 1), ctx); // 50 + 1 = 51
+  assert.deepEqual([r.ok, r.error], [false, 'limite']);
+  assert.equal(r.estado, e50);
+  assert.equal(MENSAJES_ACTIVIDAD['limite-varios'], 'Con estos lugares se superarían las 50 actividades pendientes.');
+});
+
+test('AC-10.7, AC-11.2: un dato inválido, un lugar que no existe o una mascota no crean ninguna actividad', () => {
+  const ctx = crearCtx();
+  const e = hogarBase(ctx);
+  const lugares = [cocina(e).id];
+  const casos = [
+    [{ nombre: '' }, lugares, 'vacio'],
+    [{ nombre: 'x'.repeat(31) }, lugares, 'largo'],
+    [{ icono: 'escoba' }, lugares, 'icono'],
+    [{ vence: '2026-02-30' }, lugares, 'fecha'],
+    [{ tipo: 'repetitiva', frecuenciaDias: 5 }, lugares, 'frecuencia'],
+    [{ miembroId: 'no-existe' }, lugares, 'miembro'],
+    [{ miembroId: mascotas(e)[0].id }, lugares, 'mascota'],
+    [{}, ['no-existe'], 'espacio'],
+    [{}, ['pasillo:izq'], 'espacio'],
+    [{}, [cocina(e).id, 'no-existe'], 'espacio'],
+  ];
+  for (const [extra, espacioIds, error] of casos) {
+    const r = agregarActividades(e, datos(e, extra), espacioIds, ctx);
+    assert.deepEqual([r.ok, r.error], [false, error], JSON.stringify(extra));
+    assert.equal(r.estado, e);
+  }
+});
+
+test('AC-10.9, AC-10.10: las actividades creadas juntas son independientes al editar, eliminar y marcar "Hecho"', () => {
+  const ctx = crearCtx();
+  const e = agregarEspacio(hogarBase(ctx), 'dormitorio', ctx);
+  const [d1, d2] = espaciosDeTipo(e, 'dormitorio');
+  const r = agregarActividades(e, datos(e, { nombre: 'Barrer', tipo: 'repetitiva', frecuenciaDias: 7 }), [d1.id, d2.id], ctx);
+  const [a1, a2] = r.estado.actividades.slice(e.actividades.length);
+  const editada = editarActividad(r.estado, a1.id, datos(r.estado, { nombre: 'Barrer fuerte', espacioId: d1.id, tipo: 'repetitiva', frecuenciaDias: 7 }), ctx).estado;
+  assert.equal(buscarActividad(editada, a1.id).nombre, 'Barrer fuerte');
+  assert.deepEqual(buscarActividad(editada, a2.id), buscarActividad(r.estado, a2.id));
+  const eliminada = eliminarActividad(r.estado, a1.id, ctx);
+  assert.equal(buscarActividad(eliminada, a1.id), null);
+  assert.notEqual(buscarActividad(eliminada, a2.id), null);
+  const hecha = marcarHecha(r.estado, a1.id, HOY, ctx);
+  assert.equal(buscarActividad(hecha, a1.id).vence, '2026-10-13');
+  assert.equal(buscarActividad(hecha, a2.id).vence, HOY);
 });
