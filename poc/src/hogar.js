@@ -40,10 +40,10 @@ export function crearHogarInicial(ctx) {
     id: ctx.nuevoId(), hogarId, nombre: 'Personaje 1', cuentaId,
     tipo: 'persona', parentesco: null, genero: null, especie: null, ...a(),
   };
-  // Documento versión 5 (ADR-005 de intercambios): el hogar empieza sin actividades, bloques de rutina ni intercambios.
+  // Documento versión 6 (ADR-006 de historial): el hogar empieza sin actividades, bloques de rutina, intercambios ni historial.
   return {
-    version: 5, cuentas: [cuenta], hogares: [hogar], membresias: [membresia], espacios, miembros: [miembro], actividades: [], bloques: [],
-    intercambios: [],
+    version: 6, cuentas: [cuenta], hogares: [hogar], membresias: [membresia], espacios, miembros: [miembro], actividades: [], bloques: [],
+    intercambios: [], historial: [],
   };
 }
 

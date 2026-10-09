@@ -3,6 +3,7 @@
 import { ICONOS, FRECUENCIAS, LIMITE_ACTIVIDADES, MAX_NOMBRE_ACTIVIDAD } from './catalogo.js';
 import { buscarMiembro, buscarEspacio, actividadesPendientes, auditoriaNueva, tocar } from './hogar.js';
 import { esFechaValida, sumarDias, diasEntre } from './fechas.js';
+import { agregarEntrada } from './historial.js';
 
 export const buscarActividad = (estado, id) => actividadesPendientes(estado).find((a) => a.id === id) ?? null;
 // El límite cuenta las pendientes: las eliminadas y las puntuales hechas no ocupan cupo (FR-1).
@@ -58,6 +59,7 @@ export function eliminarActividad(estado, id, ctx) {
 // "Hecho" (FR-3): solo para una actividad por hacer (vence hoy o antes). La puntual registra el día; la repetitiva vuelve a vencer
 // hoy más su frecuencia, sin acumular atrasos, y, si estaba en poder de otra persona por un intercambio, vuelve a su responsable
 // original (si ese ya no está activo, se queda con quien la tiene; FR-9 de la 005).
+// Además agrega una entrada al historial, acreditada al responsable de ese momento (FR-1 de la 006).
 export function marcarHecha(estado, id, hoy, ctx) {
   const actividad = buscarActividad(estado, id);
   if (!actividad || diasEntre(actividad.vence, hoy) < 0) return estado;
@@ -67,7 +69,7 @@ export function marcarHecha(estado, id, hoy, ctx) {
     if (actividad.devolverA && buscarMiembro(estado, actividad.devolverA)) cambio.miembroId = actividad.devolverA;
   }
   const actividades = estado.actividades.map((a) => (a.id === id ? { ...tocar(a, ctx), ...cambio } : a));
-  return { ...estado, actividades };
+  return agregarEntrada({ ...estado, actividades }, actividad, hoy, ctx);
 }
 
 export const MENSAJES_ACTIVIDAD = {

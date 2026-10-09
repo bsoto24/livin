@@ -1,7 +1,7 @@
 // src/almacen.js
 import { crearHogarInicial } from './hogar.js';
 import {
-  PARENTESCOS, GENEROS, ESPECIES, ICONOS, FRECUENCIAS, DIAS_RUTINA, PASO_RUTINA, ESTADOS_INTERCAMBIO,
+  PARENTESCOS, GENEROS, ESPECIES, ICONOS, FRECUENCIAS, DIAS_RUTINA, PASO_RUTINA, ESTADOS_INTERCAMBIO, MIN_ESTRELLAS, MAX_ESTRELLAS,
 } from './catalogo.js';
 import { esFechaValida } from './fechas.js';
 
@@ -93,6 +93,20 @@ function intercambiosValidos(estado) {
       && esTexto(i.marcaOfrecida) && esTexto(i.marcaPedida))));
 }
 
+// Historial en la versión 6 (ADR-006 de historial, FR-8 de la 006). Todas las entradas se validan: textos no vacíos, un día real,
+// referencias a una actividad, un miembro y, si lo hay, un espacio que existen en el documento (eliminados incluidos, porque las
+// entradas los sobreviven), y estrellas y autora o ambas nulas o ambas presentes (un entero de 1 a 5 y un miembro del documento).
+function historialValido(estado) {
+  if (!Array.isArray(estado.historial)) return false;
+  const miembros = new Set(estado.miembros.map((m) => m.id));
+  const actividades = new Set(estado.actividades.map((a) => a.id));
+  const espacios = new Set(estado.espacios.map((e) => e.id));
+  return estado.historial.every((x) => esTexto(x.nombre) && esTexto(x.hechaEn) && esFechaValida(x.dia)
+    && actividades.has(x.actividadId) && miembros.has(x.miembroId) && (x.espacioId === null || espacios.has(x.espacioId))
+    && ((x.estrellas === null && x.calificadoPor === null)
+      || (Number.isInteger(x.estrellas) && x.estrellas >= MIN_ESTRELLAS && x.estrellas <= MAX_ESTRELLAS && miembros.has(x.calificadoPor))));
+}
+
 // Migración pura v1 → v2: todo miembro existente pasa a ser una persona sin parentesco, género ni especie.
 export function migrarAV2(estado) {
   return {
@@ -117,6 +131,11 @@ export function migrarAV5(estado) {
   return { ...estado, version: 5, actividades: estado.actividades.map((a) => ({ ...a, devolverA: null })), intercambios: [] };
 }
 
+// Migración pura v5 → v6: el hogar pasa a tener un historial de actividades hechas, vacío.
+export function migrarAV6(estado) {
+  return { ...estado, version: 6, historial: [] };
+}
+
 export function crearAlmacen(storage) {
   return {
     cargar() {
@@ -125,20 +144,24 @@ export function crearAlmacen(storage) {
         if (texto === null) return { estado: null, error: null };
         const estado = JSON.parse(texto);
         if (estado?.version === 1 && tieneHogarValido(estado)) {
-          return { estado: migrarAV5(migrarAV4(migrarAV3(migrarAV2(estado)))), error: null };
+          return { estado: migrarAV6(migrarAV5(migrarAV4(migrarAV3(migrarAV2(estado))))), error: null };
         }
         if (estado?.version === 2 && tieneHogarValido(estado) && miembrosValidos(estado)) {
-          return { estado: migrarAV5(migrarAV4(migrarAV3(estado))), error: null };
+          return { estado: migrarAV6(migrarAV5(migrarAV4(migrarAV3(estado)))), error: null };
         }
         if (estado?.version === 3 && tieneHogarValido(estado) && miembrosValidos(estado) && actividadesValidas(estado)) {
-          return { estado: migrarAV5(migrarAV4(estado)), error: null };
+          return { estado: migrarAV6(migrarAV5(migrarAV4(estado))), error: null };
         }
         if (estado?.version === 4 && tieneHogarValido(estado) && miembrosValidos(estado) && actividadesValidas(estado)
           && bloquesValidos(estado)) {
-          return { estado: migrarAV5(estado), error: null };
+          return { estado: migrarAV6(migrarAV5(estado)), error: null };
         }
         if (estado?.version === 5 && tieneHogarValido(estado) && miembrosValidos(estado) && actividadesValidas(estado)
           && bloquesValidos(estado) && regresosValidos(estado) && intercambiosValidos(estado)) {
+          return { estado: migrarAV6(estado), error: null };
+        }
+        if (estado?.version === 6 && tieneHogarValido(estado) && miembrosValidos(estado) && actividadesValidas(estado)
+          && bloquesValidos(estado) && regresosValidos(estado) && intercambiosValidos(estado) && historialValido(estado)) {
           return { estado, error: null };
         }
         return { estado: null, error: 'ilegible' };
@@ -158,7 +181,7 @@ export function crearAlmacen(storage) {
   };
 }
 
-// Arranque de la app (FR-1 y FR-10 de la 001, FR-9 de la 002, FR-11 de la 003, FR-10 de la 004, FR-12 de la 005): recupera el hogar
+// Arranque de la app (FR-1 y FR-10 de la 001, FR-9 de la 002, FR-11 de la 003, FR-10 de la 004, FR-12 de la 005, FR-8 de la 006): recupera el hogar
 // (migrándolo si es de una versión anterior) o crea el inicial.
 export function iniciarSesion(almacen, ctx) {
   const { estado, error } = almacen.cargar();

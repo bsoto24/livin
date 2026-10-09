@@ -87,3 +87,8 @@ export const LIMITE_BLOQUES = 8; // por familiar y por horario
 // Intercambios (feature 005): estados de una propuesta y límite de propuestas vigentes. Las claves se guardan; las etiquetas se muestran.
 export const ESTADOS_INTERCAMBIO = { pendiente: 'Pendiente', aceptado: 'Aceptado', rechazado: 'Rechazado', retirado: 'Retirado' };
 export const LIMITE_INTERCAMBIOS = 20;
+
+// Historial de actividades hechas y calificaciones (feature 006, ADR-006 de historial): las últimas 200 entradas y estrellas de 1 a 5.
+export const LIMITE_HISTORIAL = 200;
+export const MIN_ESTRELLAS = 1;
+export const MAX_ESTRELLAS = 5;
