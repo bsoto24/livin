@@ -6,10 +6,12 @@
 
 ## Pruebas automáticas
 
-- `cd poc && npm test` → 341 pruebas, 341 pasan, 0 fallan, 0 canceladas, 0 omitidas.
+- `cd poc && npm test` → 341 pruebas, 341 pasan, 0 fallan, 0 canceladas, 0 omitidas (al cierre de la fase 7).
 - `cd poc && node --check src/juego.js` → sin salida (sintaxis válida).
 
 El plan decía 340 pruebas; el total real es 341 (el conteo del plan tenía un error de uno).
+
+Después de la revisión independiente el total fue 344 pruebas antes de la unidad de pruebas de la ronda de seguimiento 1 (incluye las pruebas de `ocupanteEn` agregadas con la corrección de D2) y **346** al terminar la unidad de pruebas de esa ronda (ver más abajo): 346 pasan, 0 fallan, 0 canceladas, 0 omitidas.
 
 ## Navegador de escritorio
 
@@ -78,6 +80,39 @@ Ninguno en el producto. Un solo error de consola, `Cannot read properties of nul
 - Las pruebas de teclas del paso 4 usaron un Chromium integrado; las flechas reales mantenidas y los toques reales con el dedo no se pudieron enviar con esta herramienta.
 - Los toques con el ratón sobre el lienzo y los botones son eventos de puntero, no un dedo: el tamaño del área táctil y los gestos reales quedan para el teléfono.
 - No se midieron los 60 cuadros por segundo del teléfono; en este equipo el navegador va a 120 Hz.
+- `migrarAV7` no es idempotente por diseño: aplicarla dos veces a su propia salida convierte `adulta` en `neutro` porque el campo `genero` ya no existe. Es seguro porque `cargar` solo la llama para documentos de las versiones 1 a 6 (un documento v7 nunca pasa por ella).
+- "Cambiar" en el formulario de actividad alterna con "Ocultar", como pide la spec.
+- Tocar una pestaña de la barra mientras el personaje está a mitad de un paso se ignora (`entrarEdicion` devuelve falso si hay un paso en curso), igual que hacía el antiguo botón "Editar"; hay que volver a tocar cuando termina el paso.
+
+## Ronda de seguimiento 1 de la revisión (sdd-review)
+
+**Fecha:** 2026-10-09
+
+La revisión independiente (sdd-review) dio el veredicto **DRIFT DETECTED**. No encontró defectos en las reglas del dominio; los hallazgos fueron de interfaz, de cobertura de pruebas y de documentación. Resolución de cada uno:
+
+| Hallazgo | Qué era | Resolución |
+|---|---|---|
+| D1 | El indicador "Juega: …" y la etiqueta "Intercambios (n)" quedaban desactualizados tras editar. | Corregido: `aplicar()` ahora los refresca. Commit 55493d4. |
+| D2 | Prioridad del toque: el propietario debía ir antes que el habitante cuando comparten casilla (AC-2.2). | Corregido con la función pura `ocupanteEn` en `src/secciones.js` y 3 pruebas. Commit 55493d4. El caso de la casilla compartida no se pudo provocar en el navegador, porque el modo edición congela a todos y los habitantes aparecen separados; descansa en las pruebas unitarias. |
+| D3 | La barra inferior podía tapar el cartel de la entrada en exploración. | Corregido: en exploración el viewport de la cámara termina en el borde superior de la barra (`ajustarVista`); en edición se conserva el lienzo completo. Verificado en el navegador a 375 × 812 y 1000 × 800: el alto de la cámara es igual al borde superior de la barra, la cámara que sigue al personaje lo centra en el área visible, el encuadre del modo edición no cambió y al redimensionar se recalcula. Commit 55493d4. |
+| D4 | La baja de actividades de mascotas durante la migración (AC-15.5, "solo en las versiones que pueden tenerlas, 3 a 6") solo se probaba desde una fuente v6. | Pruebas agregadas: un documento de versión 3, 4 y 5 con una actividad de mascota se abre sin aviso, con esa actividad dada de baja, las demás sin cambios, los aspectos migrados y el texto guardado sin reescribir. Commit 86f9aa6. |
+| D5 | La nota de fiabilidad de la spec pedía una prueba de contrato de que "Hecho, intercambios, rutinas, calificaciones y estados" dan los mismos resultados que antes. | Decisión: las suites previas de las features 003 a 006 **son** ese contrato. Se ejecutan sin cambios de comportamiento (solo cambiaron los datos de prueba: `aspecto` en lugar de parentesco y género, `agregarActividadLegada` para actividades antiguas de mascotas y la expectativa del filtro de AC-7.5) y todas pasan; por eso no se agregó una prueba separada de antes y después. |
+| D6 | AC-5.11 y AC-6.9 solo se probaban en el alta, no en la edición. | Prueba agregada: `editarHabitante` rechaza un aspecto fuera de la lista (`robot`, `toString`, la clave antigua `femenino`, ausente) con `error === 'aspecto'` y una especie fuera de la lista (`canario`, `toString`, ausente) con `error === 'especie'`, devuelve el mismo estado y `ok === false`; también se fijan los textos de `MENSAJES_ERROR`. Commit 86f9aa6. |
+
+Pruebas automáticas tras la ronda: `cd poc && npm test` → **346 pruebas, 346 pasan**, 0 fallan (344 antes de la unidad de pruebas de esta ronda, +1 prueba en `almacen.test.js` y +1 en `habitantes.test.js`). No se tocó código de producción en esta ronda de pruebas y documentación.
+
+### Pasos manuales que pidió la revisión
+
+La revisión los dio por cubiertos solo por lectura de código. Este documento no los registraba como ejercidos en el navegador y esta ronda tampoco los ejerció; el estado es honesto:
+
+| AC | Qué se debe comprobar | Estado | Cobertura actual |
+|---|---|---|---|
+| AC-1.11 | Con una ficha o una hoja abiertas, cambiar de pestaña o tocar "Listo" las cierra sin guardar. | NO EJERCIDO en el navegador | Por lectura de código: `abrirSeccion` y `cerrarSeccion` llaman a `cerrarFichasYHojas`. Nota para el registro: las fichas de pantalla completa y la hoja cubren la barra, así que solo aplican "Listo" y los controles alcanzables. |
+| AC-2.3 | En Familia, el cartel "n fuera" abre la hoja "Fuera de casa" y sus filas abren la ficha del familiar. | NO EJERCIDO en el navegador | Por lectura de código: `tocarMapa` con `accionDeToque` abre `hoja-fuera`, y `pintarHojaFuera` abre `abrirFichaHabitante` por fila en modo edición. |
+| AC-4.4 | Con la lista vacía se leen "Aún no hay familiares" y "Aún no hay mascotas" y el "+" está activo. | NO EJERCIDO en el navegador | Por lectura de código: los textos están en `pintarFamilia`. |
+| AC-12.4 | Con un jugador que está fuera de casa, cambiar de jugador en edición cierra fichas y hojas, nadie se mueve y al tocar "Listo" la cámara sigue a la nueva persona. | NO EJERCIDO en el navegador | Por lectura de código: `elegirJugador` y `cerrarFichasYHojas`; la aparición de un familiar que estaba fuera la resuelve `cambiarJugador` de la 005. |
+
+Estos cuatro pasos se suman a la lista pendiente de abajo.
 
 ## Pendiente: verificación en el teléfono Android
 
@@ -92,3 +127,4 @@ Esto lo debe hacer el usuario en el teléfono Android de referencia (servir `poc
 - [ ] Con 8 familiares, 4 mascotas, 50 actividades y 200 entradas: el movimiento se mantiene a 60 cuadros por segundo; abrir un drawer, cambiar de pestaña y guardar muestran el resultado en menos de 100 ms.
 - [ ] La barra y el drawer no tapan la cruceta ni el cartel del cuarto, y los toques del dedo sobre las pestañas, las burbujas y los círculos de personas aciertan sin tocar el elemento de al lado.
 - [ ] En el teclado del teléfono: escribir "Lavar platos" con espacio en los campos de nombre (cuarto, propietario, familiar, mascota, actividad).
+- [ ] Pasos manuales de la ronda de seguimiento 1 (AC-1.11, AC-2.3, AC-4.4, AC-12.4), ver la tabla de la sección anterior.
