@@ -11,7 +11,7 @@ import {
   habitantes, familiares, mascotas, buscarMiembro, esPropietario, contarHabitantes, puedeAgregarHabitante, agregarHabitante, editarHabitante,
   eliminarHabitante, pendientesDeMiembro, bloquesDeMiembro, personasQueJuegan, puedeJugar, jugadorInicial,
 } from './hogar.js';
-import { SECCIONES, textoPestana, accionDeToque } from './secciones.js';
+import { SECCIONES, textoPestana, accionDeToque, ocupanteEn } from './secciones.js';
 import { generarDistribucion } from './distribucion.js';
 import { crearAlmacen, iniciarSesion } from './almacen.js';
 import { posicionRelativa, resolverPosicion, paso } from './posicion.js';
@@ -178,7 +178,7 @@ class Escena extends Phaser.Scene {
     this.teclas = this.input.keyboard.addKeys({ up: UP, down: DOWN, left: LEFT, right: RIGHT }, false);
     // En exploración responden el cartel y las burbujas; en edición, también personajes y espacios (FR-8 de la 003, FR-5 de la 004).
     this.input.on('pointerup', (p) => tocarMapa(Math.floor(p.worldX / TILE), Math.floor(p.worldY / TILE), this.tocaCartel(p.worldX, p.worldY)));
-    this.scale.on('resize', () => (modo === 'edicion' ? this.encuadrarHogar() : null));
+    this.scale.on('resize', () => (modo === 'edicion' ? this.encuadrarHogar() : this.seguirPersonaje())); // cada modo rehace su vista
     this.redibujar();
     this.colocarPersonaje();
     this.seguirPersonaje();
@@ -400,8 +400,16 @@ class Escena extends Phaser.Scene {
     this.personaje.setAngle({ abajo: 0, izquierda: 90, arriba: 180, derecha: 270 }[jugador.direccion]);
   }
 
+  // La vista de la cámara: en exploración termina donde empieza la barra, así el cartel de la entrada nunca queda debajo de ella (AC-1.2); en
+  // edición ocupa todo el lienzo y `encuadrarHogar` descuenta el drawer y la barra.
+  ajustarVista() {
+    const cam = this.cameras.main;
+    cam.setSize(this.scale.width, this.scale.height - (modo === 'exploracion' ? $('barra').offsetHeight : 0));
+  }
+
   seguirPersonaje() {
     const cam = this.cameras.main;
+    this.ajustarVista();
     cam.setZoom(ZOOM_EXPLORACION);
     cam.startFollow(this.personaje, true);
     this.dibujarEtiquetas(); // la escala de las etiquetas depende del zoom
@@ -409,6 +417,7 @@ class Escena extends Phaser.Scene {
 
   encuadrarHogar() {
     const cam = this.cameras.main;
+    this.ajustarVista();
     const altoPanel = $('drawer').offsetHeight + $('barra').offsetHeight; // el hogar completo se ve por encima del drawer y de la barra (AC-1.6)
     const zoom = Math.min(cam.width / (distribucion.ancho * TILE), (cam.height - altoPanel) / (distribucion.alto * TILE)) * 0.95;
     cam.stopFollow();
@@ -560,6 +569,7 @@ function aplicar(nuevo) {
   distribucion = generarDistribucion(estado);
   if (puedeJugar(estado, jugador.id)) jugador = { id: jugador.id, ...resolverPosicion(distribucion, posGuardada) };
   else pasarElJuegoAlPropietario(); // la persona que jugaba se eliminó (AC-4.7 de la 005)
+  actualizarBotones(); // el indicador "Juega" y el rótulo de Intercambios se ven también en edición (AC-12.1, AC-1.8)
   moviles = sincronizarHabitantes(moviles, idsHabitantes(), distribucion, casillaJugador(), azar); // FR-7, AC-7.7 de la 002
   const s = escena();
   s.redibujar();
@@ -827,10 +837,10 @@ function tocarMapa(x, y, enCartel) {
     if (burbuja) abrirHoja(burbuja);
     return;
   }
-  const ocupante = x === jugador.x && y === jugador.y ? jugador : moviles.find((h) => h.fase !== 'fuera' && h.x === x && h.y === y);
+  const ocupante = ocupanteEn(x, y, posicionesDeMiembros(), propietario().id); // AC-2.2: el propietario, luego el habitante
   const clave = distribucion.espacioEn[y][x];
   const accion = accionDeToque(seccion, {
-    ocupante: ocupante?.id ?? null, enCartel, burbuja: burbujaEn(x, y), espacioId: clave && buscarEspacio(estado, clave) ? clave : null,
+    ocupante, enCartel, burbuja: burbujaEn(x, y), espacioId: clave && buscarEspacio(estado, clave) ? clave : null,
   });
   if (!accion) return;
   if (accion.tipo === 'ficha-espacio') abrirFicha('espacio', accion.id);

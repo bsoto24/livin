@@ -1,7 +1,7 @@
 // test/secciones.test.js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SECCIONES, textoPestana, accionDeToque } from '../src/secciones.js';
+import { SECCIONES, textoPestana, accionDeToque, ocupanteEn } from '../src/secciones.js';
 
 const TOQUE = { ocupante: 'm1', enCartel: true, burbuja: { tipo: 'espacio', id: 'e1' }, espacioId: 'e1' };
 
@@ -35,4 +35,23 @@ test('AC-2.4, AC-2.5: en Actividades el mapa abre la hoja de la burbuja; en Inte
   assert.equal(accionDeToque('actividades', { ...TOQUE, burbuja: null }), null);
   assert.equal(accionDeToque('intercambios', TOQUE), null);
   assert.equal(accionDeToque(null, TOQUE), null);
+});
+
+test('AC-2.2: en una casilla compartida gana el propietario, luego el habitante, sin importar el orden del mapa', () => {
+  const alFinal = new Map([['h1', { x: 3, y: 4 }], ['p', { x: 3, y: 4 }]]);
+  const alPrincipio = new Map([['p', { x: 3, y: 4 }], ['h1', { x: 3, y: 4 }]]);
+  assert.equal(ocupanteEn(3, 4, alFinal, 'p'), 'p');
+  assert.equal(ocupanteEn(3, 4, alPrincipio, 'p'), 'p');
+});
+
+test('AC-2.2: un habitante solo en la casilla es quien responde; sin nadie, null', () => {
+  const posiciones = new Map([['p', { x: 1, y: 1 }], ['h1', { x: 3, y: 4 }], ['h2', { x: 5, y: 5 }]]);
+  assert.equal(ocupanteEn(3, 4, posiciones, 'p'), 'h1');
+  assert.equal(ocupanteEn(9, 9, posiciones, 'p'), null);
+});
+
+test('AC-2.2: quien está fuera de casa (ausente del mapa) nunca responde, ni siquiera el propietario', () => {
+  const sinPropietario = new Map([['h1', { x: 3, y: 4 }]]);
+  assert.equal(ocupanteEn(0, 0, sinPropietario, 'p'), null);
+  assert.equal(ocupanteEn(3, 4, sinPropietario, 'p'), 'h1');
 });

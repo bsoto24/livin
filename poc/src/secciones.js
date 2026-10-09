@@ -31,3 +31,12 @@ export function accionDeToque(seccion, toque) {
       return null;
   }
 }
+
+// Quién está en la casilla (x, y) (AC-2.2: el propietario, luego el habitante). `posiciones`: Map id → { x, y } con quienes están en el mapa
+// (quien está fuera de casa no aparece). Devuelve el id o null.
+export function ocupanteEn(x, y, posiciones, propietarioId) {
+  const alli = (p) => p !== undefined && p.x === x && p.y === y;
+  if (alli(posiciones.get(propietarioId))) return propietarioId;
+  for (const [id, p] of posiciones) if (id !== propietarioId && alli(p)) return id;
+  return null;
+}
