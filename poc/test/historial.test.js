@@ -10,14 +10,14 @@ import { proponer, aceptar, esVigente } from '../src/intercambios.js';
 import { sumarDias } from '../src/fechas.js';
 import { LIMITE_HISTORIAL } from '../src/catalogo.js';
 import { crearAlmacen } from '../src/almacen.js';
-import { crearCtx, almacenEnMemoria } from './ayuda.js';
+import { crearCtx, almacenEnMemoria, agregarActividadLegada } from './ayuda.js';
 
 const HOY = '2026-10-06';
 
 function hogarBase(ctx) {
   let e = crearHogarInicial(ctx);
-  e = agregarHabitante(e, 'familiar', { nombre: 'Diana', parentesco: 'pareja', genero: 'femenino' }, ctx).estado;
-  e = agregarHabitante(e, 'familiar', { nombre: 'Luis', parentesco: 'hermano', genero: 'masculino' }, ctx).estado;
+  e = agregarHabitante(e, 'familiar', { nombre: 'Diana', aspecto: 'adulta' }, ctx).estado;
+  e = agregarHabitante(e, 'familiar', { nombre: 'Luis', aspecto: 'adulto' }, ctx).estado;
   return agregarHabitante(e, 'mascota', { nombre: 'Firulais', especie: 'perro' }, ctx).estado;
 }
 
@@ -29,7 +29,7 @@ const ultima = (e) => e.actividades.at(-1);
 
 // Alta de una actividad; `extra` cambia lo que haga falta (por defecto, una puntual de Diana que vence hoy, sin espacio).
 function nueva(estado, nombre, ctx, extra = {}) {
-  const r = agregarActividad(estado, {
+  const r = agregarActividadLegada(estado, {
     nombre, icono: 'otra', miembroId: diana(estado).id, espacioId: null, tipo: 'puntual', vence: HOY, frecuenciaDias: null, ...extra,
   }, ctx);
   assert.equal(r.ok, true, `${nombre}: ${r.error}`);
@@ -255,7 +255,7 @@ test('Reliability, AC-8.10 (005): "Hecho" tras eliminar al responsable original 
   assert.deepEqual([a.miembroId, a.devolverA], [luisId, null]);
 });
 
-test('Reliability: ninguna baja ni el tope de 200 entradas deja una entrada con referencias rotas (el documento v6 se vuelve a cargar)', () => {
+test('Reliability: ninguna baja ni el tope de 200 entradas deja una entrada con referencias rotas (el documento v7 se vuelve a cargar)', () => {
   const ctx = crearCtx();
   let base = agregarEspacio(hogarBase(ctx), 'dormitorio', ctx);
   base = agregarEspacio(base, 'bano', ctx);
@@ -263,7 +263,6 @@ test('Reliability: ninguna baja ni el tope de 200 entradas deja una entrada con 
   const bano = banoDe(base, d1.id);
   base = hacer(base, 'Platos', ctx, { espacioId: cocina(base).id });
   base = hacer(base, 'Ducha', ctx, { miembroId: luis(base).id, espacioId: bano.id });
-  base = hacer(base, 'Paseo', ctx, { miembroId: firulais(base).id });
   base = hacer(base, 'Barrer', ctx, { tipo: 'repetitiva', frecuenciaDias: 7, espacioId: d1.id });
   const recargado = (estado) => {
     const almacen = crearAlmacen(almacenEnMemoria());

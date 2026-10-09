@@ -31,8 +31,12 @@ export function agregarEntrada(estado, actividad, hoy, ctx) {
 export const entradasDelHistorial = (estado) => [...estado.historial].reverse();
 export const entradasDe = (estado, miembroId) => entradasDelHistorial(estado).filter((x) => x.miembroId === miembroId);
 
-// Opciones del filtro (AC-3.1): el propietario, luego los familiares y luego las mascotas, todos activos.
-export const miembrosDelFiltro = (estado) => [...personasQueJuegan(estado), ...mascotas(estado)];
+// Opciones del filtro (AC-3.1 de la 006, AC-7.5 de la 007): el propietario y los familiares siempre, y las mascotas activas solo si tienen alguna entrada
+// (únicamente pueden venir de datos anteriores a la 007).
+export const miembrosDelFiltro = (estado) => [
+  ...personasQueJuegan(estado),
+  ...mascotas(estado).filter((m) => estado.historial.some((x) => x.miembroId === m.id)),
+];
 
 // ---------- Textos ----------
 

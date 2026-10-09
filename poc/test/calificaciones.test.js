@@ -11,14 +11,14 @@ import {
   textoResumen, textoVacio, estadoDeCalificacion, textoCalificacion, calificar, quitarCalificacion, MENSAJES_HISTORIAL,
 } from '../src/historial.js';
 import { LIMITE_HISTORIAL } from '../src/catalogo.js';
-import { crearCtx } from './ayuda.js';
+import { crearCtx, agregarActividadLegada } from './ayuda.js';
 
 const HOY = '2026-10-06';
 
 function hogarBase(ctx) {
   let e = crearHogarInicial(ctx);
-  e = agregarHabitante(e, 'familiar', { nombre: 'Diana', parentesco: 'pareja', genero: 'femenino' }, ctx).estado;
-  e = agregarHabitante(e, 'familiar', { nombre: 'Luis', parentesco: 'hermano', genero: 'masculino' }, ctx).estado;
+  e = agregarHabitante(e, 'familiar', { nombre: 'Diana', aspecto: 'adulta' }, ctx).estado;
+  e = agregarHabitante(e, 'familiar', { nombre: 'Luis', aspecto: 'adulto' }, ctx).estado;
   return agregarHabitante(e, 'mascota', { nombre: 'Firulais', especie: 'perro' }, ctx).estado;
 }
 
@@ -30,7 +30,7 @@ const cocina = (e) => espaciosDeTipo(e, 'cocina')[0];
 
 // Crea una puntual de Diana (o de `extra.miembroId`) y la marca "Hecho": el historial gana una entrada.
 function hacer(estado, nombre, ctx, extra = {}) {
-  const r = agregarActividad(estado, {
+  const r = agregarActividadLegada(estado, {
     nombre, icono: 'otra', miembroId: diana(estado).id, espacioId: null, tipo: 'puntual', vence: HOY, frecuenciaDias: null, ...extra,
   }, ctx);
   assert.equal(r.ok, true, `${nombre}: ${r.error}`);
@@ -97,7 +97,7 @@ test('AC-7.4, AC-7.6: una entrada de un espacio o de una persona eliminados sigu
   assert.equal(textoEspacio(sinLavanderia, entrada(sinLavanderia, 'Ropa sucia')), 'Espacio eliminado');
   const sinDiana = eliminarHabitante(e, diana(e).id, ctx);
   assert.equal(textoAcreditada(sinDiana, entrada(sinDiana, 'Platos')), 'Diana (ya no está)');
-  assert.deepEqual(miembrosDelFiltro(sinDiana).map((m) => m.nombre), ['Personaje 1', 'Luis', 'Firulais']);
+  assert.deepEqual(miembrosDelFiltro(sinDiana).map((m) => m.nombre), ['Personaje 1', 'Luis']); // Firulais no tiene entradas (AC-7.5 de la 007)
   assert.equal(entradasDelHistorial(sinDiana).length, 2); // sigue visible con "Todos"
 });
 
@@ -247,4 +247,13 @@ test('AC-4.1, AC-4.3, AC-4.10, AC-5.1, AC-5.5: el estado de una entrada para qui
   for (const quien of [diana(e), propietarioDe(e)]) {
     assert.deepEqual([estadoDeCalificacion(calificada, quien.id), textoCalificacion(s, calificada, quien.id)], ['bloqueada', 'Calificó Luis']);
   }
+});
+
+test('AC-7.5 (007): el filtro ofrece a una mascota solo si tiene alguna entrada en el historial', () => {
+  const ctx = crearCtx();
+  const base = hogarBase(ctx);
+  assert.deepEqual(miembrosDelFiltro(base).map((m) => m.nombre), ['Personaje 1', 'Diana', 'Luis']);
+  const con = hacer(base, 'Paseo', ctx, { miembroId: firulais(base).id }); // dato de una versión anterior (agregarActividadLegada)
+  assert.deepEqual(miembrosDelFiltro(con).map((m) => m.nombre), ['Personaje 1', 'Diana', 'Luis', 'Firulais']);
+  assert.equal(calificar(con, entrada(con, 'Paseo').id, propietarioDe(con).id, 4, ctx).ok, true); // AC-7.9: se puede calificar
 });

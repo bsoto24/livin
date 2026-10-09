@@ -78,7 +78,7 @@ test('AC-4.3, AC-4.7: si hay menos casillas libres que objetos, se muestran tant
 
 test('FR-6: ubicarBurbujas pone la de un espacio en su casilla fija y la de un miembro en la casilla de encima de él', () => {
   const ctx = crearCtx();
-  let e = agregarHabitante(crearHogarInicial(ctx), 'familiar', { nombre: 'Diana', parentesco: 'pareja', genero: 'femenino' }, ctx).estado;
+  let e = agregarHabitante(crearHogarInicial(ctx), 'familiar', { nombre: 'Diana', aspecto: 'adulta' }, ctx).estado;
   const diana = familiares(e)[0];
   const cocina = espaciosDeTipo(e, 'cocina')[0];
   const base = { nombre: 'Tarea', icono: 'otra', miembroId: diana.id, tipo: 'puntual', vence: '2026-10-06', frecuenciaDias: null };

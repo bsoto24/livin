@@ -9,15 +9,17 @@ import {
 } from '../src/hogar.js';
 import {
   agregarActividad, editarActividad, eliminarActividad, marcarHecha, buscarActividad, contarActividades, puedeAgregarActividad,
-  atraso, porHacer, limpiezaDeEspacio, burbujas, actividadesDelLugar, listaDelPanel, textoPlazo,
+  atraso, porHacer, limpiezaDeEspacio, burbujas, actividadesDelLugar, listaDelPanel, textoPlazo, MENSAJES_ACTIVIDAD,
+  agregarActividades,
 } from '../src/actividades.js';
-import { crearCtx } from './ayuda.js';
+import { LIMITE_ACTIVIDADES } from '../src/catalogo.js';
+import { crearCtx, agregarActividadLegada } from './ayuda.js';
 
 const HOY = '2026-10-06';
 
 function hogarBase(ctx) {
   let e = crearHogarInicial(ctx);
-  e = agregarHabitante(e, 'familiar', { nombre: 'Diana', parentesco: 'pareja', genero: 'femenino' }, ctx).estado;
+  e = agregarHabitante(e, 'familiar', { nombre: 'Diana', aspecto: 'adulta' }, ctx).estado;
   return agregarHabitante(e, 'mascota', { nombre: 'Firulais', especie: 'perro' }, ctx).estado;
 }
 
@@ -136,15 +138,15 @@ test('AC-6.3, AC-6.4, AC-9.1: editar cambia todos los datos, pasa de puntual a r
   let e = hogarBase(ctx);
   e = alta(e, datos(e), ctx);
   const { id, creadoEn } = ultima(e);
-  const firulais = mascotas(e)[0];
+  const propietario = miembrosActivos(e)[0];
   let r = editarActividad(e, id, {
-    nombre: 'Pasear', icono: 'mascota', miembroId: firulais.id, espacioId: null, tipo: 'repetitiva', vence: '2026-10-08', frecuenciaDias: 2,
+    nombre: 'Pasear', icono: 'mascota', miembroId: propietario.id, espacioId: null, tipo: 'repetitiva', vence: '2026-10-08', frecuenciaDias: 2,
   }, ctx);
   assert.equal(r.ok, true, r.error);
   let a = buscarActividad(r.estado, id);
   assert.deepEqual(
     [a.id, a.nombre, a.icono, a.miembroId, a.espacioId, a.tipo, a.vence, a.frecuenciaDias, a.hechaEn],
-    [id, 'Pasear', 'mascota', firulais.id, null, 'repetitiva', '2026-10-08', 2, null],
+    [id, 'Pasear', 'mascota', propietario.id, null, 'repetitiva', '2026-10-08', 2, null],
   );
   assert.equal(a.creadoEn, creadoEn);
   assert.ok(a.actualizadoEn > a.creadoEn);
@@ -185,7 +187,7 @@ test('AC-6.6, AC-7.10, FR-8: eliminar es un borrado lógico y no toca nada más'
 test('AC-3.2, AC-3.6, AC-3.8, AC-9.5: marcar como hecha una puntual de cualquier miembro registra el día y deja de estar pendiente', () => {
   const ctx = crearCtx();
   let e = hogarBase(ctx);
-  e = alta(e, datos(e, { miembroId: mascotas(e)[0].id, vence: '2026-10-04' }), ctx);
+  e = agregarActividadLegada(e, datos(e, { miembroId: mascotas(e)[0].id, vence: '2026-10-04' }), ctx).estado; // dato de una versión anterior
   const { id } = ultima(e);
   const despues = marcarHecha(e, id, HOY, ctx);
   const a = despues.actividades.find((x) => x.id === id);
@@ -341,7 +343,7 @@ test('Reliability, FR-9: ninguna baja de un espacio o de un miembro deja una act
   for (const banos of [0, 3, 6]) {
     const ctx = crearCtx();
     let e = hogarCompleto(ctx, banos);
-    for (const m of miembrosActivos(e)) e = alta(e, datos(e, { miembroId: m.id, espacioId: null }), ctx);
+    for (const m of miembrosActivos(e).filter((x) => x.tipo === 'persona')) e = alta(e, datos(e, { miembroId: m.id, espacioId: null }), ctx); // las mascotas no pueden encargarse (ADR-007)
     for (const x of espaciosActivos(e)) e = alta(e, datos(e, { espacioId: x.id }), ctx);
     for (const x of espaciosActivos(e).filter((x) => puedeEliminar(e, x.id))) {
       const despues = eliminarEspacio(e, x.id, ctx);
@@ -418,7 +420,7 @@ test('AC-2.1, AC-2.2, AC-2.5, AC-2.6, FR-6: una burbuja por lugar, con el icono 
   e = alta(e, datos(e, { icono: 'barrer', espacioId: sala.id }), ctx);
   e = alta(e, datos(e, { icono: 'ropa', espacioId: null, vence: '2026-10-05' }), ctx);
   e = alta(e, datos(e, { icono: 'compras', espacioId: null }), ctx);
-  e = alta(e, datos(e, { icono: 'mascota', miembroId: firulais.id }), ctx); // con espacio: va en la burbuja de la cocina
+  e = alta(e, datos(e, { icono: 'mascota' }), ctx); // con espacio: va en la burbuja de la cocina
   const [platos, basura, limpiar, barrer, ropa, compras, paseo] = e.actividades;
   assert.deepEqual(burbujas(e, HOY), [
     { tipo: 'espacio', id: cocina(e).id, icono: 'basura', actividades: [basura.id, limpiar.id, platos.id, paseo.id], mas: true },
@@ -548,7 +550,7 @@ test('AC-8.11, AC-8.12 (005): reasignar o volver puntual borra el regreso; guard
   const a = buscarActividad(e, id);
   const datosDe = (extra) => buscarActividad(editarActividad(e, id, { ...a, ...extra }, ctx).estado, id);
   assert.deepEqual([datosDe({ nombre: 'Otro nombre' }).miembroId, datosDe({ nombre: 'Otro nombre' }).devolverA], [diana(e).id, propietario.id]);
-  assert.equal(datosDe({ miembroId: mascotas(e)[0].id }).devolverA, null);
+  assert.equal(editarActividad(e, id, { ...a, miembroId: mascotas(e)[0].id }, ctx).error, 'mascota'); // una mascota no puede recibirla
   assert.deepEqual([datosDe({ miembroId: propietario.id }).miembroId, datosDe({ miembroId: propietario.id }).devolverA], [propietario.id, null]);
   const puntual = datosDe({ tipo: 'puntual' });
   assert.deepEqual([puntual.tipo, puntual.devolverA, puntual.miembroId], ['puntual', null, diana(e).id]);
@@ -556,7 +558,7 @@ test('AC-8.11, AC-8.12 (005): reasignar o volver puntual borra el regreso; guard
 
 test('AC-8.13 (005): eliminar al responsable original borra el regreso; eliminar a quien la tiene la elimina y se cuenta en sus pendientes', () => {
   const ctx = crearCtx();
-  let base = agregarHabitante(hogarBase(ctx), 'familiar', { nombre: 'Luis', parentesco: 'hermano', genero: 'masculino' }, ctx).estado;
+  let base = agregarHabitante(hogarBase(ctx), 'familiar', { nombre: 'Luis', aspecto: 'adulto' }, ctx).estado;
   const luis = familiares(base)[1];
   let e = alta(base, datos(base, { tipo: 'repetitiva', frecuenciaDias: 7, miembroId: luis.id }), ctx);
   const { id } = ultima(e);
@@ -568,4 +570,133 @@ test('AC-8.13 (005): eliminar al responsable original borra el regreso; eliminar
   const sinDiana = eliminarHabitante(e, diana(e).id, ctx);
   assert.equal(buscarActividad(sinDiana, id), null);
   assert.notEqual(sinDiana.actividades.find((x) => x.id === id).eliminadoEn, null);
+});
+
+test('AC-11.2, AC-11.3, FR-10: una mascota no puede ser responsable al crear ni al editar; una persona sí', () => {
+  const ctx = crearCtx();
+  const e = hogarBase(ctx);
+  const firulais = mascotas(e)[0];
+  const r = agregarActividad(e, datos(e, { miembroId: firulais.id }), ctx);
+  assert.deepEqual([r.ok, r.error], [false, 'mascota']);
+  assert.equal(r.estado, e);
+  assert.equal(MENSAJES_ACTIVIDAD.mascota, 'Las mascotas no pueden encargarse de actividades.');
+  const con = alta(e, datos(e), ctx);
+  const edicion = editarActividad(con, ultima(con).id, datos(con, { miembroId: firulais.id }), ctx);
+  assert.deepEqual([edicion.ok, edicion.error], [false, 'mascota']);
+  assert.equal(edicion.estado, con);
+  const propietario = miembrosActivos(e)[0];
+  assert.equal(agregarActividad(e, datos(e, { miembroId: propietario.id }), ctx).ok, true);
+});
+
+test('AC-11.4: sin actividades de mascotas, ninguna burbuja ni lista corresponde a una mascota', () => {
+  const ctx = crearCtx();
+  let e = hogarBase(ctx);
+  e = alta(e, datos(e, { espacioId: null }), ctx);
+  const firulais = mascotas(e)[0];
+  assert.equal(pendientesDeMiembro(e, firulais.id), 0);
+  assert.ok(burbujas(e, HOY).every((b) => !(b.tipo === 'miembro' && b.id === firulais.id)));
+  assert.ok(listaDelPanel(e).every((a) => a.miembroId !== firulais.id));
+});
+
+test('AC-11.6: "Dar de comer a la mascota" y "Pasear al perro" se asignan a una persona como cualquier otra', () => {
+  const ctx = crearCtx();
+  const e = hogarBase(ctx);
+  for (const nombre of ['Dar de comer a la mascota', 'Pasear al perro']) {
+    const con = alta(e, datos(e, { nombre, icono: 'mascota', espacioId: null }), ctx);
+    assert.equal(ultima(con).miembroId, diana(e).id);
+  }
+});
+
+// ---------- Feature 007: una actividad en varios lugares ----------
+
+test('AC-10.3, AC-10.4, AC-10.5, AC-10.11: n lugares crean n actividades independientes con los mismos datos, en el orden de los espacios', () => {
+  const ctx = crearCtx();
+  const e = agregarEspacio(hogarBase(ctx), 'dormitorio', ctx);
+  const [d1, d2] = espaciosDeTipo(e, 'dormitorio');
+  const sala = espaciosDeTipo(e, 'sala')[0];
+  // se piden en otro orden: se crean en el orden en que los espacios se crearon (sala, dormitorio 1, dormitorio 2)
+  const r = agregarActividades(e, datos(e, { nombre: 'Barrer', icono: 'barrer' }), [d2.id, sala.id, d1.id], ctx);
+  assert.equal(r.ok, true, r.error);
+  const nuevas = r.estado.actividades.slice(e.actividades.length);
+  assert.deepEqual(nuevas.map((a) => a.espacioId), [sala.id, d1.id, d2.id]);
+  assert.ok(nuevas.every((a) => a.nombre === 'Barrer' && a.icono === 'barrer' && a.miembroId === diana(e).id && a.vence === HOY
+    && a.tipo === 'puntual' && a.hechaEn === null));
+  assert.equal(new Set(nuevas.map((a) => a.id)).size, 3);
+  assert.equal(contarActividades(r.estado), 3);
+  const { actividades: _despues, ...restoDespues } = r.estado;
+  const { actividades: _antes, ...restoAntes } = e;
+  assert.deepEqual(restoDespues, restoAntes); // no cambia ningún espacio, miembro, bloque, intercambio ni entrada
+});
+
+test('AC-10.2: sin ningún lugar se crea una sola actividad sin espacio', () => {
+  const ctx = crearCtx();
+  const e = hogarBase(ctx);
+  const r = agregarActividades(e, datos(e), [], ctx); // `datos` trae la cocina, que se ignora
+  assert.equal(r.ok, true, r.error);
+  const nuevas = r.estado.actividades.slice(e.actividades.length);
+  assert.deepEqual(nuevas.map((a) => a.espacioId), [null]);
+});
+
+test('AC-10.6: el tope de 50 pendientes se respeta con todo o nada (48, 49, 50 y 51)', () => {
+  const ctx = crearCtx();
+  const base = agregarEspacio(hogarBase(ctx), 'dormitorio', ctx);
+  const lugares = espaciosActivos(base).map((x) => x.id);
+  const llenar = (n) => {
+    let e = base;
+    for (let i = 0; i < n; i += 1) e = alta(e, datos(e, { nombre: `A${i}` }), ctx);
+    return e;
+  };
+  let r = agregarActividades(llenar(48), datos(base), lugares.slice(0, 2), ctx); // 48 + 2 = 50
+  assert.equal(r.ok, true);
+  assert.equal(contarActividades(r.estado), LIMITE_ACTIVIDADES);
+  const e49 = llenar(49);
+  r = agregarActividades(e49, datos(base), lugares.slice(0, 2), ctx); // 49 + 2 = 51
+  assert.deepEqual([r.ok, r.error], [false, 'limite-varios']);
+  assert.equal(r.estado, e49);
+  assert.equal(agregarActividades(e49, datos(base), lugares.slice(0, 1), ctx).ok, true); // 49 + 1 = 50
+  const e50 = llenar(50);
+  r = agregarActividades(e50, datos(base), lugares.slice(0, 1), ctx); // 50 + 1 = 51
+  assert.deepEqual([r.ok, r.error], [false, 'limite']);
+  assert.equal(r.estado, e50);
+  assert.equal(MENSAJES_ACTIVIDAD['limite-varios'], 'Con estos lugares se superarían las 50 actividades pendientes.');
+});
+
+test('AC-10.7, AC-11.2: un dato inválido, un lugar que no existe o una mascota no crean ninguna actividad', () => {
+  const ctx = crearCtx();
+  const e = hogarBase(ctx);
+  const lugares = [cocina(e).id];
+  const casos = [
+    [{ nombre: '' }, lugares, 'vacio'],
+    [{ nombre: 'x'.repeat(31) }, lugares, 'largo'],
+    [{ icono: 'escoba' }, lugares, 'icono'],
+    [{ vence: '2026-02-30' }, lugares, 'fecha'],
+    [{ tipo: 'repetitiva', frecuenciaDias: 5 }, lugares, 'frecuencia'],
+    [{ miembroId: 'no-existe' }, lugares, 'miembro'],
+    [{ miembroId: mascotas(e)[0].id }, lugares, 'mascota'],
+    [{}, ['no-existe'], 'espacio'],
+    [{}, ['pasillo:izq'], 'espacio'],
+    [{}, [cocina(e).id, 'no-existe'], 'espacio'],
+  ];
+  for (const [extra, espacioIds, error] of casos) {
+    const r = agregarActividades(e, datos(e, extra), espacioIds, ctx);
+    assert.deepEqual([r.ok, r.error], [false, error], JSON.stringify(extra));
+    assert.equal(r.estado, e);
+  }
+});
+
+test('AC-10.9, AC-10.10: las actividades creadas juntas son independientes al editar, eliminar y marcar "Hecho"', () => {
+  const ctx = crearCtx();
+  const e = agregarEspacio(hogarBase(ctx), 'dormitorio', ctx);
+  const [d1, d2] = espaciosDeTipo(e, 'dormitorio');
+  const r = agregarActividades(e, datos(e, { nombre: 'Barrer', tipo: 'repetitiva', frecuenciaDias: 7 }), [d1.id, d2.id], ctx);
+  const [a1, a2] = r.estado.actividades.slice(e.actividades.length);
+  const editada = editarActividad(r.estado, a1.id, datos(r.estado, { nombre: 'Barrer fuerte', espacioId: d1.id, tipo: 'repetitiva', frecuenciaDias: 7 }), ctx).estado;
+  assert.equal(buscarActividad(editada, a1.id).nombre, 'Barrer fuerte');
+  assert.deepEqual(buscarActividad(editada, a2.id), buscarActividad(r.estado, a2.id));
+  const eliminada = eliminarActividad(r.estado, a1.id, ctx);
+  assert.equal(buscarActividad(eliminada, a1.id), null);
+  assert.notEqual(buscarActividad(eliminada, a2.id), null);
+  const hecha = marcarHecha(r.estado, a1.id, HOY, ctx);
+  assert.equal(buscarActividad(hecha, a1.id).vence, '2026-10-13');
+  assert.equal(buscarActividad(hecha, a2.id).vence, HOY);
 });

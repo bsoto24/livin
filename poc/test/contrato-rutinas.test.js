@@ -29,11 +29,11 @@ test('contrato de fechas y rutinas: funciones, minutos del día y mensajes', () 
   }
 });
 
-test('contrato del modelo y del almacén: consultas de bloques, hogar inicial v6 y migración', () => {
+test('contrato del modelo y del almacén: consultas de bloques, hogar inicial v7 y migración', () => {
   for (const f of ['bloquesActivos', 'bloquesDeEspacios', 'bloquesDeMiembro']) assert.equal(typeof hogar[f], 'function', f);
   assert.equal(typeof almacen.migrarAV4, 'function');
   const e = hogar.crearHogarInicial(crearCtx());
-  assert.deepEqual([e.version, e.bloques], [6, []]);
+  assert.deepEqual([e.version, e.bloques], [7, []]);
 });
 
 test('contrato de rutas, movimiento y entrada: funciones, fases y constantes del ADR', () => {

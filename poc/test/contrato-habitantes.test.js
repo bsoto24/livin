@@ -9,10 +9,8 @@ import * as movimiento from '../src/movimiento.js';
 import { azarReproducible } from './ayuda.js';
 
 test('contrato del catálogo de habitantes: listas cerradas y límites', () => {
-  assert.deepEqual(Object.keys(catalogo.PARENTESCOS), ['pareja', 'hijo', 'padre_madre', 'hermano', 'abuelo', 'otro']);
-  assert.deepEqual(Object.values(catalogo.PARENTESCOS), ['Pareja', 'Hijo/a', 'Padre o madre', 'Hermano/a', 'Abuelo/a', 'Otro familiar']);
-  assert.deepEqual(catalogo.GENEROS, { femenino: 'Femenino', masculino: 'Masculino', otro: 'Otro' });
-  assert.deepEqual(catalogo.ESPECIES, { perro: 'Perro', gato: 'Gato', otro: 'Otro' });
+  assert.deepEqual(Object.values(catalogo.ASPECTOS), ['Adulto', 'Adulta', 'Niño', 'Niña', 'Anciano', 'Anciana', 'Neutro']);
+  assert.deepEqual(catalogo.ESPECIES, { perro: 'Perro', gato: 'Gato', conejo: 'Conejo', hamster: 'Hámster', loro: 'Loro', otro: 'Otro' });
   assert.deepEqual(catalogo.LIMITES_HABITANTES, { familiar: 8, mascota: 4 });
 });
 

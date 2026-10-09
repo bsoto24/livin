@@ -1,7 +1,7 @@
 // src/actividades.js
 // Actividades del hogar (feature 003): operaciones puras sobre `estado.actividades` (ADR-003 de modelo de actividades).
 import { ICONOS, FRECUENCIAS, LIMITE_ACTIVIDADES, MAX_NOMBRE_ACTIVIDAD } from './catalogo.js';
-import { buscarMiembro, buscarEspacio, actividadesPendientes, auditoriaNueva, tocar } from './hogar.js';
+import { buscarMiembro, buscarEspacio, espaciosActivos, actividadesPendientes, auditoriaNueva, tocar, puedeJugar } from './hogar.js';
 import { esFechaValida, sumarDias, diasEntre } from './fechas.js';
 import { agregarEntrada } from './historial.js';
 
@@ -18,7 +18,8 @@ function validarActividad(estado, datos) {
   if (nombre === '') return { error: 'vacio' };
   if (nombre.length > MAX_NOMBRE_ACTIVIDAD) return { error: 'largo' };
   if (!enLista(ICONOS, datos.icono)) return { error: 'icono' };
-  if (!buscarMiembro(estado, datos.miembroId)) return { error: 'miembro' };
+  if (buscarMiembro(estado, datos.miembroId)?.tipo === 'mascota') return { error: 'mascota' }; // ADR-007: las mascotas no pueden encargarse
+  if (!puedeJugar(estado, datos.miembroId)) return { error: 'miembro' };
   const espacioId = datos.espacioId ?? null;
   if (espacioId !== null && !buscarEspacio(estado, espacioId)) return { error: 'espacio' };
   if (!esFechaValida(datos.vence)) return { error: 'fecha' };
@@ -35,6 +36,25 @@ export function agregarActividad(estado, datos, ctx) {
   if (v.error) return { ok: false, error: v.error, estado };
   const actividad = { id: ctx.nuevoId(), hogarId: estado.hogares[0].id, ...v.datos, hechaEn: null, devolverA: null, ...auditoriaNueva(ctx) };
   return { ok: true, estado: { ...estado, actividades: [...estado.actividades, actividad] } };
+}
+
+// Alta en varios lugares (FR-9 de la 007): una actividad independiente —con su id, su auditoría y los mismos datos— por cada espacio pedido, creadas
+// en el orden de los espacios (no en el orden pedido) y en una sola operación, todas o ninguna. Sin espacios crea una sola, sin espacio.
+export function agregarActividades(estado, datos, espacioIds, ctx) {
+  const unicos = [...new Set(espacioIds)];
+  const lugares = espaciosActivos(estado).map((e) => e.id).filter((id) => unicos.includes(id));
+  if (lugares.length !== unicos.length) return { ok: false, error: 'espacio', estado }; // un lugar que no existe o ya no está
+  const destinos = lugares.length === 0 ? [null] : lugares;
+  if (contarActividades(estado) + destinos.length > LIMITE_ACTIVIDADES) {
+    return { ok: false, error: destinos.length === 1 ? 'limite' : 'limite-varios', estado };
+  }
+  let resultado = estado;
+  for (const espacioId of destinos) {
+    const r = agregarActividad(resultado, { ...datos, espacioId }, ctx);
+    if (!r.ok) return { ok: false, error: r.error, estado };
+    resultado = r.estado;
+  }
+  return { ok: true, estado: resultado };
 }
 
 export function editarActividad(estado, id, datos, ctx) {
@@ -77,11 +97,13 @@ export const MENSAJES_ACTIVIDAD = {
   largo: 'El nombre puede tener como máximo 30 caracteres.',
   icono: 'Elige un icono de la lista.',
   miembro: 'Elige a quién se asigna.',
+  mascota: 'Las mascotas no pueden encargarse de actividades.',
   espacio: 'Elige un espacio de la lista.',
   tipo: 'Elige si es puntual o repetitiva.',
   fecha: 'Elige una fecha válida.',
   frecuencia: 'Elige cada cuántos días se repite.',
   limite: 'Ya hay 50 actividades pendientes.',
+  'limite-varios': 'Con estos lugares se superarían las 50 actividades pendientes.',
   'no-encontrada': 'Esa actividad ya no está pendiente.',
 };
 
