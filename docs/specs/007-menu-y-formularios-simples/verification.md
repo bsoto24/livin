@@ -128,6 +128,7 @@ Marcado según ese resumen («sin observaciones») para lo que se le pidió revi
 - [x] Paso 8: varios lugares con "Cambiar", chips que se ajustan a varias líneas y el mensaje con 49 pendientes y 2 lugares.
 - [x] La barra y el drawer no tapan la cruceta ni el cartel del cuarto, y los toques del dedo sobre las pestañas, las burbujas y los círculos de personas aciertan sin tocar el elemento de al lado.
 - [x] En el teclado del teléfono: escribir "Lavar platos" con espacio en los campos de nombre (cuarto, propietario, familiar, mascota, actividad).
-- [x] Rendimiento: 73 fps y `regen` 4,3 ms informados, por encima de la meta de 60 cuadros por segundo y por debajo de 100 ms. **Sin confirmar** que fuera con la carga completa (8 familiares, 4 mascotas, 50 actividades y 200 entradas).
+- [x] Rendimiento: 73 fps y `regen` 4,3 ms informados, por encima de la meta de 60 cuadros por segundo y por debajo de 100 ms; no se indicó si fue con la carga completa.
+- [x] Rendimiento con la carga completa (8 familiares, 4 mascotas, 21 espacios, 50 pendientes y 200 entradas de historial, sembrada con una página temporal fuera del repositorio): **64 fps, `regen` 62,7 ms, sin observaciones** (prueba posterior del mismo día, resumen del usuario). Cumple la meta de 60 cuadros por segundo y de 100 ms, con poco margen en el `regen`: es el valor más alto registrado en el proyecto (antes 3 a 11 ms).
 - [ ] Pasos manuales de la ronda de seguimiento 1 (AC-1.11, AC-2.3, AC-4.4, AC-12.4): no se le pidieron en esta prueba; siguen cubiertos solo por lectura de código (ver la tabla de la sección anterior).
 - [ ] Teclas de flecha mantenidas en un navegador de escritorio (AC-14.2): no aplica al teléfono; sigue sin ejercerse con teclas reales.
