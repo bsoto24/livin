@@ -1,7 +1,7 @@
 // src/juego.js
 /* global Phaser */
 import {
-  TIPOS, ETIQUETAS, PARENTESCOS, GENEROS, ESPECIES, LIMITES_HABITANTES, ICONOS, FRECUENCIAS, LIMITE_ACTIVIDADES, DIAS_RUTINA, LIMITE_BLOQUES,
+  TIPOS, ETIQUETAS, PARENTESCOS, GENEROS, ESPECIES, LIMITES_HABITANTES, ICONOS, FRECUENCIAS, LIMITE_ACTIVIDADES, DIAS_RUTINA, LIMITE_BLOQUES, MAX_ESTRELLAS,
 } from './catalogo.js';
 import {
   espaciosActivos, buscarEspacio, contar, puedeAgregar, puedeQuitar, puedeEliminar, agregarEspacio, quitarUltimo,
@@ -30,6 +30,10 @@ import {
   numeroRecibidas, intercambiosDe, actividadesOfrecibles, actividadesPedibles, motivoSinPropuesta, proponer, aceptar, rechazar, retirar,
   quitar, esVigente, textoPropuesta, textoIntercambio, MENSAJES_INTERCAMBIO,
 } from './intercambios.js';
+import {
+  entradasDelHistorial, entradasDe, miembrosDelFiltro, textoLinea, textoResumen, textoVacio, estadoDeCalificacion, textoCalificacion,
+  calificar, quitarCalificacion, MENSAJES_HISTORIAL,
+} from './historial.js';
 import { ahoraLocal } from './fechas.js';
 
 const TILE = 16;
@@ -463,6 +467,7 @@ function mostrarExploracion(visible) {
   $('editar').style.display = visible ? 'block' : 'none';
   $('juega').style.display = visible ? 'block' : 'none';
   $('intercambios').style.display = visible ? 'block' : 'none';
+  $('historial').style.display = visible ? 'block' : 'none';
   $('panel').style.display = visible ? 'none' : 'block';
 }
 
@@ -1004,6 +1009,7 @@ function cerrarPaneles() {
   cerrarHoja();
   cerrarQuien();
   cerrarIntercambios();
+  cerrarHistorial();
 }
 
 // Lista "¿Quién juega?" (AC-1.3, AC-3.1): el propietario y los familiares; un familiar fuera de casa también se puede elegir.
@@ -1129,6 +1135,82 @@ $('ficha-intercambio').querySelector('form').addEventListener('submit', (ev) => 
   if (!r.ok) { $('intercambio-error').textContent = MENSAJES_INTERCAMBIO[r.error]; return; } // AC-6.9
   cerrarFichaIntercambio();
   aplicarActividades(r.estado);
+});
+
+// ---------- Historial y calificaciones (FR-3 a FR-6 de la 006) ----------
+let filtroHistorial = null; // null = "Todos"; si no, el id de un miembro. Vuelve a "Todos" cada vez que se abre el panel (AC-3.10)
+
+function abrirHistorial() {
+  filtroHistorial = null;
+  opciones($('historial-filtro'), [['', 'Todos'], ...miembrosDelFiltro(estado).map((m) => [m.id, m.nombre])], '');
+  $('historial-error').textContent = '';
+  pintarHistorial();
+  $('panel-historial').style.display = 'flex';
+}
+function cerrarHistorial() {
+  $('panel-historial').style.display = 'none';
+}
+
+// Lista del panel (AC-2.3, AC-2.6): el resumen del miembro elegido y una fila por entrada, de la más reciente a la más antigua.
+function pintarHistorial() {
+  const lista = filtroHistorial === null ? entradasDelHistorial(estado) : entradasDe(estado, filtroHistorial);
+  $('historial-resumen').textContent = textoResumen(estado, filtroHistorial); // AC-3.3, AC-3.4, AC-3.6
+  $('historial-lista').replaceChildren(...(lista.length === 0
+    ? [elemento('p', textoVacio(estado, filtroHistorial))]
+    : lista.map(filaDeHistorial)));
+}
+
+// Fila de una entrada (AC-2.4): icono y nombre, persona · espacio · día, y cinco estrellas. Según `estadoDeCalificacion`, las estrellas se
+// pueden tocar (libre, mía) o no (propia, bloqueada), y solo una calificación mía ofrece "Quitar" (AC-4.1, AC-4.3, AC-5.1, AC-5.5).
+function filaDeHistorial(entrada) {
+  const situacion = estadoDeCalificacion(entrada, jugador.id);
+  const titulo = elemento('div');
+  titulo.append(elemento('span', GLIFO_ICONO[entrada.icono], 'icono'), elemento('strong', entrada.nombre));
+  const estrellas = elemento('span', undefined, 'estrellas');
+  for (let k = 1; k <= MAX_ESTRELLAS; k += 1) {
+    const boton = elemento('button', entrada.estrellas !== null && k <= entrada.estrellas ? '★' : '☆');
+    boton.type = 'button';
+    boton.disabled = situacion === 'propia' || situacion === 'bloqueada';
+    boton.setAttribute('aria-label', `${k} ${k === 1 ? 'estrella' : 'estrellas'}`);
+    boton.addEventListener('click', () => aplicarHistorial(calificar(estado, entrada.id, jugador.id, k, ctx)));
+    estrellas.append(boton);
+  }
+  const pie = elemento('div', undefined, 'pie');
+  pie.append(estrellas);
+  const nota = textoCalificacion(estado, entrada, jugador.id);
+  if (nota) pie.append(elemento('small', nota));
+  if (situacion === 'mia') {
+    const quitarEstrellas = elemento('button', 'Quitar', 'peligro');
+    quitarEstrellas.type = 'button';
+    quitarEstrellas.addEventListener('click', () => aplicarHistorial(quitarCalificacion(estado, entrada.id, jugador.id, ctx)));
+    pie.append(quitarEstrellas);
+  }
+  const fila = elemento('div', undefined, 'fila-historial');
+  fila.append(titulo, elemento('small', textoLinea(estado, entrada, hoy)), pie);
+  return fila;
+}
+
+// Aplica una calificación: guarda en el momento (AC-8.2), repinta conservando el desplazamiento (AC-2.7) y mide los 100 ms (AC-2.10).
+// Las mismas estrellas no cambian nada (AC-5.3); un rechazo muestra su motivo y no cambia nada (AC-4.7).
+function aplicarHistorial(r) {
+  if (!r.ok) { $('historial-error').textContent = MENSAJES_HISTORIAL[r.error]; return; }
+  $('historial-error').textContent = '';
+  if (r.estado === estado) return;
+  const t0 = performance.now();
+  estado = r.estado;
+  guardarEstado();
+  const seccion = $('panel-historial').querySelector('section');
+  const desplazamiento = seccion.scrollTop;
+  pintarHistorial();
+  seccion.scrollTop = desplazamiento;
+  ultimaRegeneracionMs = performance.now() - t0;
+}
+
+$('historial').addEventListener('click', abrirHistorial);
+$('historial-cerrar').addEventListener('click', cerrarHistorial);
+$('historial-filtro').addEventListener('change', () => {
+  filtroHistorial = $('historial-filtro').value || null;
+  pintarHistorial();
 });
 
 // ---------- Ciclo de vida ----------

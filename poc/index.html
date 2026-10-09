@@ -63,9 +63,10 @@
     #aviso { position: fixed; top: calc(56px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); background: #2a221c;
       color: #f2ead3; padding: 8px 14px; border-radius: 8px; display: none; max-width: 86vw; }
     #depuracion { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 8px; color: #9fe1cb; font: 12px monospace; }
-    #juega, #intercambios { position: fixed; right: 12px; padding: 10px 14px; max-width: 62vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #juega, #intercambios, #historial { position: fixed; right: 12px; padding: 10px 14px; max-width: 62vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #juega { top: calc(60px + env(safe-area-inset-top)); }
     #intercambios { top: calc(108px + env(safe-area-inset-top)); }
+    #historial { top: calc(156px + env(safe-area-inset-top)); }
     .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .55); display: none; align-items: center; justify-content: center; }
     .modal section, .modal form { background: #f2ead3; color: #2a221c; padding: 16px; border-radius: 12px; width: min(340px, 90vw);
       max-height: 80vh; overflow-y: auto; box-sizing: border-box; }
@@ -82,6 +83,13 @@
     .modal .acciones { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
     .modal .ancho { width: 100%; margin-top: 8px; padding: 10px; }
     .nota { display: block; font-size: 13px; opacity: .7; min-height: 1em; }
+    .modal .resumen { display: block; margin: 8px 0; }
+    .modal .fila-historial { padding: 8px 0; border-top: 1px solid #d9cfb4; }
+    .modal .fila-historial small { display: block; opacity: .7; }
+    .modal .fila-historial .pie { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+    .modal .estrellas { display: flex; gap: 2px; }
+    .modal .estrellas button { min-width: 40px; min-height: 40px; padding: 0; font-size: 22px; background: transparent; color: #2a221c; }
+    .modal .estrellas button:disabled { opacity: .45; }
   </style>
 </head>
 <body>
@@ -90,6 +98,7 @@
   <button id="editar">Editar</button>
   <button id="juega">Juega</button>
   <button id="intercambios">Intercambios</button>
+  <button id="historial">Historial</button>
   <div id="cruceta">
     <button data-dir="arriba" aria-label="Arriba">▲</button>
     <button data-dir="izquierda" aria-label="Izquierda">◀</button>
@@ -196,6 +205,15 @@
         <button type="submit" id="intercambio-guardar">Proponer</button>
       </div>
     </form>
+  </div>
+  <div id="panel-historial" class="modal">
+    <section aria-label="Historial">
+      <header><strong>Historial</strong><button type="button" id="historial-cerrar">Cerrar</button></header>
+      <select id="historial-filtro" aria-label="Persona"></select>
+      <strong class="resumen" id="historial-resumen"></strong>
+      <div id="historial-lista"></div>
+      <div class="error" id="historial-error"></div>
+    </section>
   </div>
   <div id="aviso" role="status"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.1/phaser.min.js"></script>
