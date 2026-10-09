@@ -255,7 +255,7 @@ test('Reliability, AC-8.10 (005): "Hecho" tras eliminar al responsable original 
   assert.deepEqual([a.miembroId, a.devolverA], [luisId, null]);
 });
 
-test('Reliability: ninguna baja ni el tope de 200 entradas deja una entrada con referencias rotas (el documento v6 se vuelve a cargar)', () => {
+test('Reliability: ninguna baja ni el tope de 200 entradas deja una entrada con referencias rotas (el documento v7 se vuelve a cargar)', () => {
   const ctx = crearCtx();
   let base = agregarEspacio(hogarBase(ctx), 'dormitorio', ctx);
   base = agregarEspacio(base, 'bano', ctx);
@@ -263,7 +263,6 @@ test('Reliability: ninguna baja ni el tope de 200 entradas deja una entrada con 
   const bano = banoDe(base, d1.id);
   base = hacer(base, 'Platos', ctx, { espacioId: cocina(base).id });
   base = hacer(base, 'Ducha', ctx, { miembroId: luis(base).id, espacioId: bano.id });
-  base = hacer(base, 'Paseo', ctx, { miembroId: firulais(base).id });
   base = hacer(base, 'Barrer', ctx, { tipo: 'repetitiva', frecuenciaDias: 7, espacioId: d1.id });
   const recargado = (estado) => {
     const almacen = crearAlmacen(almacenEnMemoria());

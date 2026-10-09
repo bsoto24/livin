@@ -1,11 +1,34 @@
 // test/almacen.test.js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { crearAlmacen, iniciarSesion, migrarAV2, migrarAV3, migrarAV4, migrarAV5, migrarAV6, CLAVE_DATOS, CLAVE_POSICION } from '../src/almacen.js';
+import {
+  crearAlmacen, iniciarSesion, migrarAV2, migrarAV3, migrarAV4, migrarAV5, migrarAV6, migrarAV7, CLAVE_DATOS, CLAVE_POSICION,
+} from '../src/almacen.js';
 import {
   agregarEspacio, renombrarEspacio, espaciosDeTipo, crearHogarInicial, agregarHabitante, eliminarHabitante, familiares, mascotas,
+  actividadesPendientes,
 } from '../src/hogar.js';
+import { esVigente } from '../src/intercambios.js';
+import { generarDistribucion } from '../src/distribucion.js';
 import { crearCtx, almacenEnMemoria } from './ayuda.js';
+
+const RELOJ = () => '2026-10-09T10:00:00.000Z';
+
+// Documento como lo guardaba la feature 006: versión 6, con género y parentesco en lugar de aspecto (ADR-007 de aspecto). Un miembro que
+// ya tiene la forma antigua (sin `aspecto`) queda igual.
+const GENERO_DE_ASPECTO = { adulta: 'femenino', adulto: 'masculino', neutro: 'otro' };
+function comoV6(estado) {
+  return {
+    ...estado,
+    version: 6,
+    miembros: estado.miembros.map((m) => {
+      if (!('aspecto' in m)) return m;
+      const { aspecto, ...resto } = m;
+      const conAspecto = m.tipo === 'persona' && aspecto !== null;
+      return { ...resto, parentesco: conAspecto ? 'otro' : null, genero: conAspecto ? GENERO_DE_ASPECTO[aspecto] : null };
+    }),
+  };
+}
 
 test('AC-1.1: sin datos se crea y guarda el hogar inicial, sin aviso', () => {
   const storage = almacenEnMemoria();
@@ -52,7 +75,7 @@ test('Error: si falla la lectura del almacenamiento se crea el hogar inicial con
 test('AC-8.5: un miembro sin cuenta se carga como válido', () => {
   const ctx = crearCtx();
   const e = crearHogarInicial(ctx);
-  const conMiembroSinCuenta = { ...e, miembros: [...e.miembros, { ...e.miembros[0], id: 'id-99', nombre: 'Firulais', cuentaId: null }] };
+  const conMiembroSinCuenta = { ...e, miembros: [...e.miembros, { ...e.miembros[0], id: 'id-99', nombre: 'Firulais', cuentaId: null, aspecto: 'neutro' }] };
   const storage = almacenEnMemoria({ [CLAVE_DATOS]: JSON.stringify(conMiembroSinCuenta) });
   const { aviso, estado } = iniciarSesion(crearAlmacen(storage), crearCtx());
   assert.equal(aviso, null);
@@ -67,15 +90,18 @@ test('Error: si falla el guardado se informa sin lanzar', () => {
   assert.equal(CLAVE_POSICION, 'livin:posicion:v1');
 });
 
-// Documento como lo guardaba la feature 001: versión 1, sin actividades y miembros sin tipo, parentesco, género ni especie.
+// Documento como lo guardaba la feature 001: versión 1, sin actividades y miembros sin tipo, aspecto, parentesco, género ni especie.
 function comoV1(estado) {
   const { actividades, bloques, intercambios, historial, ...resto } = estado;
-  return { ...resto, version: 1, miembros: estado.miembros.map(({ tipo, parentesco, genero, especie, ...m }) => m) };
+  return {
+    ...resto, version: 1,
+    miembros: estado.miembros.map(({ tipo, aspecto, parentesco, genero, especie, ...m }) => m),
+  };
 }
 
 function hogarConHabitantes(ctx) {
   let e = crearHogarInicial(ctx);
-  e = agregarHabitante(e, 'familiar', { nombre: 'Diana', parentesco: 'pareja', genero: 'femenino' }, ctx).estado;
+  e = agregarHabitante(e, 'familiar', { nombre: 'Diana', aspecto: 'adulta' }, ctx).estado;
   return agregarHabitante(e, 'mascota', { nombre: 'Firulais', especie: 'perro' }, ctx).estado;
 }
 
@@ -86,11 +112,11 @@ test('AC-9.1: los habitantes y sus datos se guardan y se restauran igual', () =>
   const { estado, aviso } = iniciarSesion(almacen, crearCtx());
   assert.equal(aviso, null);
   assert.deepEqual(estado, e);
-  assert.deepEqual(familiares(estado).map((f) => [f.nombre, f.parentesco, f.genero]), [['Diana', 'pareja', 'femenino']]);
+  assert.deepEqual(familiares(estado).map((f) => [f.nombre, f.aspecto]), [['Diana', 'adulta']]);
   assert.deepEqual(mascotas(estado).map((m) => [m.nombre, m.especie]), [['Firulais', 'perro']]);
 });
 
-test('AC-9.3 (002), AC-8.3 (003), AC-11.3 (004): un hogar de la feature 001 se abre sin aviso y se guarda como versión 6 en el siguiente guardado', () => {
+test('AC-9.3 (002), AC-8.3 (003), AC-11.3 (004): un hogar de la feature 001 se abre sin aviso y se guarda como versión 7 en el siguiente guardado', () => {
   const ctx = crearCtx();
   let e = agregarEspacio(crearHogarInicial(ctx), 'dormitorio', ctx);
   e = renombrarEspacio(e, espaciosDeTipo(e, 'dormitorio')[1].id, 'Cuarto de Bryam', ctx).estado;
@@ -99,22 +125,22 @@ test('AC-9.3 (002), AC-8.3 (003), AC-11.3 (004): un hogar de la feature 001 se a
   const almacen = crearAlmacen(storage);
   const { estado, aviso } = iniciarSesion(almacen, crearCtx());
   assert.equal(aviso, null);
-  assert.deepEqual(estado, e); // mismos espacios, nombres y personaje, sin actividades ni bloques; ya en versión 6 en memoria
+  assert.deepEqual(estado, e); // mismos espacios, nombres y personaje, sin actividades ni bloques; ya en versión 7 en memoria
   assert.equal(storage.datos.get(CLAVE_DATOS), textoV1); // abrir no reescribe el documento
   almacen.guardar(estado);
-  assert.equal(JSON.parse(storage.datos.get(CLAVE_DATOS)).version, 6);
+  assert.equal(JSON.parse(storage.datos.get(CLAVE_DATOS)).version, 7);
 });
 
-test('AC-9.4: tras migrar, el personaje del propietario conserva nombre y cuenta y no recibe parentesco ni género', () => {
+test('AC-9.4: tras migrar, el personaje del propietario conserva nombre y cuenta y no recibe aspecto', () => {
   const ctx = crearCtx();
   const e = crearHogarInicial(ctx);
-  const migrado = migrarAV2(comoV1(e));
-  const conFamilia = agregarHabitante(migrado, 'familiar', { nombre: 'Diana', parentesco: 'pareja', genero: 'femenino' }, ctx).estado;
-  const propietario = conFamilia.miembros[0];
+  const migrado = migrarAV7(migrarAV6(migrarAV5(migrarAV4(migrarAV3(migrarAV2(comoV1(e)))))), RELOJ);
+  const propietario = migrado.miembros[0];
   assert.deepEqual(
-    [propietario.nombre, propietario.cuentaId, propietario.tipo, propietario.parentesco, propietario.genero],
-    ['Personaje 1', e.cuentas[0].id, 'persona', null, null],
+    [propietario.nombre, propietario.cuentaId, propietario.tipo, propietario.aspecto],
+    ['Personaje 1', e.cuentas[0].id, 'persona', null],
   );
+  const conFamilia = agregarHabitante(migrado, 'familiar', { nombre: 'Diana', aspecto: 'adulta' }, ctx).estado;
   assert.equal(familiares(conFamilia).length, 1);
 });
 
@@ -129,15 +155,16 @@ test('migrarAV2 es pura: no modifica el documento de entrada y solo agrega los c
 
 test('AC-9.5: datos con un habitante inválido se consideran ilegibles', () => {
   const base = hogarConHabitantes(crearCtx());
-  const [, diana, firulais] = base.miembros;
+  const [propietario, diana, firulais] = base.miembros;
   const variantes = [
     { ...diana, tipo: 'robot' },
-    { ...firulais, parentesco: 'pareja' },
-    { ...firulais, genero: 'femenino' },
+    { ...firulais, aspecto: 'adulta' },
     { ...diana, especie: 'perro' },
-    { ...diana, parentesco: 'tia' },
-    { ...diana, genero: 'x' },
-    { ...firulais, especie: 'loro' },
+    { ...diana, aspecto: 'femenino' }, // la clave antigua de género
+    { ...diana, aspecto: 'x' },
+    { ...diana, aspecto: null }, // un familiar sin aspecto
+    { ...propietario, aspecto: 'adulto' }, // el propietario no tiene aspecto
+    { ...firulais, especie: 'canario' },
     { ...diana, cuentaId: base.cuentas[0].id }, // dos miembros vinculados a la cuenta del propietario
   ];
   const abrir = (datos) => iniciarSesion(crearAlmacen(almacenEnMemoria({ [CLAVE_DATOS]: JSON.stringify(datos) })), crearCtx());
@@ -164,11 +191,11 @@ test('FR-10: un miembro eliminado con datos inválidos no vuelve ilegible el doc
   assert.notEqual(eliminadaDiana.eliminadoEn, null);
   assert.notEqual(eliminadoFirulais.eliminadoEn, null);
   const casos = [
-    [sinDiana, { ...eliminadaDiana, parentesco: 'tia' }],
+    [sinDiana, { ...eliminadaDiana, aspecto: 'x' }],
     [sinDiana, { ...eliminadaDiana, tipo: 'robot' }],
     [sinDiana, { ...eliminadaDiana, especie: 'perro' }],
-    [sinDiana, { ...eliminadaDiana, genero: 'x' }],
-    [sinFirulais, { ...eliminadoFirulais, parentesco: 'pareja' }],
+    [sinDiana, { ...eliminadaDiana, aspecto: null }],
+    [sinFirulais, { ...eliminadoFirulais, aspecto: 'adulta' }],
   ];
   for (const [documento, malo] of casos) {
     const guardado = conMiembro(documento, malo);
@@ -183,7 +210,7 @@ test('AC-9.5: los valores de prototipo no cuentan como valores de las listas cer
   const [, diana, firulais] = base.miembros;
   const variantes = [];
   for (const clave of ['toString', 'constructor', '__proto__']) {
-    variantes.push({ ...diana, parentesco: clave }, { ...diana, genero: clave }, { ...firulais, especie: clave });
+    variantes.push({ ...diana, aspecto: clave }, { ...firulais, especie: clave });
   }
   for (const malo of variantes) {
     const { estado, aviso } = abrirDatos(conMiembro(base, malo));
@@ -205,7 +232,7 @@ test('AC-9.5: un miembro activo sin tipo hace ilegible el documento', () => {
 
 // Documento como lo guardaba la feature 002: versión 2 y sin actividades.
 function comoV2(estado) {
-  const { actividades, bloques, intercambios, historial, ...resto } = estado;
+  const { actividades, bloques, intercambios, historial, ...resto } = comoV6(estado);
   return { ...resto, version: 2 };
 }
 
@@ -244,17 +271,17 @@ test('AC-8.1 (003): las actividades se guardan y se restauran igual', () => {
   assert.deepEqual(estado, e);
 });
 
-test('AC-8.4 (003), AC-11.4 (004): un hogar de la feature 002 se abre sin aviso, sin actividades ni bloques, y se guarda como versión 6 en el siguiente guardado', () => {
+test('AC-8.4 (003), AC-11.4 (004): un hogar de la feature 002 se abre sin aviso, sin actividades ni bloques, y se guarda como versión 7 en el siguiente guardado', () => {
   const e = hogarConHabitantes(crearCtx());
   const textoV2 = JSON.stringify(comoV2(e));
   const storage = almacenEnMemoria({ [CLAVE_DATOS]: textoV2 });
   const almacen = crearAlmacen(storage);
   const { estado, aviso } = iniciarSesion(almacen, crearCtx());
   assert.equal(aviso, null);
-  assert.deepEqual(estado, e); // mismos espacios y habitantes, sin actividades ni bloques; ya en versión 6 en memoria
+  assert.deepEqual(estado, e); // mismos espacios y habitantes, sin actividades ni bloques; ya en versión 7 en memoria
   assert.equal(storage.datos.get(CLAVE_DATOS), textoV2); // abrir no reescribe el documento
   almacen.guardar(estado);
-  assert.equal(JSON.parse(storage.datos.get(CLAVE_DATOS)).version, 6);
+  assert.equal(JSON.parse(storage.datos.get(CLAVE_DATOS)).version, 7);
 });
 
 test('migrarAV3 es pura: no modifica el documento de entrada y solo agrega la lista de actividades vacía', () => {
@@ -317,7 +344,7 @@ test('AC-8.6 (003): una actividad eliminada con datos inválidos no vuelve ilegi
 
 // Documento como lo guardaba la feature 003: versión 3 y sin bloques de rutina.
 function comoV3(estado) {
-  const { bloques, intercambios, historial, ...resto } = estado;
+  const { bloques, intercambios, historial, ...resto } = comoV6(estado);
   return { ...resto, version: 3, actividades: estado.actividades.map(({ devolverA, ...a }) => a) };
 }
 
@@ -345,27 +372,27 @@ function hogarConBloques(ctx) {
 
 const conBloque = (base, nuevo) => ({ ...base, bloques: base.bloques.map((b) => (b.id === nuevo.id ? nuevo : b)) });
 
-test('AC-11.1, AC-12.3: los bloques de rutina se guardan y se restauran igual, en versión 6', () => {
+test('AC-11.1, AC-12.3: los bloques de rutina se guardan y se restauran igual, en versión 7', () => {
   const almacen = crearAlmacen(almacenEnMemoria());
   const e = hogarConBloques(crearCtx());
   assert.deepEqual(almacen.guardar(e), { ok: true });
   const { estado, aviso } = iniciarSesion(almacen, crearCtx());
   assert.equal(aviso, null);
   assert.deepEqual(estado, e);
-  assert.equal(estado.version, 6);
+  assert.equal(estado.version, 7);
 });
 
-test('AC-11.5: un hogar de la feature 003 se abre sin aviso, sin bloques, y se guarda como versión 6 en el siguiente guardado', () => {
+test('AC-11.5: un hogar de la feature 003 se abre sin aviso, sin bloques, y se guarda como versión 7 en el siguiente guardado', () => {
   const e = hogarConActividades(crearCtx());
   const textoV3 = JSON.stringify(comoV3(e));
   const storage = almacenEnMemoria({ [CLAVE_DATOS]: textoV3 });
   const almacen = crearAlmacen(storage);
   const { estado, aviso } = iniciarSesion(almacen, crearCtx());
   assert.equal(aviso, null);
-  assert.deepEqual(estado, e); // mismos espacios, habitantes y actividades, sin bloques; ya en versión 6 en memoria
+  assert.deepEqual(estado, e); // mismos espacios, habitantes y actividades, sin bloques; ya en versión 7 en memoria
   assert.equal(storage.datos.get(CLAVE_DATOS), textoV3); // abrir no reescribe el documento
   almacen.guardar(estado);
-  assert.equal(JSON.parse(storage.datos.get(CLAVE_DATOS)).version, 6);
+  assert.equal(JSON.parse(storage.datos.get(CLAVE_DATOS)).version, 7);
 });
 
 test('migrarAV4 es pura: no modifica el documento de entrada y solo agrega la lista de bloques vacía', () => {
@@ -438,7 +465,7 @@ test('AC-11.6: un bloque activo que apunta a un familiar eliminado vuelve ilegib
 
 // Documento como lo guardaba la feature 004: versión 4, sin intercambios ni regreso pendiente en las actividades.
 function comoV4(estado) {
-  const { intercambios, historial, ...resto } = estado;
+  const { intercambios, historial, ...resto } = comoV6(estado);
   return { ...resto, version: 4, actividades: estado.actividades.map(({ devolverA, ...a }) => a) };
 }
 
@@ -481,29 +508,29 @@ function hogarConIntercambios(ctx) {
 
 const conIntercambio = (base, nuevo) => ({ ...base, intercambios: base.intercambios.map((i) => (i.id === nuevo.id ? nuevo : i)) });
 
-test('AC-10.1 (005): los intercambios y el regreso pendiente se guardan y se restauran igual, en versión 6', () => {
+test('AC-10.1 (005): los intercambios y el regreso pendiente se guardan y se restauran igual, en versión 7', () => {
   const almacen = crearAlmacen(almacenEnMemoria());
   const e = hogarConIntercambios(crearCtx());
   assert.deepEqual(almacen.guardar(e), { ok: true });
   const { estado, aviso } = iniciarSesion(almacen, crearCtx());
   assert.equal(aviso, null);
   assert.deepEqual(estado, e);
-  assert.equal(estado.version, 6);
+  assert.equal(estado.version, 7);
   assert.equal(estado.actividades[1].devolverA, e.miembros[0].id);
 });
 
-test('AC-10.3 (005): un hogar de la feature 004 se abre sin aviso, sin intercambios ni regresos, y se guarda como versión 6 en el siguiente guardado', () => {
+test('AC-10.3 (005): un hogar de la feature 004 se abre sin aviso, sin intercambios ni regresos, y se guarda como versión 7 en el siguiente guardado', () => {
   const e = hogarConBloques(crearCtx());
   const textoV4 = JSON.stringify(comoV4(e));
   const storage = almacenEnMemoria({ [CLAVE_DATOS]: textoV4 });
   const almacen = crearAlmacen(storage);
   const { estado, aviso } = iniciarSesion(almacen, crearCtx());
   assert.equal(aviso, null);
-  assert.deepEqual(estado, e); // mismos espacios, habitantes, actividades y bloques, sin intercambios; ya en versión 6 en memoria
+  assert.deepEqual(estado, e); // mismos espacios, habitantes, actividades y bloques, sin intercambios; ya en versión 7 en memoria
   assert.ok(estado.actividades.every((a) => a.devolverA === null));
   assert.equal(storage.datos.get(CLAVE_DATOS), textoV4); // abrir no reescribe el documento
   almacen.guardar(estado);
-  assert.equal(JSON.parse(storage.datos.get(CLAVE_DATOS)).version, 6);
+  assert.equal(JSON.parse(storage.datos.get(CLAVE_DATOS)).version, 7);
 });
 
 test('migrarAV5 es pura: no modifica el documento de entrada y solo agrega el regreso vacío y la lista de intercambios vacía', () => {
@@ -591,7 +618,7 @@ test('AC-10.7 (005): el documento guardado no tiene vigencia calculada, números
 
 // Documento como lo guardaba la feature 005: versión 5, sin historial.
 function comoV5(estado) {
-  const { historial, ...resto } = estado;
+  const { historial, ...resto } = comoV6(estado);
   return { ...resto, version: 5 };
 }
 
@@ -625,30 +652,30 @@ function hogarConHistorial(ctx) {
 
 const conEntrada = (base, nueva) => ({ ...base, historial: base.historial.map((x) => (x.id === nueva.id ? nueva : x)) });
 
-test('AC-8.1 (006): el historial y sus calificaciones se guardan y se restauran igual, en el mismo orden, en versión 6', () => {
+test('AC-8.1 (006): el historial y sus calificaciones se guardan y se restauran igual, en el mismo orden, en versión 7', () => {
   const almacen = crearAlmacen(almacenEnMemoria());
   const e = hogarConHistorial(crearCtx());
   assert.deepEqual(almacen.guardar(e), { ok: true });
   const { estado, aviso } = iniciarSesion(almacen, crearCtx());
   assert.equal(aviso, null);
   assert.deepEqual(estado, e);
-  assert.equal(estado.version, 6);
+  assert.equal(estado.version, 7);
   assert.deepEqual(estado.historial.map((x) => x.id), ['ent-1', 'ent-2', 'ent-3']);
   assert.deepEqual([estado.historial[1].estrellas, estado.historial[1].calificadoPor], [4, e.miembros[1].id]);
 });
 
-test('AC-8.3, AC-8.8 (006): un hogar de la feature 005 se abre sin aviso, con el historial vacío y todo lo demás igual, y se guarda como versión 6 en el siguiente guardado', () => {
+test('AC-8.3, AC-8.8 (006): un hogar de la feature 005 se abre sin aviso, con el historial vacío y todo lo demás igual, y se guarda como versión 7 en el siguiente guardado', () => {
   const e = hogarConIntercambios(crearCtx());
   const textoV5 = JSON.stringify(comoV5(e));
   const storage = almacenEnMemoria({ [CLAVE_DATOS]: textoV5 });
   const almacen = crearAlmacen(storage);
   const { estado, aviso } = iniciarSesion(almacen, crearCtx());
   assert.equal(aviso, null);
-  assert.deepEqual(estado, e); // mismos espacios, habitantes, actividades, bloques e intercambios; historial vacío; ya en versión 6 en memoria
+  assert.deepEqual(estado, e); // mismos espacios, habitantes, actividades, bloques e intercambios; historial vacío; ya en versión 7 en memoria
   assert.deepEqual(estado.historial, []);
   assert.equal(storage.datos.get(CLAVE_DATOS), textoV5); // abrir no reescribe el documento
   almacen.guardar(estado);
-  assert.equal(JSON.parse(storage.datos.get(CLAVE_DATOS)).version, 6);
+  assert.equal(JSON.parse(storage.datos.get(CLAVE_DATOS)).version, 7);
 });
 
 test('migrarAV6 es pura: no modifica el documento de entrada y solo agrega la lista de historial vacía', () => {
@@ -726,4 +753,124 @@ test('AC-8.6, AC-9.3 (006): el documento guardado no tiene promedios ni conteos 
     assert.deepEqual(Object.keys(x).sort(), ['actividadId', 'actualizadoEn', 'actualizadoPor', 'calificadoPor', 'creadoEn', 'creadoPor', 'dia',
       'eliminadoEn', 'espacioId', 'estrellas', 'hechaEn', 'hogarId', 'icono', 'id', 'miembroId', 'nombre']);
   }
+});
+
+// ---------- Feature 007: aspecto y mascotas sin actividades (versión 7) ----------
+
+test('AC-15.2, AC-15.3, AC-15.4, AC-15.10 (007): migrarAV7 convierte el género en aspecto, quita parentesco y género y es pura y determinista', () => {
+  const ctx = crearCtx();
+  let e = hogarConHabitantes(ctx);
+  e = agregarHabitante(e, 'familiar', { nombre: 'Luis', aspecto: 'adulto' }, ctx).estado;
+  e = agregarHabitante(e, 'familiar', { nombre: 'Sol', aspecto: 'neutro' }, ctx).estado;
+  const v6 = comoV6(e);
+  const copia = structuredClone(v6);
+  const v7 = migrarAV7(v6, RELOJ);
+  assert.deepEqual(v6, copia);
+  assert.equal(v7.version, 7);
+  assert.deepEqual(v7.miembros.map((m) => [m.nombre, m.aspecto, m.especie]), [
+    ['Personaje 1', null, null], ['Diana', 'adulta', null], ['Firulais', null, 'perro'], ['Luis', 'adulto', null], ['Sol', 'neutro', null],
+  ]);
+  assert.ok(v7.miembros.every((m) => !('genero' in m) && !('parentesco' in m)));
+  assert.deepEqual(v7, e);
+  assert.deepEqual(migrarAV7(v6, RELOJ), v7);
+});
+
+test('AC-15.3 (007): el propietario se identifica por su membresía, no por su género, y un familiar sin género pasa a neutro', () => {
+  const v6 = comoV6(hogarConHabitantes(crearCtx()));
+  const raro = { ...v6, miembros: v6.miembros.map((m, i) => (i === 0 ? { ...m, genero: 'femenino' } : i === 1 ? { ...m, genero: null } : m)) };
+  const v7 = migrarAV7(raro, RELOJ);
+  assert.deepEqual([v7.miembros[0].aspecto, v7.miembros[1].aspecto], [null, 'neutro']);
+});
+
+test('AC-15.5 (007): migrarAV7 da de baja las actividades no eliminadas de las mascotas y deja las demás como estaban', () => {
+  const base = hogarConActividades(crearCtx());
+  const firulais = base.miembros[2];
+  const deMascota = (id, extra = {}) => actividadGuardada(base, id, { nombre: id, miembroId: firulais.id, espacioId: null, ...extra });
+  const v6 = comoV6({
+    ...base,
+    actividades: [...base.actividades, deMascota('act-4'), deMascota('act-5', { hechaEn: '2026-10-05' }),
+      deMascota('act-6', { eliminadoEn: '2026-10-06T09:00:00.000Z' })],
+  });
+  const copia = structuredClone(v6);
+  const v7 = migrarAV7(v6, RELOJ);
+  assert.deepEqual(v6, copia);
+  const por = (id) => v7.actividades.find((a) => a.id === id);
+  assert.deepEqual(['act-1', 'act-2', 'act-3'].map(por), base.actividades);
+  assert.equal(por('act-4').eliminadoEn, '2026-10-09T10:00:00.000Z');
+  assert.equal(por('act-5').eliminadoEn, '2026-10-09T10:00:00.000Z');
+  assert.equal(por('act-6').eliminadoEn, '2026-10-06T09:00:00.000Z'); // ya estaba eliminada: no se toca
+  assert.equal(por('act-6').actualizadoEn, '2026-10-06T10:00:00.000Z');
+  assert.ok(por('act-4').actualizadoEn > '2026-10-06T10:00:00.000Z');
+  assert.deepEqual(actividadesPendientes(v7).map((a) => a.id), ['act-1', 'act-2']);
+});
+
+test('AC-15.6, AC-15.7, AC-7.9 (007): el historial queda idéntico y una propuesta con una actividad de mascota deja de ser vigente', () => {
+  const base = hogarConHistorial(crearCtx());
+  const firulais = base.miembros[2];
+  const paseo = actividadGuardada(base, 'act-9', { nombre: 'Paseo', miembroId: firulais.id, espacioId: null });
+  const propuesta = intercambioGuardado(base, 'int-9', {
+    actividadOfrecidaId: 'act-9', actividadPedidaId: 'act-1', marcaOfrecida: paseo.actualizadoEn, marcaPedida: base.actividades[0].actualizadoEn,
+  });
+  const conMascota = {
+    ...base,
+    actividades: [...base.actividades, paseo],
+    intercambios: [...base.intercambios, propuesta],
+    historial: [...base.historial,
+      entradaGuardada(base, 'ent-9', { actividadId: 'act-9', miembroId: firulais.id, espacioId: null, nombre: 'Paseo', icono: 'otra' })],
+  };
+  assert.equal(esVigente(conMascota, propuesta), true);
+  const v6 = comoV6(conMascota);
+  const v7 = migrarAV7(v6, RELOJ);
+  assert.deepEqual(v7.historial, v6.historial);
+  assert.equal(esVigente(v7, v7.intercambios.find((i) => i.id === 'int-9')), false);
+  assert.equal(abrirDatos(v7).aviso, null); // una entrada acreditada a una mascota es legible en la versión 7
+});
+
+test('AC-15.1, AC-15.5, AC-15.8 (007): un hogar de la feature 006 con actividades de mascotas se abre sin aviso, con esas actividades dadas de baja, y se guarda como versión 7 en el siguiente guardado', () => {
+  const base = hogarConHistorial(crearCtx());
+  const firulais = base.miembros[2];
+  const conMascota = {
+    ...base, actividades: [...base.actividades, actividadGuardada(base, 'act-9', { nombre: 'Paseo', miembroId: firulais.id, espacioId: null })],
+  };
+  const textoV6 = JSON.stringify(comoV6(conMascota));
+  const storage = almacenEnMemoria({ [CLAVE_DATOS]: textoV6 });
+  const almacen = crearAlmacen(storage);
+  const { estado, aviso } = iniciarSesion(almacen, { cuentaId: 'cuenta-1', nuevoId: () => 'x', ahora: RELOJ });
+  assert.equal(aviso, null);
+  assert.equal(estado.actividades.find((a) => a.id === 'act-9').eliminadoEn, '2026-10-09T10:00:00.000Z');
+  assert.deepEqual({ ...estado, actividades: estado.actividades.slice(0, -1) }, base); // todo lo demás, igual
+  assert.equal(storage.datos.get(CLAVE_DATOS), textoV6); // abrir no reescribe el documento
+  almacen.guardar(estado);
+  assert.equal(JSON.parse(storage.datos.get(CLAVE_DATOS)).version, 7);
+});
+
+test('AC-15.1, AC-15.10 (007): un hogar de la feature 006 sin actividades de mascotas se abre igual y sin llamar al reloj', () => {
+  const e = hogarConHistorial(crearCtx());
+  const storage = almacenEnMemoria({ [CLAVE_DATOS]: JSON.stringify(comoV6(e)) });
+  const reloj = () => { throw new Error('el reloj no debe llamarse'); };
+  const { estado, aviso } = iniciarSesion(crearAlmacen(storage), { cuentaId: 'cuenta-1', nuevoId: () => 'x', ahora: reloj });
+  assert.equal(aviso, null);
+  assert.deepEqual(estado, e);
+});
+
+test('AC-15.11 (007): el mapa generado del hogar migrado es idéntico al del hogar guardado', () => {
+  const e = hogarConHistorial(crearCtx());
+  assert.deepEqual(generarDistribucion(migrarAV7(comoV6(e), RELOJ)), generarDistribucion(e));
+});
+
+test('AC-15.9 (007): en un documento v6, un parentesco, un género o una especie fuera de las listas anteriores lo vuelven ilegible', () => {
+  const v6 = comoV6(hogarConHabitantes(crearCtx()));
+  const [, diana, firulais] = v6.miembros;
+  assert.equal(abrirDatos(v6).aviso, null);
+  for (const malo of [{ ...diana, parentesco: 'tia' }, { ...diana, genero: 'x' }, { ...firulais, especie: 'loro' }, { ...firulais, genero: 'femenino' }]) {
+    assert.match(abrirDatos(conMiembro(v6, malo)).aviso, /No se pudo recuperar/, JSON.stringify(malo));
+  }
+});
+
+test('AC-15.9 (007): en un documento v7, una actividad no eliminada asignada a una mascota lo vuelve ilegible; eliminada, no', () => {
+  const base = hogarConActividades(crearCtx());
+  const firulais = base.miembros[2];
+  const [act1] = base.actividades;
+  assert.match(abrirDatos(conActividad(base, { ...act1, miembroId: firulais.id })).aviso, /No se pudo recuperar/);
+  assert.equal(abrirDatos(conActividad(base, { ...act1, miembroId: firulais.id, eliminadoEn: '2026-10-06T11:00:00.000Z' })).aviso, null);
 });

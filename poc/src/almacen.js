@@ -32,7 +32,7 @@ const ASPECTO_DE_GENERO_V6 = { femenino: 'adulta', masculino: 'adulto', otro: 'n
 
 // Reglas de los miembros desde la versión 2 (ADR-002 de modelo de miembros, FR-9 de la 002).
 // Solo se validan los miembros activos: los eliminados quedan fuera de toda validación (FR-10).
-function miembrosValidos(estado) {
+function miembrosValidosV6(estado) {
   const propietaria = estado.membresias.find((m) => m.rol === 'propietario' && m.eliminadoEn === null)?.cuentaId;
   const activos = estado.miembros.filter((m) => m.eliminadoEn === null);
   if (!propietaria || activos.filter((m) => m.cuentaId === propietaria).length !== 1) return false;
@@ -43,11 +43,26 @@ function miembrosValidos(estado) {
   });
 }
 
-// Reglas de las actividades en la versión 3 (ADR-003 de modelo de actividades, FR-11 de la 003).
-// Solo se validan las no eliminadas; deben apuntar a un miembro activo y, si tienen espacio, a un espacio activo.
-function actividadesValidas(estado) {
+// Reglas de los miembros en la versión 7 (ADR-007 de aspecto, FR-14 de la 007). Solo se validan los miembros activos: una mascota
+// tiene una especie de la lista y ningún aspecto; el propietario no tiene aspecto; cualquier otra persona, un aspecto de la lista.
+function miembrosValidos(estado) {
+  const propietaria = estado.membresias.find((m) => m.rol === 'propietario' && m.eliminadoEn === null)?.cuentaId;
+  const activos = estado.miembros.filter((m) => m.eliminadoEn === null);
+  if (!propietaria || activos.filter((m) => m.cuentaId === propietaria).length !== 1) return false;
+  return activos.every((m) => {
+    if (m.tipo === 'mascota') return m.aspecto === null && enLista(ESPECIES, m.especie);
+    if (m.tipo === 'persona') return m.especie === null && (m.cuentaId === propietaria ? m.aspecto === null : enLista(ASPECTOS, m.aspecto));
+    return false;
+  });
+}
+
+// Reglas de las actividades en la versión 3 (ADR-003 de modelo de actividades, FR-11 de la 003). Desde la versión 7, el responsable debe
+// ser una persona activa (`soloPersonas`, ADR-007 de aspecto). Solo se validan las no eliminadas; deben apuntar a un miembro activo y,
+// si tienen espacio, a un espacio activo.
+function actividadesValidas(estado, soloPersonas = false) {
   if (!Array.isArray(estado.actividades)) return false;
-  const miembros = new Set(estado.miembros.filter((m) => m.eliminadoEn === null).map((m) => m.id));
+  const miembros = new Set(estado.miembros
+    .filter((m) => m.eliminadoEn === null && (!soloPersonas || m.tipo === 'persona')).map((m) => m.id));
   const espacios = new Set(estado.espacios.filter((e) => e.eliminadoEn === null).map((e) => e.id));
   return estado.actividades.filter((a) => a.eliminadoEn === null).every((a) => {
     if (typeof a.nombre !== 'string' || !enLista(ICONOS, a.icono) || !esFechaValida(a.vence)) return false;
@@ -144,31 +159,54 @@ export function migrarAV6(estado) {
   return { ...estado, version: 6, historial: [] };
 }
 
+// Migración pura v6 → v7 (ADR-007 de aspecto): `aspecto` reemplaza a `genero`, desaparece `parentesco` y las actividades no eliminadas de las
+// mascotas se dan de baja. El propietario se identifica por su membresía. `reloj` devuelve la hora de la baja y solo se llama si hace falta.
+export function migrarAV7(estado, reloj) {
+  const propietaria = estado.membresias.find((m) => m.rol === 'propietario' && m.eliminadoEn === null)?.cuentaId ?? null;
+  const mascotasActivas = new Set(estado.miembros.filter((m) => m.eliminadoEn === null && m.tipo === 'mascota').map((m) => m.id));
+  const miembros = estado.miembros.map(({ genero, parentesco, ...m }) => ({
+    ...m,
+    aspecto: m.tipo === 'persona' && m.cuentaId !== propietaria
+      ? (Object.hasOwn(ASPECTO_DE_GENERO_V6, genero) ? ASPECTO_DE_GENERO_V6[genero] : ASPECTO_INICIAL)
+      : null,
+  }));
+  const deMascota = (a) => a.eliminadoEn === null && mascotasActivas.has(a.miembroId);
+  const ahora = estado.actividades.some(deMascota) ? reloj() : null;
+  const ctxBaja = { ahora: () => ahora, cuentaId: propietaria ?? estado.cuentas[0].id };
+  const actividades = estado.actividades.map((a) => (deMascota(a) ? { ...tocar(a, ctxBaja), eliminadoEn: ahora } : a));
+  return { ...estado, version: 7, miembros, actividades };
+}
+
 export function crearAlmacen(storage) {
   return {
-    cargar() {
+    // `reloj` da la hora de la migración a la versión 7 (baja de las actividades de mascotas); solo se llama si hace falta.
+    cargar(reloj) {
       try {
         const texto = storage.getItem(CLAVE_DATOS);
         if (texto === null) return { estado: null, error: null };
         const estado = JSON.parse(texto);
         if (estado?.version === 1 && tieneHogarValido(estado)) {
-          return { estado: migrarAV6(migrarAV5(migrarAV4(migrarAV3(migrarAV2(estado))))), error: null };
+          return { estado: migrarAV7(migrarAV6(migrarAV5(migrarAV4(migrarAV3(migrarAV2(estado))))), reloj), error: null };
         }
-        if (estado?.version === 2 && tieneHogarValido(estado) && miembrosValidos(estado)) {
-          return { estado: migrarAV6(migrarAV5(migrarAV4(migrarAV3(estado)))), error: null };
+        if (estado?.version === 2 && tieneHogarValido(estado) && miembrosValidosV6(estado)) {
+          return { estado: migrarAV7(migrarAV6(migrarAV5(migrarAV4(migrarAV3(estado)))), reloj), error: null };
         }
-        if (estado?.version === 3 && tieneHogarValido(estado) && miembrosValidos(estado) && actividadesValidas(estado)) {
-          return { estado: migrarAV6(migrarAV5(migrarAV4(estado))), error: null };
+        if (estado?.version === 3 && tieneHogarValido(estado) && miembrosValidosV6(estado) && actividadesValidas(estado)) {
+          return { estado: migrarAV7(migrarAV6(migrarAV5(migrarAV4(estado))), reloj), error: null };
         }
-        if (estado?.version === 4 && tieneHogarValido(estado) && miembrosValidos(estado) && actividadesValidas(estado)
+        if (estado?.version === 4 && tieneHogarValido(estado) && miembrosValidosV6(estado) && actividadesValidas(estado)
           && bloquesValidos(estado)) {
-          return { estado: migrarAV6(migrarAV5(estado)), error: null };
+          return { estado: migrarAV7(migrarAV6(migrarAV5(estado)), reloj), error: null };
         }
-        if (estado?.version === 5 && tieneHogarValido(estado) && miembrosValidos(estado) && actividadesValidas(estado)
+        if (estado?.version === 5 && tieneHogarValido(estado) && miembrosValidosV6(estado) && actividadesValidas(estado)
           && bloquesValidos(estado) && regresosValidos(estado) && intercambiosValidos(estado)) {
-          return { estado: migrarAV6(estado), error: null };
+          return { estado: migrarAV7(migrarAV6(estado), reloj), error: null };
         }
-        if (estado?.version === 6 && tieneHogarValido(estado) && miembrosValidos(estado) && actividadesValidas(estado)
+        if (estado?.version === 6 && tieneHogarValido(estado) && miembrosValidosV6(estado) && actividadesValidas(estado)
+          && bloquesValidos(estado) && regresosValidos(estado) && intercambiosValidos(estado) && historialValido(estado)) {
+          return { estado: migrarAV7(estado, reloj), error: null };
+        }
+        if (estado?.version === 7 && tieneHogarValido(estado) && miembrosValidos(estado) && actividadesValidas(estado, true)
           && bloquesValidos(estado) && regresosValidos(estado) && intercambiosValidos(estado) && historialValido(estado)) {
           return { estado, error: null };
         }
@@ -189,10 +227,10 @@ export function crearAlmacen(storage) {
   };
 }
 
-// Arranque de la app (FR-1 y FR-10 de la 001, FR-9 de la 002, FR-11 de la 003, FR-10 de la 004, FR-12 de la 005, FR-8 de la 006): recupera el hogar
-// (migrándolo si es de una versión anterior) o crea el inicial.
+// Arranque de la app (FR-1 y FR-10 de la 001, FR-9 de la 002, FR-11 de la 003, FR-10 de la 004, FR-12 de la 005, FR-8 de la 006, FR-14 de la 007):
+// recupera el hogar (migrándolo si es de una versión anterior) o crea el inicial.
 export function iniciarSesion(almacen, ctx) {
-  const { estado, error } = almacen.cargar();
+  const { estado, error } = almacen.cargar(ctx.ahora);
   if (estado) return { estado, aviso: null };
   const nuevo = crearHogarInicial(ctx);
   almacen.guardar(nuevo);
