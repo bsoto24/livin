@@ -1,2 +1,2 @@
-- [Estado de Livin](livin-project-state.md) — 001, 002, 003 y 004 (rutinas) verificadas en Android y subidas; queda la pieza 5 (capa social)
+- [Estado de Livin](livin-project-state.md) — 001, 002, 003 y 004 (rutinas) verificadas en Android y subidas; la 005 (jugador activo e intercambios) está SPEC-ALIGNED en su rama, falta verificar en el teléfono y mergear; luego la 006 (calificaciones)
 - [Docs in Spanish](docs-in-spanish.md) — specs/ADRs/foundation and domain vocabulary are Spanish; chat is English
