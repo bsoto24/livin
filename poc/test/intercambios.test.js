@@ -10,8 +10,9 @@ import {
 } from '../src/actividades.js';
 import {
   buscarIntercambio, esVigente, intercambiosVigentes, numeroRecibidas, intercambiosDe, actividadesOfrecibles, actividadesPedibles,
-  motivoSinPropuesta, proponer, aceptar, rechazar, retirar, quitar, textoIntercambio, textoPropuesta,
+  motivoSinPropuesta, proponer, aceptar, rechazar, retirar, quitar, textoIntercambio, textoPropuesta, MENSAJES_INTERCAMBIO,
 } from '../src/intercambios.js';
+import { diasEntre } from '../src/fechas.js';
 import { LIMITE_INTERCAMBIOS } from '../src/catalogo.js';
 import { crearCtx } from './ayuda.js';
 
@@ -150,6 +151,7 @@ test('AC-6.6, AC-6.7: sin actividades que intercambiar, o con 20 propuestas vige
   }
   assert.equal(intercambiosVigentes(e).length, LIMITE_INTERCAMBIOS);
   assert.equal(motivoSinPropuesta(e, P.id), 'limite');
+  assert.equal(MENSAJES_INTERCAMBIO.limite, 'Ya hay 20 propuestas vigentes'); // el texto exacto de AC-6.7
   const r = proponer(e, { proponenteId: P.id, ofrecidaId: idDe(e, 'Extra 1'), pedidaId: idDe(e, 'Extra 2') }, ctx);
   assert.deepEqual([r.ok, r.error, r.estado === e], [false, 'limite', true]);
   const una = eliminarActividad(e, idDe(e, 'B0'), ctx); // una propuesta que deja de ser vigente libera un lugar
@@ -288,7 +290,16 @@ test('AC-9.5, AC-9.6: renombrar a una persona o a un espacio no anula la propues
   const espacio = renombrarEspacio(p, cocina(e).id, 'La cocina', ctx).estado;
   assert.equal(esVigente(renombrada, buscarIntercambio(renombrada, i.id)), true);
   assert.equal(esVigente(espacio, buscarIntercambio(espacio, i.id)), true);
-  assert.equal(esVigente.length, 2); // solo recibe (estado, intercambio): el paso de los días no la anula
+  // El paso de los días no la anula: «Plantas» vence el 2026-10-08; veinte días después ya estaría vencida y el mismo estado sigue vigente.
+  const conPlantas = proponerOk(e, propietarioDe(e), 'Platos', 'Plantas', ctx);
+  const iPlantas = ultimo(conPlantas);
+  const vence = buscarActividad(conPlantas, idDe(e, 'Plantas')).vence;
+  assert.equal(diasEntre(vence, HOY) < 0, true, 'a HOY, «Plantas» aún no vence');
+  assert.equal(esVigente(conPlantas, iPlantas), true);
+  assert.equal(diasEntre(vence, '2026-10-20') > 0, true, 'veinte días después, «Plantas» estaría vencida');
+  assert.equal(esVigente(conPlantas, iPlantas), true);
+  assert.equal(intercambiosVigentes(conPlantas).length, 1);
+  assert.deepEqual(nombres(actividadesPendientes(conPlantas).filter((a) => a.nombre === 'Plantas')), ['Plantas']);
 });
 
 test('AC-9.7, AC-9.8: restaurar el valor anterior no revive la propuesta, y las actividades quedan libres para otra', () => {
@@ -506,4 +517,45 @@ test('Reliability (contrato), AC-9.7: con el reloj detenido, restaurar el valor 
   assert.equal(esVigente(cambiada, buscarIntercambio(cambiada, id)), false, 'editar una vez');
   assert.equal(esVigente(restaurada, buscarIntercambio(restaurada, id)), false, 'editar dos veces (restaurar el valor)');
   assert.equal(proponer(restaurada, { proponenteId: P.id, ofrecidaId: platos.id, pedidaId: idDe(p, 'Basura') }, ctx).ok, true);
+});
+
+test('AC-7.9: aceptar una de dos propuestas recibidas por la misma persona deja la otra sin cambios en su lista', () => {
+  const { ctx, e } = escenario();
+  const P = propietarioDe(e);
+  const p1 = proponerOk(e, P, 'Platos', 'Basura', ctx); // el propietario → Diana
+  const p2 = proponerOk(p1, luis(e), 'Ropa', 'Plantas', ctx); // Luis → Diana
+  const [i1, i2] = p2.intercambios;
+  assert.deepEqual(intercambiosDe(p2, diana(e).id).recibidas, [i1, i2]);
+  const r = aceptar(p2, i1.id, diana(e).id, ctx);
+  assert.equal(r.ok, true, r.error);
+  const recibidas = intercambiosDe(r.estado, diana(e).id).recibidas;
+  assert.deepEqual(recibidas, [i2]); // el mismo registro, sin cambios
+  assert.equal(esVigente(r.estado, recibidas[0]), true);
+  assert.equal(numeroRecibidas(r.estado, diana(e).id), 1);
+});
+
+test('AC-9.9: un intercambio aceptado no se deshace ni se vuelve a mostrar cuando cambian sus actividades', () => {
+  const { ctx, e } = escenario();
+  const P = propietarioDe(e);
+  const aceptado = proponerYAceptar(e, P, 'Platos', 'Basura', ctx);
+  const registro = ultimo(aceptado);
+  assert.equal(registro.estado, 'aceptado');
+  const cambiar = (nombre, cambio) => (s) => editarActividad(s, idDe(s, nombre), { ...buscarActividad(s, idDe(s, nombre)), ...cambio }, ctx).estado;
+  const operaciones = {
+    'editar la ofrecida': cambiar('Platos', { nombre: 'Platos y vasos' }),
+    'editar la pedida': cambiar('Basura', { icono: 'platos' }),
+    'eliminar la ofrecida': (s) => eliminarActividad(s, idDe(s, 'Platos'), ctx),
+    'eliminar la pedida': (s) => eliminarActividad(s, idDe(s, 'Basura'), ctx),
+    'marcar la ofrecida como hecha': (s) => marcarHecha(s, idDe(s, 'Platos'), HOY, ctx),
+    'marcar la pedida como hecha': (s) => marcarHecha(s, idDe(s, 'Basura'), HOY, ctx),
+  };
+  for (const [nombre, operacion] of Object.entries(operaciones)) {
+    const despues = operacion(aceptado);
+    assert.notEqual(despues, aceptado, nombre);
+    assert.deepEqual(buscarIntercambio(despues, registro.id), registro, `${nombre}: el registro cambió`);
+    assert.equal(buscarIntercambio(despues, registro.id).estado, 'aceptado', nombre);
+    assert.deepEqual(intercambiosVigentes(despues), [], `${nombre}: aparece como vigente`);
+    for (const m of [P, diana(e)]) assert.deepEqual(intercambiosDe(despues, m.id), { recibidas: [], enviadas: [] }, `${nombre}: aparece en el panel`);
+    assert.equal(despues.intercambios.length, aceptado.intercambios.length, nombre);
+  }
 });

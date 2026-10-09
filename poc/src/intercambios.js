@@ -146,7 +146,7 @@ export const MENSAJES_INTERCAMBIO = {
   'no-pendiente': 'Una de las actividades ya no está pendiente.',
   'ya-en-propuesta': 'Una de las actividades ya está en otra propuesta vigente.',
   regreso: 'Una repetitiva que volverá a su responsable no se puede intercambiar.',
-  limite: 'Ya hay 20 propuestas vigentes.',
+  limite: 'Ya hay 20 propuestas vigentes',
   'no-encontrado': 'Esa propuesta ya no está pendiente.',
   destinataria: 'Solo la persona a quien se propuso puede responder.',
   autor: 'Solo quien propuso puede retirarla.',
