@@ -1,2 +1,2 @@
-- [Livin project state](livin-project-state.md) — 001 done and verified on Android; 002 (family members and pets) merged and pushed, Android check pending
+- [Estado de Livin](livin-project-state.md) — 001, 002, 003 y 004 (rutinas) verificadas en Android y subidas; la 005 (jugador activo e intercambios) está SPEC-ALIGNED en su rama, falta verificar en el teléfono y mergear; luego la 006 (calificaciones)
 - [Docs in Spanish](docs-in-spanish.md) — specs/ADRs/foundation and domain vocabulary are Spanish; chat is English

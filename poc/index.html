@@ -63,12 +63,33 @@
     #aviso { position: fixed; top: calc(56px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); background: #2a221c;
       color: #f2ead3; padding: 8px 14px; border-radius: 8px; display: none; max-width: 86vw; }
     #depuracion { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 8px; color: #9fe1cb; font: 12px monospace; }
+    #juega, #intercambios { position: fixed; right: 12px; padding: 10px 14px; max-width: 62vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #juega { top: calc(60px + env(safe-area-inset-top)); }
+    #intercambios { top: calc(108px + env(safe-area-inset-top)); }
+    .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .55); display: none; align-items: center; justify-content: center; }
+    .modal section, .modal form { background: #f2ead3; color: #2a221c; padding: 16px; border-radius: 12px; width: min(340px, 90vw);
+      max-height: 80vh; overflow-y: auto; box-sizing: border-box; }
+    .modal header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .modal button { padding: 6px 10px; background: #2a221c; color: #f2ead3; }
+    .modal .peligro { background: #a32d2d; }
+    .modal .item { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid #d9cfb4; }
+    .modal .item.tocable { cursor: pointer; }
+    .modal .item small { display: block; opacity: .7; }
+    .modal .botones { display: flex; gap: 6px; }
+    .modal .subtitulo { display: block; margin: 12px 0 4px; }
+    .modal select { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; margin: 4px 0; }
+    .modal .error { color: #a32d2d; min-height: 1.2em; font-size: 13px; }
+    .modal .acciones { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+    .modal .ancho { width: 100%; margin-top: 8px; padding: 10px; }
+    .nota { display: block; font-size: 13px; opacity: .7; min-height: 1em; }
   </style>
 </head>
 <body>
   <div id="juego"></div>
   <div id="depuracion"></div>
   <button id="editar">Editar</button>
+  <button id="juega">Juega</button>
+  <button id="intercambios">Intercambios</button>
   <div id="cruceta">
     <button data-dir="arriba" aria-label="Arriba">▲</button>
     <button data-dir="izquierda" aria-label="Izquierda">◀</button>
@@ -109,6 +130,7 @@
       <input id="actividad-nombre" maxlength="30" autocomplete="off" placeholder="Nombre de la actividad">
       <select id="actividad-icono" aria-label="Icono"></select>
       <select id="actividad-miembro" aria-label="Asignada a"></select>
+      <small class="nota" id="actividad-nota"></small>
       <select id="actividad-espacio" aria-label="Espacio"></select>
       <select id="actividad-tipo" aria-label="Tipo"></select>
       <input id="actividad-vence" type="date" aria-label="Vence">
@@ -143,6 +165,35 @@
         <button type="button" class="peligro" id="bloque-eliminar">Eliminar</button>
         <button type="button" id="bloque-cancelar">Cancelar</button>
         <button type="submit" id="bloque-guardar">Guardar</button>
+      </div>
+    </form>
+  </div>
+  <div id="quien" class="modal">
+    <section aria-label="¿Quién juega?">
+      <header><strong>¿Quién juega?</strong><button type="button" id="quien-cerrar">Cerrar</button></header>
+      <div id="quien-lista"></div>
+    </section>
+  </div>
+  <div id="panel-intercambios" class="modal">
+    <section aria-label="Intercambios">
+      <header><strong>Intercambios</strong><button type="button" id="intercambios-cerrar">Cerrar</button></header>
+      <strong class="subtitulo">Recibidas</strong>
+      <div id="intercambios-recibidas"></div>
+      <strong class="subtitulo">Enviadas</strong>
+      <div id="intercambios-enviadas"></div>
+      <button type="button" id="intercambios-proponer" class="ancho">Proponer</button>
+      <div class="error" id="intercambios-motivo"></div>
+    </section>
+  </div>
+  <div id="ficha-intercambio" class="modal">
+    <form>
+      <strong>Proponer intercambio</strong>
+      <select id="intercambio-ofrecida" aria-label="Tu actividad"></select>
+      <select id="intercambio-pedida" aria-label="Por la de"></select>
+      <div class="error" id="intercambio-error"></div>
+      <div class="acciones">
+        <button type="button" id="intercambio-cancelar">Cancelar</button>
+        <button type="submit" id="intercambio-guardar">Proponer</button>
       </div>
     </form>
   </div>

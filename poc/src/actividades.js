@@ -32,15 +32,18 @@ export function agregarActividad(estado, datos, ctx) {
   if (!puedeAgregarActividad(estado)) return { ok: false, error: 'limite', estado };
   const v = validarActividad(estado, datos);
   if (v.error) return { ok: false, error: v.error, estado };
-  const actividad = { id: ctx.nuevoId(), hogarId: estado.hogares[0].id, ...v.datos, hechaEn: null, ...auditoriaNueva(ctx) };
+  const actividad = { id: ctx.nuevoId(), hogarId: estado.hogares[0].id, ...v.datos, hechaEn: null, devolverA: null, ...auditoriaNueva(ctx) };
   return { ok: true, estado: { ...estado, actividades: [...estado.actividades, actividad] } };
 }
 
 export function editarActividad(estado, id, datos, ctx) {
-  if (!buscarActividad(estado, id)) return { ok: false, error: 'no-encontrada', estado };
+  const actual = buscarActividad(estado, id);
+  if (!actual) return { ok: false, error: 'no-encontrada', estado };
   const v = validarActividad(estado, datos);
   if (v.error) return { ok: false, error: v.error, estado };
-  const actividades = estado.actividades.map((a) => (a.id === id ? { ...tocar(a, ctx), ...v.datos } : a));
+  // El regreso pendiente sobrevive solo si sigue siendo repetitiva y con la misma persona responsable (FR-9 de la 005).
+  const devolverA = v.datos.tipo === 'repetitiva' && v.datos.miembroId === actual.miembroId ? (actual.devolverA ?? null) : null;
+  const actividades = estado.actividades.map((a) => (a.id === id ? { ...tocar(a, ctx), ...v.datos, devolverA } : a));
   return { ok: true, estado: { ...estado, actividades } };
 }
 
@@ -52,12 +55,17 @@ export function eliminarActividad(estado, id, ctx) {
   return { ...estado, actividades };
 }
 
-// "Hecho" (FR-3): solo para una actividad por hacer (vence hoy o antes). La puntual registra el día;
-// la repetitiva vuelve a vencer hoy más su frecuencia, sin acumular atrasos.
+// "Hecho" (FR-3): solo para una actividad por hacer (vence hoy o antes). La puntual registra el día; la repetitiva vuelve a vencer
+// hoy más su frecuencia, sin acumular atrasos, y, si estaba en poder de otra persona por un intercambio, vuelve a su responsable
+// original (si ese ya no está activo, se queda con quien la tiene; FR-9 de la 005).
 export function marcarHecha(estado, id, hoy, ctx) {
   const actividad = buscarActividad(estado, id);
   if (!actividad || diasEntre(actividad.vence, hoy) < 0) return estado;
-  const cambio = actividad.tipo === 'puntual' ? { hechaEn: hoy } : { vence: sumarDias(hoy, actividad.frecuenciaDias) };
+  let cambio = { hechaEn: hoy };
+  if (actividad.tipo === 'repetitiva') {
+    cambio = { vence: sumarDias(hoy, actividad.frecuenciaDias), devolverA: null };
+    if (actividad.devolverA && buscarMiembro(estado, actividad.devolverA)) cambio.miembroId = actividad.devolverA;
+  }
   const actividades = estado.actividades.map((a) => (a.id === id ? { ...tocar(a, ctx), ...cambio } : a));
   return { ...estado, actividades };
 }

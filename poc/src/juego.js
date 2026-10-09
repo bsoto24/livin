@@ -8,14 +8,14 @@ import {
   ultimoDeTipo, eliminarEspacio, requiereConfirmacion, consecuenciasDeEliminar, siguienteDestinoBano,
   nombreVisible, nombreAutomatico, renombrarEspacio, renombrarMiembro, MENSAJES_ERROR,
   habitantes, buscarMiembro, esPropietario, contarHabitantes, puedeAgregarHabitante, agregarHabitante, editarHabitante,
-  eliminarHabitante, pendientesDeMiembro, bloquesDeMiembro,
+  eliminarHabitante, pendientesDeMiembro, bloquesDeMiembro, personasQueJuegan, puedeJugar, jugadorInicial,
 } from './hogar.js';
 import { generarDistribucion } from './distribucion.js';
 import { crearAlmacen, iniciarSesion } from './almacen.js';
 import { posicionRelativa, resolverPosicion, paso } from './posicion.js';
 import { etiquetasDeEspacios } from './etiquetas.js';
 import {
-  MS_POR_PASO, colocarHabitantes, avanzarHabitantes, sincronizarHabitantes, congelarHabitantes, ocupadasPorHabitantes, fijarObjetivos,
+  MS_POR_PASO, colocarHabitantes, avanzarHabitantes, sincronizarHabitantes, congelarHabitantes, ocupadasPorHabitantes, fijarObjetivos, cambiarJugador,
 } from './movimiento.js';
 import {
   contarActividades, puedeAgregarActividad, buscarActividad, agregarActividad, editarActividad, eliminarActividad, marcarHecha,
@@ -26,6 +26,10 @@ import {
   textoHora, textoBloque, textoBajas, objetivosDeFamiliares, textoVuelta,
 } from './rutinas.js';
 import { INSIGNIAS, objetosDelSuelo, casillaDeBurbuja, ubicarBurbujas } from './aspecto.js';
+import {
+  numeroRecibidas, intercambiosDe, actividadesOfrecibles, actividadesPedibles, motivoSinPropuesta, proponer, aceptar, rechazar, retirar,
+  quitar, esVigente, textoPropuesta, textoIntercambio, MENSAJES_INTERCAMBIO,
+} from './intercambios.js';
 import { ahoraLocal } from './fechas.js';
 
 const TILE = 16;
@@ -58,6 +62,14 @@ const ESTILO_BURBUJA = { fontFamily: 'system-ui, sans-serif', fontSize: '16px', 
 // Rutinas (FR-5 y FR-7 de la 004): en una casilla compartida, quien va en ruta se dibuja debajo de quien no; el cartel de la entrada.
 const PROF_EN_RUTA = 9;
 const ESTILO_CARTEL = { ...ESTILO_ETIQUETA, color: '#ffffff', backgroundColor: '#2a221c' };
+// Jugador activo (FR-1 de la 005): el color de cada miembro y el resalte de la etiqueta de quien juega.
+const COLOR_PROPIETARIO = 0xd4537e;
+const COLOR_RESALTE = '#ffd166';
+function colorDe(miembro) {
+  if (miembro.tipo === 'mascota') return COLOR_MASCOTA[miembro.especie];
+  if (esPropietario(estado, miembro)) return COLOR_PROPIETARIO;
+  return COLOR_FAMILIAR[miembro.genero ?? 'otro'];
+}
 
 const $ = (id) => document.getElementById(id);
 // Si el navegador bloquea el almacenamiento, hasta acceder a localStorage lanza; se usa uno que siempre falla
@@ -84,7 +96,8 @@ let estado = inicio.estado;
 ctx.cuentaId = estado.cuentas[0].id;
 let distribucion = generarDistribucion(estado);
 let posGuardada = almacen.cargarPosicion();
-let jugador = resolverPosicion(distribucion, posGuardada);
+let jugador = { id: jugadorInicial(estado, posGuardada), ...resolverPosicion(distribucion, posGuardada) }; // quién juega y dónde (FR-6 de la 005)
+let cambioPendiente = null; // jugador elegido en medio de un paso: se aplica al terminarlo (AC-2.7 de la 005)
 let modo = 'exploracion';
 let moviendo = false;
 let posicionSinGuardar = false;
@@ -92,7 +105,8 @@ let direccionTactil = null;
 let ultimaRegeneracionMs = 0;
 let jugadorDesde = null; // casilla de origen mientras el jugador da un paso: también bloquea a los habitantes (AC-5.2)
 const azar = Math.random; // el movimiento recibe el azar inyectado (ADR-002 de movimiento)
-function idsHabitantes() { return habitantes(estado).map((h) => h.id); }
+// Móviles: todos los miembros salvo quien juega; el propietario es uno más cuando no juega (ADR-005 de jugador activo).
+function idsHabitantes() { return [propietario().id, ...habitantes(estado).map((h) => h.id)].filter((id) => id !== jugador.id); }
 function propietario() { return estado.miembros.find((m) => m.eliminadoEn === null && esPropietario(estado, m)); }
 const casillaJugador = () => ({ x: jugador.x, y: jugador.y, desde: jugadorDesde });
 let ahora = ahoraLocal(new Date()); // fecha y minuto locales: se inyectan en las rutinas (ADR-004 de movimiento)
@@ -104,7 +118,7 @@ let moviles = colocarHabitantes(idsHabitantes(), distribucion, casillaJugador(),
 // fuera de casa no está en el mapa (AC-5.8 de la 004).
 function posicionesDeMiembros() {
   const posiciones = new Map(moviles.filter((h) => h.fase !== 'fuera').map((h) => [h.id, { x: h.x, y: h.y }]));
-  posiciones.set(propietario().id, { x: jugador.x, y: jugador.y });
+  posiciones.set(jugador.id, { x: jugador.x, y: jugador.y });
   return posiciones;
 }
 // Familiares fuera de casa (FR-5 de la 004) y una firma que cambia cuando alguien sale, vuelve o ya no debería estar fuera.
@@ -125,7 +139,7 @@ function guardarEstado() {
 }
 
 function guardarPosicion() {
-  posGuardada = posicionRelativa(distribucion, jugador.x, jugador.y, jugador.direccion);
+  posGuardada = { ...posicionRelativa(distribucion, jugador.x, jugador.y, jugador.direccion), jugadorId: jugador.id };
   posicionSinGuardar = false;
   if (!almacen.guardarPosicion(posGuardada).ok) avisar('No se pudo guardar la posición.');
 }
@@ -139,8 +153,9 @@ class Escena extends Phaser.Scene {
     this.insignias = new Map(); // clave de espacio → insignia de su estado de limpieza (FR-5 de la 003)
     this.burbujas = []; // burbujas de los lugares con actividades por hacer, cada una con su texto (FR-6 de la 003)
     this.sprites = new Map(); // id de habitante → { cuerpo, etiqueta } (FR-8; nunca interactivos)
+    this.cuerpoPersonaje = this.add.rectangle(0, 0, 12, 14, COLOR_PROPIETARIO).setStrokeStyle(1, 0x4b1528);
     this.personaje = this.add.container(0, 0, [
-      this.add.rectangle(0, 0, 12, 14, 0xd4537e).setStrokeStyle(1, 0x4b1528),
+      this.cuerpoPersonaje,
       this.add.triangle(0, 5, 0, 0, 6, 0, 3, 4, 0x4b1528),
     ]).setDepth(PROF_PERSONAJE);
     this.etiquetaPersonaje = this.add.text(0, 0, '', ESTILO_ETIQUETA).setOrigin(0.5, 1).setDepth(PROF_ETIQUETA_PERSONAJE);
@@ -205,10 +220,17 @@ class Escena extends Phaser.Scene {
       this.etiquetas.set(e.clave, texto);
     }
     this.dibujarInsignias();
-    this.etiquetaPersonaje.setText(propietario().nombre).setScale(escala);
+    this.dibujarJugador(escala);
     this.sincronizarSprites();
     this.dibujarBurbujas();
     this.actualizarCartel();
+  }
+
+  // Nombre, color y resalte de quien juega (AC-2.8 de la 005): su etiqueta lleva un fondo de color que no tienen las demás.
+  dibujarJugador(escala) {
+    const miembro = buscarMiembro(estado, jugador.id);
+    this.cuerpoPersonaje.setFillStyle(colorDe(miembro));
+    this.etiquetaPersonaje.setText(miembro.nombre).setScale(escala).setBackgroundColor(COLOR_RESALTE).setFontStyle('bold');
   }
 
   // Insignia del estado de limpieza junto al nombre de cada espacio (FR-5 de la 003); los pasillos no tienen etiqueta ni insignia.
@@ -252,10 +274,9 @@ class Escena extends Phaser.Scene {
   // Las burbujas de los miembros siguen a su personaje, centradas en la casilla de encima de él: la misma que responde al toque
   // (AC-6.8 de la 003). La de un familiar fuera de casa no se ve (AC-5.8 de la 004).
   colocarBurbujas() {
-    const idPropietario = propietario().id;
     for (const b of this.burbujas) {
       if (b.tipo !== 'miembro') continue;
-      const cuerpo = b.id === idPropietario ? this.personaje : this.sprites.get(b.id)?.cuerpo;
+      const cuerpo = b.id === jugador.id ? this.personaje : this.sprites.get(b.id)?.cuerpo;
       b.texto.setVisible(Boolean(cuerpo?.visible));
       if (cuerpo) b.texto.setPosition(cuerpo.x, cuerpo.y - TILE);
     }
@@ -273,8 +294,8 @@ class Escena extends Phaser.Scene {
     for (const h of moviles) {
       const miembro = buscarMiembro(estado, h.id);
       const cuerpo = miembro.tipo === 'mascota'
-        ? this.add.rectangle(0, 0, 8, 8, COLOR_MASCOTA[miembro.especie])
-        : this.add.rectangle(0, 0, 12, 14, COLOR_FAMILIAR[miembro.genero ?? 'otro']);
+        ? this.add.rectangle(0, 0, 8, 8, colorDe(miembro))
+        : this.add.rectangle(0, 0, 12, 14, colorDe(miembro));
       cuerpo.setStrokeStyle(1, COLOR_BORDE_HABITANTE).setDepth(PROF_PERSONAJE)
         .setPosition(h.x * TILE + TILE / 2, h.y * TILE + TILE / 2);
       const etiqueta = this.add.text(cuerpo.x, cuerpo.y - TILE * 0.6, miembro.nombre, ESTILO_ETIQUETA)
@@ -395,7 +416,7 @@ class Escena extends Phaser.Scene {
     if (moviendo || modo !== 'exploracion') return;
     const r = paso(distribucion, jugador, direccion, ocupadasPorHabitantes(moviles)); // los habitantes son obstáculos (FR-6)
     const origen = { x: jugador.x, y: jugador.y };
-    jugador = { x: r.x, y: r.y, direccion: r.direccion };
+    jugador = { id: jugador.id, x: r.x, y: r.y, direccion: r.direccion };
     posicionSinGuardar = true;
     if (!r.movio) { this.colocarPersonaje(); return; }
     moviendo = true;
@@ -403,7 +424,7 @@ class Escena extends Phaser.Scene {
     this.personaje.setAngle({ abajo: 0, izquierda: 90, arriba: 180, derecha: 270 }[direccion]);
     this.tweens.add({
       targets: this.personaje, x: r.x * TILE + TILE / 2, y: r.y * TILE + TILE / 2, duration: MS_POR_CASILLA, ease: 'Linear',
-      onComplete: () => { moviendo = false; jugadorDesde = null; },
+      onComplete: () => { moviendo = false; jugadorDesde = null; if (cambioPendiente) elegirJugador(cambioPendiente); },
     });
   }
 
@@ -440,6 +461,8 @@ for (const boton of document.querySelectorAll('#cruceta button')) {
 function mostrarExploracion(visible) {
   $('cruceta').style.display = visible ? 'grid' : 'none';
   $('editar').style.display = visible ? 'block' : 'none';
+  $('juega').style.display = visible ? 'block' : 'none';
+  $('intercambios').style.display = visible ? 'block' : 'none';
   $('panel').style.display = visible ? 'none' : 'block';
 }
 
@@ -459,7 +482,7 @@ $('editar').addEventListener('click', () => {
 $('listo').addEventListener('click', () => {
   cerrarHoja();
   modo = 'exploracion';
-  jugador = resolverPosicion(distribucion, posGuardada);
+  jugador = { id: jugador.id, ...resolverPosicion(distribucion, posGuardada) };
   guardarPosicion();
   ahora = ahoraLocal(new Date());
   // FR-6 de la 004: primero el jugador; después cada familiar donde dice su rutina en este momento, con los cambios hechos en edición.
@@ -469,6 +492,7 @@ $('listo').addEventListener('click', () => {
   s.redibujar();
   s.colocarPersonaje();
   s.seguirPersonaje();
+  actualizarBotones(); // el nombre de quien juega pudo cambiar en la edición
 });
 
 function aplicar(nuevo) {
@@ -476,7 +500,8 @@ function aplicar(nuevo) {
   const t0 = performance.now();
   estado = nuevo;
   distribucion = generarDistribucion(estado);
-  jugador = resolverPosicion(distribucion, posGuardada);
+  if (puedeJugar(estado, jugador.id)) jugador = { id: jugador.id, ...resolverPosicion(distribucion, posGuardada) };
+  else pasarElJuegoAlPropietario(); // la persona que jugaba se eliminó (AC-4.7 de la 005)
   moviles = sincronizarHabitantes(moviles, idsHabitantes(), distribucion, casillaJugador(), azar); // FR-7, AC-7.7 de la 002
   const s = escena();
   s.redibujar();
@@ -498,6 +523,8 @@ function aplicarActividades(nuevo) {
   guardarEstado(); // se guarda en el momento en que se aplica (AC-8.2 de la 003)
   if (modo === 'edicion') pintarPanel();
   if (hojaActual) pintarHoja();
+  actualizarBotones(); // cambia el número de propuestas recibidas
+  if (intercambiosAbierto()) pintarIntercambios(); // AC-7.11
 }
 
 // El día cambió con la app abierta (FR-10 de la 003): burbujas, estados y objetos se recalculan con la nueva fecha.
@@ -592,7 +619,8 @@ function pintarActividades() {
     const fila = elemento('div', undefined, 'fila actividad');
     const lugar = a.espacioId ? nombreVisible(estado, buscarEspacio(estado, a.espacioId)) : 'Sin espacio';
     const datos = elemento('span');
-    datos.append(elemento('strong', a.nombre), elemento('small', `${buscarMiembro(estado, a.miembroId).nombre} · ${lugar} · ${textoPlazo(a, hoy)}`));
+    const nota = textoIntercambio(estado, a); // AC-8.6
+    datos.append(elemento('strong', a.nombre), elemento('small', `${buscarMiembro(estado, a.miembroId).nombre} · ${lugar} · ${textoPlazo(a, hoy)}${nota ? ` · ${nota}` : ''}`));
     fila.append(elemento('span', GLIFO_ICONO[a.icono], 'icono'), datos);
     fila.addEventListener('click', () => abrirFichaActividad(a.id));
     cont.append(fila);
@@ -665,6 +693,12 @@ function abrirFichaHabitante(clase, id) {
 
 const cerrarFicha = () => { $('ficha').style.display = 'none'; fichaActual = null; };
 
+// Ficha de cualquier miembro (AC-4.4 de la 005): la del propietario solo renombra; las de familiares y mascotas, la de siempre.
+function abrirFichaDeMiembro(miembro) {
+  if (esPropietario(estado, miembro)) abrirFicha('propietario', miembro.id);
+  else abrirFichaHabitante(miembro.tipo === 'mascota' ? 'mascota' : 'familiar', miembro.id);
+}
+
 // Al tocar el mapa (FR-8 de la 003, FR-5 de la 004): en exploración responden el cartel y las burbujas; en edición la prioridad es
 // personaje del propietario, habitante, cartel, burbuja y espacio (AC-5.13 de la 004).
 function tocarMapa(x, y, enCartel) {
@@ -675,13 +709,8 @@ function tocarMapa(x, y, enCartel) {
     if (burbuja) abrirHoja(burbuja);
     return;
   }
-  if (x === jugador.x && y === jugador.y) { abrirFicha('propietario', propietario().id); return; }
-  const habitante = moviles.find((h) => h.fase !== 'fuera' && h.x === x && h.y === y);
-  if (habitante) {
-    const miembro = buscarMiembro(estado, habitante.id);
-    abrirFichaHabitante(miembro.tipo === 'mascota' ? 'mascota' : 'familiar', miembro.id);
-    return;
-  }
+  const ocupante = x === jugador.x && y === jugador.y ? jugador : moviles.find((h) => h.fase !== 'fuera' && h.x === x && h.y === y);
+  if (ocupante) { abrirFichaDeMiembro(buscarMiembro(estado, ocupante.id)); return; } // AC-4.4 y AC-4.5 de la 005
   if (enCartel) { abrirHoja({ tipo: 'fuera' }); return; }
   if (burbuja) { abrirHoja(burbuja); return; }
   const clave = distribucion.espacioEn[y][x];
@@ -744,7 +773,8 @@ function pintarHoja() {
   cont.replaceChildren();
   for (const a of lista) {
     const datos = elemento('span');
-    datos.append(elemento('strong', a.nombre), elemento('small', `${buscarMiembro(estado, a.miembroId).nombre} · ${textoPlazo(a, hoy)}`));
+    const nota = textoIntercambio(estado, a); // AC-8.6
+    datos.append(elemento('strong', a.nombre), elemento('small', `${buscarMiembro(estado, a.miembroId).nombre} · ${textoPlazo(a, hoy)}${nota ? ` · ${nota}` : ''}`));
     const botones = elemento('span', undefined, 'botones');
     if (modo === 'exploracion') {
       const hecho = elemento('button', 'Hecho');
@@ -808,6 +838,7 @@ function abrirFichaActividad(id) {
   opciones($('actividad-icono'), Object.entries(ICONOS).map(([clave, texto]) => [clave, `${GLIFO_ICONO[clave]} ${texto}`]), a?.icono ?? 'otra');
   const miembros = [propietario(), ...habitantes(estado)];
   opciones($('actividad-miembro'), [['', 'Asignar a…'], ...miembros.map((m) => [m.id, m.nombre])], a?.miembroId ?? '');
+  $('actividad-nota').textContent = a ? textoIntercambio(estado, a) : ''; // AC-8.6
   opciones($('actividad-espacio'), [['', 'Sin espacio'], ...espaciosActivos(estado).map((e) => [e.id, nombreVisible(estado, e)])], a?.espacioId ?? '');
   opciones($('actividad-tipo'), [['puntual', 'Puntual'], ['repetitiva', 'Repetitiva']], a?.tipo ?? 'puntual');
   $('actividad-vence').value = a?.vence ?? hoy;
@@ -959,8 +990,150 @@ $('bloque-eliminar').addEventListener('click', () => {
   aplicarRutina(eliminarBloque(estado, b.id, ctx));
 });
 
+// ---------- Quién juega (FR-1 a FR-6 de la 005) ----------
+
+function actualizarBotones() {
+  $('juega').textContent = `Juega: ${buscarMiembro(estado, jugador.id).nombre}`;
+  const n = numeroRecibidas(estado, jugador.id);
+  $('intercambios').textContent = n > 0 ? `Intercambios (${n})` : 'Intercambios'; // AC-6.1
+}
+
+const cerrarQuien = () => { $('quien').style.display = 'none'; };
+// Al cambiar de jugador se cierran las hojas y los paneles abiertos (AC-2.9).
+function cerrarPaneles() {
+  cerrarHoja();
+  cerrarQuien();
+  cerrarIntercambios();
+}
+
+// Lista "¿Quién juega?" (AC-1.3, AC-3.1): el propietario y los familiares; un familiar fuera de casa también se puede elegir.
+function abrirQuien() {
+  const cont = $('quien-lista');
+  cont.replaceChildren();
+  for (const m of personasQueJuegan(estado)) {
+    const datos = elemento('span');
+    datos.append(elemento('strong', m.nombre));
+    if (moviles.some((h) => h.id === m.id && h.fase === 'fuera')) datos.append(elemento('small', 'Fuera de casa · entra por la puerta'));
+    const fila = elemento('div', undefined, 'item tocable');
+    fila.append(datos, elemento('span', m.id === jugador.id ? 'Jugando' : ''));
+    fila.addEventListener('click', () => { cerrarQuien(); elegirJugador(m.id); });
+    cont.append(fila);
+  }
+  $('quien').style.display = 'flex';
+}
+
+// Cambia quién juega sin mover a nadie (FR-2): lo hace la lógica pura; aquí se guarda, se redibuja y se centra la cámara.
+function elegirJugador(id) {
+  if (id === jugador.id || !puedeJugar(estado, id)) { cambioPendiente = null; return; }
+  if (moviendo) { cambioPendiente = id; return; } // se aplica al terminar el paso (AC-2.7)
+  cambioPendiente = null;
+  const t0 = performance.now();
+  const saliente = { id: jugador.id, x: jugador.x, y: jugador.y, direccion: jugador.direccion };
+  const r = cambiarJugador(moviles, saliente, id, distribucion, objetivosDeFamiliares(estado, ahora));
+  moviles = r.moviles;
+  jugador = r.jugador;
+  cerrarPaneles();
+  guardarPosicion(); // AC-5.2
+  actualizarBotones();
+  const s = escena();
+  s.colocarPersonaje();
+  s.seguirPersonaje(); // centra la cámara y rehace etiquetas, nombres, burbujas y cartel
+  ultimaRegeneracionMs = performance.now() - t0; // meta de 100 ms (AC-2.10)
+}
+
+// Si se elimina a quien jugaba (en el modo edición), juega el propietario en la casilla donde estaba (AC-4.7).
+function pasarElJuegoAlPropietario() {
+  const r = cambiarJugador(moviles, null, propietario().id, distribucion);
+  moviles = r.moviles;
+  jugador = r.jugador;
+  guardarPosicion();
+}
+
+$('juega').addEventListener('click', abrirQuien);
+$('quien-cerrar').addEventListener('click', cerrarQuien);
+
+// ---------- Intercambios (FR-7 a FR-11 de la 005) ----------
+const MOTIVOS_SIN_PROPUESTA = { limite: MENSAJES_INTERCAMBIO.limite, nada: 'No hay actividades para intercambiar' };
+
+const intercambiosAbierto = () => $('panel-intercambios').style.display === 'flex';
+function abrirIntercambios() {
+  pintarIntercambios();
+  $('panel-intercambios').style.display = 'flex';
+}
+function cerrarIntercambios() {
+  $('panel-intercambios').style.display = 'none';
+  cerrarFichaIntercambio();
+}
+
+// Panel de quien juega (AC-6.2): sus propuestas recibidas (Aceptar, Rechazar) y enviadas (Retirar); una que dejó de ser vigente
+// se muestra como "Ya no vigente" y solo ofrece "Quitar" (AC-7.8).
+function pintarIntercambios() {
+  const { recibidas, enviadas } = intercambiosDe(estado, jugador.id);
+  pintarListaIntercambios($('intercambios-recibidas'), recibidas, 'recibida');
+  pintarListaIntercambios($('intercambios-enviadas'), enviadas, 'enviada');
+  const motivo = motivoSinPropuesta(estado, jugador.id);
+  $('intercambios-proponer').disabled = motivo !== null; // AC-6.6, AC-6.7
+  $('intercambios-motivo').textContent = motivo ? MOTIVOS_SIN_PROPUESTA[motivo] : '';
+}
+
+function pintarListaIntercambios(cont, lista, vista) {
+  cont.replaceChildren(...(lista.length === 0 ? [elemento('p', 'Ninguna')] : lista.map((i) => {
+    const vigente = esVigente(estado, i);
+    const datos = elemento('span');
+    datos.append(elemento('strong', textoPropuesta(estado, i, vista)));
+    if (!vigente) datos.append(elemento('small', 'Ya no vigente'));
+    const botones = elemento('span', undefined, 'botones');
+    const accion = (texto, operacion, clase) => {
+      const boton = elemento('button', texto, clase);
+      boton.addEventListener('click', () => responderIntercambio(operacion(estado, i.id, jugador.id, ctx)));
+      botones.append(boton);
+    };
+    if (!vigente) accion('Quitar', quitar);
+    else if (vista === 'recibida') { accion('Aceptar', aceptar); accion('Rechazar', rechazar, 'peligro'); }
+    else accion('Retirar', retirar);
+    const fila = elemento('div', undefined, 'item');
+    fila.append(datos, botones);
+    return fila;
+  })));
+}
+
+// Los cambios de intercambios usan el mismo camino que los de actividades: guardan, redibujan burbujas y estados y repintan la hoja.
+function responderIntercambio(r) {
+  if (!r.ok) { avisar(MENSAJES_INTERCAMBIO[r.error]); return; }
+  aplicarActividades(r.estado);
+}
+
+// Ficha de proponer (AC-6.3, AC-6.4): dos listas sin valor inicial; guardar se activa con las dos elegidas.
+function abrirFichaIntercambio() {
+  const ofrecibles = actividadesOfrecibles(estado, jugador.id);
+  const pedibles = actividadesPedibles(estado, jugador.id);
+  opciones($('intercambio-ofrecida'), [['', 'Tu actividad…'], ...ofrecibles.map((a) => [a.id, `${a.nombre} · ${textoPlazo(a, hoy)}`])], '');
+  opciones($('intercambio-pedida'), [['', 'Por la de…'], ...pedibles.map((a) => [a.id, `${a.nombre} · ${buscarMiembro(estado, a.miembroId).nombre}`])], '');
+  $('intercambio-error').textContent = '';
+  actualizarFichaIntercambio();
+  $('ficha-intercambio').style.display = 'flex';
+}
+const actualizarFichaIntercambio = () => {
+  $('intercambio-guardar').disabled = $('intercambio-ofrecida').value === '' || $('intercambio-pedida').value === '';
+};
+const cerrarFichaIntercambio = () => { $('ficha-intercambio').style.display = 'none'; };
+
+$('intercambios').addEventListener('click', abrirIntercambios);
+$('intercambios-cerrar').addEventListener('click', cerrarIntercambios);
+$('intercambios-proponer').addEventListener('click', abrirFichaIntercambio);
+$('intercambio-cancelar').addEventListener('click', cerrarFichaIntercambio);
+for (const campo of ['intercambio-ofrecida', 'intercambio-pedida']) $(campo).addEventListener('change', actualizarFichaIntercambio);
+$('ficha-intercambio').querySelector('form').addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  const r = proponer(estado, { proponenteId: jugador.id, ofrecidaId: $('intercambio-ofrecida').value, pedidaId: $('intercambio-pedida').value }, ctx);
+  if (!r.ok) { $('intercambio-error').textContent = MENSAJES_INTERCAMBIO[r.error]; return; } // AC-6.9
+  cerrarFichaIntercambio();
+  aplicarActividades(r.estado);
+});
+
 // ---------- Ciclo de vida ----------
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden' && modo === 'exploracion') guardarPosicion();
 });
+actualizarBotones();
 if (inicio.aviso) avisar(inicio.aviso);

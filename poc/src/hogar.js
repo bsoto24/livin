@@ -14,7 +14,11 @@ export function auditoriaNueva(ctx) {
 }
 
 export function tocar(registro, ctx) {
-  return { ...registro, actualizadoEn: ctx.ahora(), actualizadoPor: ctx.cuentaId };
+  const ahora = ctx.ahora();
+  // La marca solo crece: si el reloj no avanzó (dos cambios en el mismo instante), se le añade un '+' a la anterior. Así la vigencia
+  // de un intercambio (ADR-005 de intercambios) se rompe con cualquier cambio de una actividad, también con el reloj detenido.
+  const marca = registro.actualizadoEn >= ahora ? `${registro.actualizadoEn}+` : ahora;
+  return { ...registro, actualizadoEn: marca, actualizadoPor: ctx.cuentaId };
 }
 
 // ---------- Creación ----------
@@ -36,9 +40,10 @@ export function crearHogarInicial(ctx) {
     id: ctx.nuevoId(), hogarId, nombre: 'Personaje 1', cuentaId,
     tipo: 'persona', parentesco: null, genero: null, especie: null, ...a(),
   };
-  // Documento versión 4 (ADR-004 de modelo de rutinas): el hogar empieza sin actividades ni bloques de rutina.
+  // Documento versión 5 (ADR-005 de intercambios): el hogar empieza sin actividades, bloques de rutina ni intercambios.
   return {
-    version: 4, cuentas: [cuenta], hogares: [hogar], membresias: [membresia], espacios, miembros: [miembro], actividades: [], bloques: [],
+    version: 5, cuentas: [cuenta], hogares: [hogar], membresias: [membresia], espacios, miembros: [miembro], actividades: [], bloques: [],
+    intercambios: [],
   };
 }
 
@@ -281,13 +286,15 @@ export function puedeEliminarMiembro(estado, id) {
 }
 
 // Borrado lógico (FR-4, FR-10 de la 002): el registro queda con su fecha de eliminación; no afecta a los espacios ni a los
-// demás miembros. Sus actividades y sus bloques de rutina se dan de baja en la misma operación (FR-9 de la 003 y de la 004).
+// demás miembros. Sus actividades y sus bloques de rutina se dan de baja en la misma operación (FR-9 de la 003 y de la 004), y
+// las repetitivas que debían volver a él se quedan con quien las tiene (FR-9 de la 005).
 export function eliminarHabitante(estado, id, ctx) {
   if (!puedeEliminarMiembro(estado, id)) return estado;
   const ahora = ctx.ahora();
   const miembros = estado.miembros.map((m) => (m.id === id ? { ...tocar(m, ctx), eliminadoEn: ahora } : m));
   const sinActividades = darDeBajaActividades({ ...estado, miembros }, (a) => a.miembroId === id, ahora, ctx);
-  return darDeBajaBloques(sinActividades, (b) => b.miembroId === id, ahora, ctx);
+  const sinRegresos = quitarRegresosA(sinActividades, id, ctx);
+  return darDeBajaBloques(sinRegresos, (b) => b.miembroId === id, ahora, ctx);
 }
 
 // ---------- Actividades (feature 003): consultas y bajas en cascada ----------
@@ -303,6 +310,12 @@ function darDeBajaActividades(estado, afectada, ahora, ctx) {
   return { ...estado, actividades };
 }
 
+// Las actividades activas que debían volver a esta persona dejan de recordarla (FR-9 de la 005).
+function quitarRegresosA(estado, id, ctx) {
+  const actividades = estado.actividades.map((a) => (a.eliminadoEn === null && a.devolverA === id ? { ...tocar(a, ctx), devolverA: null } : a));
+  return { ...estado, actividades };
+}
+
 // ---------- Bloques de rutina (feature 004): consultas ----------
 
 export const bloquesActivos = (estado) => estado.bloques.filter((b) => b.eliminadoEn === null);
@@ -313,6 +326,21 @@ export const bloquesDeMiembro = (estado, id) => bloquesActivos(estado).filter((b
 function darDeBajaBloques(estado, afectado, ahora, ctx) {
   const bloques = estado.bloques.map((b) => (b.eliminadoEn === null && afectado(b) ? { ...tocar(b, ctx), eliminadoEn: ahora } : b));
   return { ...estado, bloques };
+}
+
+// ---------- Jugador activo (feature 005) ----------
+
+export const propietarioDe = (estado) => miembrosActivos(estado).find((m) => esPropietario(estado, m)) ?? null;
+
+// Pueden jugar el propietario y los familiares activos, el propietario primero; las mascotas no (FR-1 de la 005).
+export const personasQueJuegan = (estado) => [propietarioDe(estado), ...familiares(estado)];
+export const puedeJugar = (estado, id) => personasQueJuegan(estado).some((m) => m.id === id);
+
+// Quién juega al abrir la app (FR-6 de la 005): la persona guardada junto a la posición si todavía puede jugar; si no hay ninguna
+// guardada (un hogar de una feature anterior) o ya no existe, el propietario.
+export function jugadorInicial(estado, guardada) {
+  const id = guardada?.jugadorId;
+  return typeof id === 'string' && puedeJugar(estado, id) ? id : propietarioDe(estado).id;
 }
 
 export const MENSAJES_ERROR = {
