@@ -1,2 +1,3 @@
-- [Estado de Livin](livin-project-state.md) — 001 a 005 verificadas en Android y subidas; la 006 (calificaciones e historial) mergeada y subida el 2026-10-09, falta verificarla en el teléfono
+- [Estado de Livin](livin-project-state.md) — 001 a 006 subidas; la 007 (menú por secciones y formularios simples, v7) mergeada en main local el 2026-10-09 y verificada en el teléfono (73 fps), sin subir; falta verificar la 006 en el teléfono
+- [Livin no está en producción](livin-no-esta-en-produccion.md) — se aceptan migraciones que descartan datos sin valor, pero nunca un error al abrir un hogar guardado
 - [Docs in Spanish](docs-in-spanish.md) — specs/ADRs/foundation and domain vocabulary are Spanish; chat is English

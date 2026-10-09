@@ -114,17 +114,20 @@ La revisión los dio por cubiertos solo por lectura de código. Este documento n
 
 Estos cuatro pasos se suman a la lista pendiente de abajo.
 
-## Pendiente: verificación en el teléfono Android
+## Teléfono Android: resultado informado por el usuario
 
-Esto lo debe hacer el usuario en el teléfono Android de referencia (servir `poc/` en la red local solo mientras dura la prueba y con `Cache-Control: no-cache`, y apagar el servidor después). No se ha hecho y esta verificación no afirma que pase.
+**Fecha:** 2026-10-09. El usuario probó en su teléfono Android de referencia (modelo no indicado) con `poc/` servido en la red local con `Cache-Control: no-cache` y con el servidor apagado después. Resultado que informó: **73 fps, `regen` 4,3 ms, sin observaciones.** Es un resumen del usuario: no se registró el detalle paso por paso ni se indicó si la medición fue con la carga completa (8 familiares, 4 mascotas, 50 actividades y 200 entradas).
 
-- [ ] Paso 1: barra con las cuatro pestañas, sin botones "Editar", "Intercambios" ni "Historial", cruceta por encima de la barra y "Juega: …" arriba a la derecha.
-- [ ] Paso 2: el drawer ocupa el 45 % inferior, el mapa se aleja y los personajes quedan quietos; cambiar de pestaña no reencuadra; la pestaña activa y "Listo" vuelven a exploración con la cámara siguiendo al personaje.
-- [ ] Paso 5: formulario de familiar con el botón 🧑, el selector de siete aspectos, 👧 dibujada más pequeña y con color femenino, y el "+" desactivado con 8.
-- [ ] Paso 6: formulario de mascota con 🐾, seis especies y los seis colores distinguibles en el mapa, "+" desactivado con 4.
-- [ ] Paso 7: formulario de actividad simple (sugerencias, icono fijo o elegible, responsable, "Cambiar") y que la ficha cabe y se recorre con el dedo.
-- [ ] Paso 8: varios lugares con "Cambiar", chips que se ajustan a varias líneas y el mensaje con 49 pendientes y 2 lugares.
-- [ ] Con 8 familiares, 4 mascotas, 50 actividades y 200 entradas: el movimiento se mantiene a 60 cuadros por segundo; abrir un drawer, cambiar de pestaña y guardar muestran el resultado en menos de 100 ms.
-- [ ] La barra y el drawer no tapan la cruceta ni el cartel del cuarto, y los toques del dedo sobre las pestañas, las burbujas y los círculos de personas aciertan sin tocar el elemento de al lado.
-- [ ] En el teclado del teléfono: escribir "Lavar platos" con espacio en los campos de nombre (cuarto, propietario, familiar, mascota, actividad).
-- [ ] Pasos manuales de la ronda de seguimiento 1 (AC-1.11, AC-2.3, AC-4.4, AC-12.4), ver la tabla de la sección anterior.
+Marcado según ese resumen («sin observaciones») para lo que se le pidió revisar; lo que no se le pidió o no informó queda sin marcar:
+
+- [x] Paso 1: barra con las cuatro pestañas, sin botones "Editar", "Intercambios" ni "Historial", cruceta por encima de la barra y "Juega: …" arriba a la derecha.
+- [x] Paso 2: el drawer ocupa el 45 % inferior, el mapa se aleja y los personajes quedan quietos; cambiar de pestaña no reencuadra; la pestaña activa y "Listo" vuelven a exploración con la cámara siguiendo al personaje.
+- [x] Paso 5: formulario de familiar con el botón 🧑, el selector de siete aspectos, 👧 dibujada más pequeña y con color femenino, y el "+" desactivado con 8.
+- [x] Paso 6: formulario de mascota con 🐾, seis especies y los seis colores distinguibles en el mapa, "+" desactivado con 4.
+- [x] Paso 7: formulario de actividad simple (sugerencias, icono fijo o elegible, responsable, "Cambiar") y que la ficha cabe y se recorre con el dedo.
+- [x] Paso 8: varios lugares con "Cambiar", chips que se ajustan a varias líneas y el mensaje con 49 pendientes y 2 lugares.
+- [x] La barra y el drawer no tapan la cruceta ni el cartel del cuarto, y los toques del dedo sobre las pestañas, las burbujas y los círculos de personas aciertan sin tocar el elemento de al lado.
+- [x] En el teclado del teléfono: escribir "Lavar platos" con espacio en los campos de nombre (cuarto, propietario, familiar, mascota, actividad).
+- [x] Rendimiento: 73 fps y `regen` 4,3 ms informados, por encima de la meta de 60 cuadros por segundo y por debajo de 100 ms. **Sin confirmar** que fuera con la carga completa (8 familiares, 4 mascotas, 50 actividades y 200 entradas).
+- [ ] Pasos manuales de la ronda de seguimiento 1 (AC-1.11, AC-2.3, AC-4.4, AC-12.4): no se le pidieron en esta prueba; siguen cubiertos solo por lectura de código (ver la tabla de la sección anterior).
+- [ ] Teclas de flecha mantenidas en un navegador de escritorio (AC-14.2): no aplica al teléfono; sigue sin ejercerse con teclas reales.
