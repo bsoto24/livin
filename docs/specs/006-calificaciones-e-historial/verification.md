@@ -5,9 +5,16 @@
 
 ## Pruebas automáticas
 
-`cd poc && npm test` → 299 pruebas, 299 pasan, 0 fallan (258 de las features 001 a 005 + 41 nuevas). `node --check src/juego.js` sin salida.
+`cd poc && npm test` → 301 pruebas, 301 pasan, 0 fallan (258 de las features 001 a 005 + 43 nuevas). `node --check src/juego.js` sin salida.
 
-Las 41 pruebas nuevas: 3 de contrato (`contrato-historial.test.js`), 8 del formato v6 en `almacen.test.js`, 14 de entradas y tope en `historial.test.js` y 16 de consultas, calificaciones y promedio en `calificaciones.test.js`.
+Las 43 pruebas nuevas: 3 de contrato (`contrato-historial.test.js`), 8 del formato v6 en `almacen.test.js`, 16 de entradas, tope y fiabilidad en `historial.test.js` y 16 de consultas, calificaciones y promedio en `calificaciones.test.js`.
+
+## Revisión de alineación con la spec (sdd-review, modo B)
+
+Veredicto: **SPEC-ALIGNED**. Los 81 AC y los 9 FR tienen su prueba automática o, en la capa de presentación, su código verificado por inspección y la evidencia del navegador. No hubo diferencias de comportamiento ni funcionalidad no pedida. Dos hallazgos menores se corrigieron en `b75fce4`:
+
+- Faltaban dos pruebas que pide la sección de fiabilidad de la spec: la secuencia combinada "Hecho tras eliminar al responsable original" (crédito a quien tiene la actividad) y la integridad referencial del documento v6 tras cada baja de espacio o miembro y tras el tope de 200 (se guarda y se vuelve a leer sin error).
+- Si el día cambia con el panel del historial abierto, ahora se repinta (AC-2.5).
 
 ## Navegador de escritorio (panel del navegador integrado, ventana de 333 × 399 px)
 
@@ -40,3 +47,5 @@ Hogar de prueba con un familiar (Diana), una mascota (Firulais) y cuatro activid
 
 - El plan no listaba una prueba existente (`AC-11.8` de `almacen.test.js`, que fija las claves del documento guardado); se actualizó con `historial` en la Fase 1.
 - El texto del resumen con una sola calificación dice "1 calificadas" (el texto fijo de la spec es "(<n> calificadas)").
+- La spec dice que un `hechaEn` que no es una fecha y hora válidas vuelve ilegible el documento, pero el validador (y el modelo de datos) solo exigen texto no vacío. Límite aceptado: la lógica no usa `hechaEn` para nada más que la auditoría (el día mostrado sale de `dia`, que sí se valida como fecha real).
+- Si una calificación se rechaza con la lista desplazada, el motivo aparece debajo de la lista y puede quedar fuera de la vista; la interfaz desactiva las estrellas que serían rechazadas, así que es casi inalcanzable.
