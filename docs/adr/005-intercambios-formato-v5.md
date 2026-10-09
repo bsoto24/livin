@@ -25,7 +25,7 @@ Esta feature agrega los intercambios: un miembro propone cambiar una de sus acti
 Cada intercambio es un registro con los dos miembros, las dos actividades, el estado (`pendiente`, `aceptado`, `rechazado` o `retirado`) y una marca por actividad: su `actualizadoEn` en el momento de proponer. Es **vigente** mientras sea `pendiente`, las dos actividades sigan pendientes y conserven esa marca. Al aceptar se intercambian los `miembroId` de las dos actividades; en una repetitiva `devolverA` guarda al responsable original y, al marcarla como hecha, vuelve a él. El documento pasa a `version: 5` con `intercambios: []` y cada actividad gana `devolverA: null`.
 
 **Pros:** `miembroId` sigue siendo el responsable actual, así que burbujas, hoja, listas y bajas en cascada de la 003 y la 004 funcionan sin cambios; la vigencia no exige tocar ninguna operación existente, porque cualquier cambio de una actividad ya actualiza su marca; la migración es mínima.
-**Cons:** `devolverA` es un campo derivado que hay que mantener (se borra al volver, al reasignar a mano y al eliminar al original); la vigencia depende del reloj inyectado: dos cambios en el mismo milisegundo no se distinguirían, lo que no ocurre con toques humanos.
+**Cons:** `devolverA` es un campo derivado que hay que mantener (se borra al volver, al reasignar a mano y al eliminar al original); la vigencia depende de que la marca de cada actividad crezca con cada cambio; `tocar` lo garantiza añadiendo un sufijo `+` a la marca anterior cuando el reloj no avanzó (dos cambios en el mismo instante), por lo que la limitación de un reloj detenido ya no existe.
 
 ### Option B: Responsable derivado de los intercambios aceptados
 
@@ -73,7 +73,7 @@ Reglas que fija la decisión:
 
 **Más difícil:**
 - `devolverA` es un dato extra con cuatro reglas de mantenimiento (volver al hacerla, reasignar a mano, eliminar al original, no volver a intercambiar mientras está fuera de su responsable); cada una necesita su prueba.
-- La vigencia confía en que toda operación que cambia una actividad llame a la misma función que actualiza su auditoría. Una prueba de contrato debe comprobarlo para editar, eliminar, marcar como hecha, aceptar y las bajas en cascada.
+- La vigencia confía en que toda operación que cambia una actividad llame a la misma función que actualiza su auditoría. Una prueba de contrato debe comprobarlo para editar, eliminar, marcar como hecha, aceptar y las bajas en cascada, también con el reloj detenido.
 - Los intercambios no vigentes se acumulan en el documento. A la escala de la PoC no importa; el producto real tendrá que decidir su limpieza.
 - Los datos v5 no se pueden leer con una versión anterior. En la PoC (desechable, solo local) es aceptable.
 

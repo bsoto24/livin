@@ -14,7 +14,11 @@ export function auditoriaNueva(ctx) {
 }
 
 export function tocar(registro, ctx) {
-  return { ...registro, actualizadoEn: ctx.ahora(), actualizadoPor: ctx.cuentaId };
+  const ahora = ctx.ahora();
+  // La marca solo crece: si el reloj no avanzó (dos cambios en el mismo instante), se le añade un '+' a la anterior. Así la vigencia
+  // de un intercambio (ADR-005 de intercambios) se rompe con cualquier cambio de una actividad, también con el reloj detenido.
+  const marca = registro.actualizadoEn >= ahora ? `${registro.actualizadoEn}+` : ahora;
+  return { ...registro, actualizadoEn: marca, actualizadoPor: ctx.cuentaId };
 }
 
 // ---------- Creación ----------

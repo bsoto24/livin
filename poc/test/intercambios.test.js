@@ -423,3 +423,87 @@ test('Reliability, FR-10: ninguna baja de un espacio o de un miembro deja una pr
     sinReferenciasRotas(eliminarHabitante(e, miembro.id, ctx), `sin ${miembro.nombre}`);
   }
 });
+
+// Contexto con el reloj detenido: todas las operaciones ocurren en el mismo instante (mismos ids que `crearCtx`).
+function crearCtxCongelado() {
+  let id = 0;
+  return { cuentaId: 'cuenta-1', nuevoId: () => `id-${++id}`, ahora: () => '2026-10-04T00:00:00.000Z' };
+}
+
+// Escenario del contrato con el reloj detenido: "Platos" (puntual) está en una segunda cocina, para poder dar de baja su espacio.
+function escenarioCongelado() {
+  const ctx = crearCtxCongelado();
+  let e = agregarEspacio(hogarBase(ctx), 'cocina', ctx);
+  const cocina2 = espaciosDeTipo(e, 'cocina')[1];
+  e = nueva(e, 'Platos', propietarioDe(e), ctx, { espacioId: cocina2.id });
+  e = nueva(e, 'Basura', diana(e), ctx);
+  e = nueva(e, 'Barrer', propietarioDe(e), ctx, { tipo: 'repetitiva', frecuenciaDias: 7 });
+  e = nueva(e, 'Plantas', diana(e), ctx, { tipo: 'repetitiva', frecuenciaDias: 3 });
+  e = nueva(e, 'Ropa', luis(e), ctx);
+  return { ctx, e, cocina2 };
+}
+
+test('Reliability (contrato), AC-9.1 a AC-9.4: con el reloj detenido, cada operación que cambia una actividad deja la propuesta no vigente', () => {
+  const { ctx, e, cocina2 } = escenarioCongelado();
+  const P = propietarioDe(e);
+  const cambiar = (nombre, cambio) => (s) => {
+    const r = editarActividad(s, idDe(s, nombre), { ...buscarActividad(s, idDe(s, nombre)), ...cambio }, ctx);
+    assert.equal(r.ok, true, `${nombre}: ${r.error}`);
+    return r.estado;
+  };
+  const casos = [
+    ['editar la ofrecida (nombre)', 'Platos', 'Basura', cambiar('Platos', { nombre: 'Platos y vasos' })],
+    ['editar la pedida (icono)', 'Platos', 'Basura', cambiar('Basura', { icono: 'platos' })],
+    ['editar una repetitiva ofrecida cambiando solo la frecuencia', 'Barrer', 'Ropa', cambiar('Barrer', { frecuenciaDias: 14 })],
+    ['editar una repetitiva pedida cambiando solo el vencimiento', 'Platos', 'Plantas', cambiar('Plantas', { vence: '2026-10-07' })],
+    ['eliminar la ofrecida', 'Platos', 'Basura', (s) => eliminarActividad(s, idDe(s, 'Platos'), ctx)],
+    ['eliminar la pedida', 'Platos', 'Basura', (s) => eliminarActividad(s, idDe(s, 'Basura'), ctx)],
+    ['"Hecho" en la ofrecida puntual', 'Platos', 'Basura', (s) => marcarHecha(s, idDe(s, 'Platos'), HOY, ctx)],
+    ['"Hecho" en la pedida puntual', 'Platos', 'Basura', (s) => marcarHecha(s, idDe(s, 'Basura'), HOY, ctx)],
+    ['"Hecho" en una repetitiva que vence hoy (ofrecida)', 'Barrer', 'Ropa', (s) => marcarHecha(s, idDe(s, 'Barrer'), HOY, ctx)],
+    ['"Hecho" en una repetitiva que vence hoy (pedida)', 'Platos', 'Plantas', (s) => marcarHecha(s, idDe(s, 'Plantas'), HOY, ctx)],
+    ['baja del espacio de la ofrecida', 'Platos', 'Basura', (s) => eliminarEspacio(s, cocina2.id, ctx)],
+    ['baja del miembro destinatario', 'Platos', 'Basura', (s) => eliminarHabitante(s, diana(s).id, ctx)],
+  ];
+  const fallos = [];
+  for (const [nombre, ofrecida, pedida, operacion] of casos) {
+    const p = proponerOk(e, P, ofrecida, pedida, ctx);
+    const i = ultimo(p);
+    assert.equal(esVigente(p, i), true, `${nombre}: antes de la operación debía ser vigente`);
+    const despues = operacion(p);
+    assert.notEqual(despues, p, nombre);
+    if (esVigente(despues, buscarIntercambio(despues, i.id))) fallos.push(`${nombre}: sigue vigente`);
+    if (numeroRecibidas(despues, i.destinatarioId) !== 0) fallos.push(`${nombre}: sigue contando como recibida`);
+  }
+  assert.deepEqual(fallos, []);
+});
+
+test('Reliability (contrato), AC-9.3: con el reloj detenido, aceptar cambia las marcas de sus dos actividades y no afecta a otra propuesta', () => {
+  const { ctx, e } = escenarioCongelado();
+  const P = propietarioDe(e);
+  const p1 = proponerOk(e, P, 'Platos', 'Basura', ctx);
+  const p2 = proponerOk(p1, diana(e), 'Plantas', 'Barrer', ctx);
+  const [i1, i2] = p2.intercambios;
+  const r = aceptar(p2, i1.id, diana(e).id, ctx);
+  assert.equal(r.ok, true, r.error);
+  const marca = (estado, nombre) => buscarActividad(estado, idDe(e, nombre)).actualizadoEn;
+  assert.notEqual(marca(r.estado, 'Platos'), i1.marcaOfrecida, 'aceptar: la marca de la ofrecida no cambió');
+  assert.notEqual(marca(r.estado, 'Basura'), i1.marcaPedida, 'aceptar: la marca de la pedida no cambió');
+  assert.equal(esVigente(r.estado, buscarIntercambio(r.estado, i1.id)), false, 'aceptar: la propuesta aceptada no debe ser vigente');
+  assert.equal(esVigente(r.estado, buscarIntercambio(r.estado, i2.id)), true, 'aceptar: otra propuesta de otras actividades debe seguir vigente');
+  assert.equal(marca(r.estado, 'Plantas'), i2.marcaOfrecida);
+  assert.equal(marca(r.estado, 'Barrer'), i2.marcaPedida);
+});
+
+test('Reliability (contrato), AC-9.7: con el reloj detenido, restaurar el valor anterior no revive la propuesta', () => {
+  const { ctx, e } = escenarioCongelado();
+  const P = propietarioDe(e);
+  const p = proponerOk(e, P, 'Platos', 'Basura', ctx);
+  const { id } = ultimo(p);
+  const platos = buscarActividad(p, idDe(p, 'Platos'));
+  const cambiada = editarActividad(p, platos.id, { ...platos, nombre: 'Otro' }, ctx).estado;
+  const restaurada = editarActividad(cambiada, platos.id, { ...platos, nombre: 'Platos' }, ctx).estado;
+  assert.equal(esVigente(cambiada, buscarIntercambio(cambiada, id)), false, 'editar una vez');
+  assert.equal(esVigente(restaurada, buscarIntercambio(restaurada, id)), false, 'editar dos veces (restaurar el valor)');
+  assert.equal(proponer(restaurada, { proponenteId: P.id, ofrecidaId: platos.id, pedidaId: idDe(p, 'Basura') }, ctx).ok, true);
+});
