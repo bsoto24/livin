@@ -19,7 +19,7 @@ const a = (fecha, hora, minuto = 0) => ({ fecha, minuto: hora * 60 + minuto });
 function hogarConRutina(bloques) {
   const ctx = crearCtx();
   let e = crearHogarInicial(ctx);
-  e = agregarHabitante(e, 'familiar', { nombre: 'Diana', parentesco: 'pareja', genero: 'femenino' }, ctx).estado;
+  e = agregarHabitante(e, 'familiar', { nombre: 'Diana', aspecto: 'adulta' }, ctx).estado;
   e = agregarHabitante(e, 'mascota', { nombre: 'Firulais', especie: 'perro' }, ctx).estado;
   const diana = familiares(e)[0];
   for (const b of bloques(e)) {
@@ -99,7 +99,7 @@ test('las funciones de hora y lugar son puras y repiten el resultado con los mis
 test('AC-10.11: tras eliminar el espacio de su bloque vigente, el familiar queda según los bloques que le quedan o libre', () => {
   const ctx = crearCtx();
   let e = agregarEspacio(crearHogarInicial(ctx), 'lavanderia', ctx);
-  e = agregarHabitante(e, 'familiar', { nombre: 'Diana', parentesco: 'pareja', genero: 'femenino' }, ctx).estado;
+  e = agregarHabitante(e, 'familiar', { nombre: 'Diana', aspecto: 'adulta' }, ctx).estado;
   const diana = familiares(e)[0];
   const lavanderia = espaciosDeTipo(e, 'lavanderia')[0];
   for (const b of [{ inicio: 540, fin: 780, espacioId: lavanderia.id }, { inicio: 780, fin: 1080, espacioId: null }]) {

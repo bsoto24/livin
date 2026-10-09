@@ -12,10 +12,10 @@ test('contrato del catálogo del historial: tope y escala de estrellas', () => {
   assert.deepEqual([catalogo.MIN_ESTRELLAS, catalogo.MAX_ESTRELLAS], [1, 5]);
 });
 
-test('contrato del modelo y del almacén: hogar inicial v6 y migración', () => {
+test('contrato del modelo y del almacén: hogar inicial v7 y migración', () => {
   assert.equal(typeof almacen.migrarAV6, 'function');
   const e = hogar.crearHogarInicial(crearCtx());
-  assert.deepEqual([e.version, e.historial], [6, []]);
+  assert.deepEqual([e.version, e.historial], [7, []]);
 });
 
 test('contrato del historial: funciones y mensajes', () => {

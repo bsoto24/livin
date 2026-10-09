@@ -11,14 +11,14 @@ import {
   textoResumen, textoVacio, estadoDeCalificacion, textoCalificacion, calificar, quitarCalificacion, MENSAJES_HISTORIAL,
 } from '../src/historial.js';
 import { LIMITE_HISTORIAL } from '../src/catalogo.js';
-import { crearCtx } from './ayuda.js';
+import { crearCtx, agregarActividadLegada } from './ayuda.js';
 
 const HOY = '2026-10-06';
 
 function hogarBase(ctx) {
   let e = crearHogarInicial(ctx);
-  e = agregarHabitante(e, 'familiar', { nombre: 'Diana', parentesco: 'pareja', genero: 'femenino' }, ctx).estado;
-  e = agregarHabitante(e, 'familiar', { nombre: 'Luis', parentesco: 'hermano', genero: 'masculino' }, ctx).estado;
+  e = agregarHabitante(e, 'familiar', { nombre: 'Diana', aspecto: 'adulta' }, ctx).estado;
+  e = agregarHabitante(e, 'familiar', { nombre: 'Luis', aspecto: 'adulto' }, ctx).estado;
   return agregarHabitante(e, 'mascota', { nombre: 'Firulais', especie: 'perro' }, ctx).estado;
 }
 
@@ -30,7 +30,7 @@ const cocina = (e) => espaciosDeTipo(e, 'cocina')[0];
 
 // Crea una puntual de Diana (o de `extra.miembroId`) y la marca "Hecho": el historial gana una entrada.
 function hacer(estado, nombre, ctx, extra = {}) {
-  const r = agregarActividad(estado, {
+  const r = agregarActividadLegada(estado, {
     nombre, icono: 'otra', miembroId: diana(estado).id, espacioId: null, tipo: 'puntual', vence: HOY, frecuenciaDias: null, ...extra,
   }, ctx);
   assert.equal(r.ok, true, `${nombre}: ${r.error}`);

@@ -1,7 +1,7 @@
 // src/almacen.js
-import { crearHogarInicial } from './hogar.js';
+import { crearHogarInicial, tocar } from './hogar.js';
 import {
-  PARENTESCOS, GENEROS, ESPECIES, ICONOS, FRECUENCIAS, DIAS_RUTINA, PASO_RUTINA, ESTADOS_INTERCAMBIO, MIN_ESTRELLAS, MAX_ESTRELLAS,
+  ASPECTOS, ASPECTO_INICIAL, ESPECIES, ICONOS, FRECUENCIAS, DIAS_RUTINA, PASO_RUTINA, ESTADOS_INTERCAMBIO, MIN_ESTRELLAS, MAX_ESTRELLAS,
 } from './catalogo.js';
 import { esFechaValida } from './fechas.js';
 
@@ -22,6 +22,14 @@ function tieneHogarValido(estado) {
 const enLista = (lista, valor) => typeof valor === 'string' && Object.hasOwn(lista, valor);
 const nuloOEnLista = (lista, valor) => valor === null || enLista(lista, valor);
 
+// Listas cerradas hasta la versión 6 (features 002 a 006), solo para validar y migrar documentos anteriores (ADR-007 de aspecto).
+const PARENTESCOS_V6 = {
+  pareja: 'Pareja', hijo: 'Hijo/a', padre_madre: 'Padre o madre', hermano: 'Hermano/a', abuelo: 'Abuelo/a', otro: 'Otro familiar',
+};
+const GENEROS_V6 = { femenino: 'Femenino', masculino: 'Masculino', otro: 'Otro' };
+const ESPECIES_V6 = { perro: 'Perro', gato: 'Gato', otro: 'Otro' };
+const ASPECTO_DE_GENERO_V6 = { femenino: 'adulta', masculino: 'adulto', otro: 'neutro' };
+
 // Reglas de los miembros desde la versión 2 (ADR-002 de modelo de miembros, FR-9 de la 002).
 // Solo se validan los miembros activos: los eliminados quedan fuera de toda validación (FR-10).
 function miembrosValidos(estado) {
@@ -29,8 +37,8 @@ function miembrosValidos(estado) {
   const activos = estado.miembros.filter((m) => m.eliminadoEn === null);
   if (!propietaria || activos.filter((m) => m.cuentaId === propietaria).length !== 1) return false;
   return activos.every((m) => {
-    if (m.tipo === 'mascota') return m.parentesco === null && m.genero === null && enLista(ESPECIES, m.especie);
-    if (m.tipo === 'persona') return m.especie === null && nuloOEnLista(PARENTESCOS, m.parentesco) && nuloOEnLista(GENEROS, m.genero);
+    if (m.tipo === 'mascota') return m.parentesco === null && m.genero === null && enLista(ESPECIES_V6, m.especie);
+    if (m.tipo === 'persona') return m.especie === null && nuloOEnLista(PARENTESCOS_V6, m.parentesco) && nuloOEnLista(GENEROS_V6, m.genero);
     return false;
   });
 }

@@ -1,5 +1,5 @@
 // src/hogar.js
-import { TIPOS, ETIQUETAS, LIMITES, ADMITE_BANO, PARENTESCOS, GENEROS, ESPECIES, LIMITES_HABITANTES } from './catalogo.js';
+import { TIPOS, ETIQUETAS, LIMITES, ADMITE_BANO, ASPECTOS, ESPECIES, LIMITES_HABITANTES } from './catalogo.js';
 
 const MAX_NOMBRE = 20;
 const PATRON_AUTOMATICO = new RegExp(
@@ -35,14 +35,14 @@ export function crearHogarInicial(ctx) {
     id: ctx.nuevoId(), hogarId, tipo, orden: 1, secuencia: i + 1,
     nombrePersonalizado: null, contenidoEn: null, ...a(),
   }));
-  // El personaje del propietario es una persona sin parentesco ni género (ADR-002 de modelo de miembros).
+  // El personaje del propietario es una persona sin aspecto (ADR-002 de modelo de miembros, ADR-007 de aspecto).
   const miembro = {
     id: ctx.nuevoId(), hogarId, nombre: 'Personaje 1', cuentaId,
-    tipo: 'persona', parentesco: null, genero: null, especie: null, ...a(),
+    tipo: 'persona', aspecto: null, especie: null, ...a(),
   };
-  // Documento versión 6 (ADR-006 de historial): el hogar empieza sin actividades, bloques de rutina, intercambios ni historial.
+  // Documento versión 7 (ADR-007 de aspecto): el hogar empieza sin actividades, bloques de rutina, intercambios ni historial.
   return {
-    version: 6, cuentas: [cuenta], hogares: [hogar], membresias: [membresia], espacios, miembros: [miembro], actividades: [], bloques: [],
+    version: 7, cuentas: [cuenta], hogares: [hogar], membresias: [membresia], espacios, miembros: [miembro], actividades: [], bloques: [],
     intercambios: [], historial: [],
   };
 }
@@ -239,19 +239,15 @@ export const puedeAgregarHabitante = (estado, clase) => contarHabitantes(estado,
 
 const enLista = (lista, valor) => typeof valor === 'string' && Object.hasOwn(lista, valor);
 
-// Datos obligatorios según la clase (FR-2): familiar → parentesco y género; mascota → especie.
+// Datos obligatorios según la clase (FR-2 de la 002, FR-5 y FR-6 de la 007): familiar → aspecto; mascota → especie.
 function validarDatos(clase, datos) {
-  if (clase === 'familiar') {
-    if (!enLista(PARENTESCOS, datos.parentesco)) return 'parentesco';
-    if (!enLista(GENEROS, datos.genero)) return 'genero';
-    return null;
-  }
+  if (clase === 'familiar') return enLista(ASPECTOS, datos.aspecto) ? null : 'aspecto';
   return enLista(ESPECIES, datos.especie) ? null : 'especie';
 }
 
 const datosDeClase = (clase, datos) => (clase === 'familiar'
-  ? { tipo: 'persona', parentesco: datos.parentesco, genero: datos.genero, especie: null }
-  : { tipo: 'mascota', parentesco: null, genero: null, especie: datos.especie });
+  ? { tipo: 'persona', aspecto: datos.aspecto, especie: null }
+  : { tipo: 'mascota', aspecto: null, especie: datos.especie });
 
 export function agregarHabitante(estado, clase, datos, ctx) {
   if (!puedeAgregarHabitante(estado, clase)) return { ok: false, error: 'limite', estado };
@@ -349,8 +345,7 @@ export const MENSAJES_ERROR = {
   duplicado: 'Ya existe otro con ese nombre.',
   'formato-automatico': 'Ese formato está reservado para los nombres automáticos (por ejemplo, "Dormitorio 3").',
   limite: 'Ya se alcanzó el límite de habitantes de esta clase.',
-  parentesco: 'Elige un parentesco de la lista.',
-  genero: 'Elige un género de la lista.',
+  aspecto: 'Elige un aspecto de la lista.',
   especie: 'Elige una especie de la lista.',
   'no-editable': 'El personaje del propietario solo se puede renombrar.',
 };

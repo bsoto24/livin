@@ -13,8 +13,8 @@ import { crearCtx } from './ayuda.js';
 
 function hogarBase(ctx) {
   let e = crearHogarInicial(ctx);
-  e = agregarHabitante(e, 'familiar', { nombre: 'Diana', parentesco: 'pareja', genero: 'femenino' }, ctx).estado;
-  e = agregarHabitante(e, 'familiar', { nombre: 'Leo', parentesco: 'hijo', genero: 'masculino' }, ctx).estado;
+  e = agregarHabitante(e, 'familiar', { nombre: 'Diana', aspecto: 'adulta' }, ctx).estado;
+  e = agregarHabitante(e, 'familiar', { nombre: 'Leo', aspecto: 'adulto' }, ctx).estado;
   return agregarHabitante(e, 'mascota', { nombre: 'Firulais', especie: 'perro' }, ctx).estado;
 }
 

@@ -5,9 +5,10 @@ import {
   crearHogarInicial, agregarHabitante, editarHabitante, eliminarHabitante, puedeAgregarHabitante, puedeEliminarMiembro,
   familiares, mascotas, habitantes, contarHabitantes, buscarMiembro, esPropietario, renombrarMiembro, espaciosActivos,
 } from '../src/hogar.js';
+import { ASPECTOS, ESPECIES } from '../src/catalogo.js';
 import { crearCtx } from './ayuda.js';
 
-const FAMILIAR = { nombre: 'Diana', parentesco: 'pareja', genero: 'femenino' };
+const FAMILIAR = { nombre: 'Diana', aspecto: 'adulta' };
 const MASCOTA = { nombre: 'Firulais', especie: 'perro' };
 
 function alta(estado, clase, datos, ctx) {
@@ -16,47 +17,64 @@ function alta(estado, clase, datos, ctx) {
   return r.estado;
 }
 
-test('FR-1, AC-9.4 (002), FR-11 (003), FR-10 (004), FR-12 (005), FR-8 (006): el hogar inicial tiene versión 6, sin actividades, bloques, intercambios ni historial, y el personaje del propietario no es un habitante', () => {
+test('FR-1, AC-9.4 (002), FR-11 (003), FR-10 (004), FR-12 (005), FR-8 (006), FR-14 (007): el hogar inicial tiene versión 7, sin actividades, bloques, intercambios ni historial, y el personaje del propietario no es un habitante', () => {
   const e = crearHogarInicial(crearCtx());
-  assert.equal(e.version, 6);
+  assert.equal(e.version, 7);
   assert.deepEqual([e.actividades, e.bloques, e.intercambios, e.historial], [[], [], [], []]);
   const [propietario] = e.miembros;
-  assert.deepEqual([propietario.tipo, propietario.parentesco, propietario.genero, propietario.especie], ['persona', null, null, null]);
+  assert.deepEqual([propietario.tipo, propietario.aspecto, propietario.especie], ['persona', null, null]);
+  assert.deepEqual(['genero' in propietario, 'parentesco' in propietario], [false, false]);
   assert.equal(esPropietario(e, propietario), true);
   assert.deepEqual(habitantes(e), []);
   assert.deepEqual([contarHabitantes(e, 'familiar'), contarHabitantes(e, 'mascota')], [0, 0]);
 });
 
-test('AC-1.2, AC-10.3: alta de un familiar con nombre, parentesco y género', () => {
+test('AC-5.4, AC-10.3: alta de un familiar con nombre y aspecto, sin género ni parentesco', () => {
   const ctx = crearCtx();
   const e = alta(crearHogarInicial(ctx), 'familiar', FAMILIAR, ctx);
   const [f] = familiares(e);
-  assert.deepEqual([f.nombre, f.tipo, f.parentesco, f.genero, f.especie, f.cuentaId], ['Diana', 'persona', 'pareja', 'femenino', null, null]);
+  assert.deepEqual([f.nombre, f.tipo, f.aspecto, f.especie, f.cuentaId], ['Diana', 'persona', 'adulta', null, null]);
+  assert.deepEqual(['genero' in f, 'parentesco' in f], [false, false]);
   assert.equal(f.hogarId, e.hogares[0].id);
   assert.equal(contarHabitantes(e, 'familiar'), 1);
   assert.deepEqual(mascotas(e), []);
 });
 
-test('AC-2.2, AC-10.3: alta de una mascota con nombre y especie, sin parentesco ni género', () => {
+test('AC-6.4, AC-10.3: alta de una mascota con nombre y especie, sin aspecto', () => {
   const ctx = crearCtx();
-  const e = alta(crearHogarInicial(ctx), 'mascota', { ...MASCOTA, parentesco: 'pareja', genero: 'femenino' }, ctx);
+  const e = alta(crearHogarInicial(ctx), 'mascota', { ...MASCOTA, aspecto: 'adulta' }, ctx);
   const [m] = mascotas(e);
-  assert.deepEqual([m.nombre, m.tipo, m.parentesco, m.genero, m.especie, m.cuentaId], ['Firulais', 'mascota', null, null, 'perro', null]);
+  assert.deepEqual([m.nombre, m.tipo, m.aspecto, m.especie, m.cuentaId], ['Firulais', 'mascota', null, 'perro', null]);
+  assert.deepEqual(['genero' in m, 'parentesco' in m], [false, false]);
   assert.equal(contarHabitantes(e, 'mascota'), 1);
 });
 
-test('AC-1.3, AC-2.3, FR-2: faltan datos o están fuera de las listas cerradas', () => {
+test('AC-5.4, AC-6.4: cada aspecto y cada especie de las listas cerradas se acepta y se guarda', () => {
+  const ctx = crearCtx();
+  for (const aspecto of Object.keys(ASPECTOS)) {
+    const r = agregarHabitante(crearHogarInicial(ctx), 'familiar', { nombre: 'Ana', aspecto }, ctx);
+    assert.equal(r.ok, true, aspecto);
+    assert.equal(familiares(r.estado)[0].aspecto, aspecto);
+  }
+  for (const especie of Object.keys(ESPECIES)) {
+    const r = agregarHabitante(crearHogarInicial(ctx), 'mascota', { nombre: 'Michi', especie }, ctx);
+    assert.equal(r.ok, true, especie);
+    assert.equal(mascotas(r.estado)[0].especie, especie);
+  }
+});
+
+test('AC-5.11, AC-6.9, FR-2: faltan datos o están fuera de las listas cerradas', () => {
   const ctx = crearCtx();
   const e = crearHogarInicial(ctx);
   const casos = [
-    ['familiar', { nombre: 'Ana', genero: 'femenino' }, 'parentesco'],
-    ['familiar', { nombre: 'Ana', parentesco: 'pareja' }, 'genero'],
-    ['familiar', { nombre: 'Ana', parentesco: 'tia', genero: 'femenino' }, 'parentesco'],
-    ['familiar', { nombre: 'Ana', parentesco: 'toString', genero: 'femenino' }, 'parentesco'],
-    ['familiar', { nombre: 'Ana', parentesco: 'pareja', genero: 'x' }, 'genero'],
+    ['familiar', { nombre: 'Ana' }, 'aspecto'],
+    ['familiar', { nombre: 'Ana', aspecto: 'robot' }, 'aspecto'],
+    ['familiar', { nombre: 'Ana', aspecto: 'toString' }, 'aspecto'],
+    ['familiar', { nombre: 'Ana', aspecto: 'femenino' }, 'aspecto'], // la clave antigua de género ya no vale
     ['mascota', { nombre: 'Michi' }, 'especie'],
-    ['mascota', { nombre: 'Michi', especie: 'loro' }, 'especie'],
-    ['familiar', { nombre: '', parentesco: 'pareja', genero: 'femenino' }, 'vacio'],
+    ['mascota', { nombre: 'Michi', especie: 'canario' }, 'especie'],
+    ['mascota', { nombre: 'Michi', especie: 'toString' }, 'especie'],
+    ['familiar', { nombre: '', aspecto: 'adulta' }, 'vacio'],
   ];
   for (const [clase, datos, error] of casos) {
     const r = agregarHabitante(e, clase, datos, ctx);
@@ -69,11 +87,11 @@ test('AC-1.3, AC-2.3, FR-2: faltan datos o están fuera de las listas cerradas',
 test('AC-1.4, AC-2.4, FR-1: límites de 8 familiares y 4 mascotas; los eliminados no cuentan', () => {
   const ctx = crearCtx();
   let e = crearHogarInicial(ctx);
-  for (let i = 1; i <= 8; i++) e = alta(e, 'familiar', { nombre: `F${i}`, parentesco: 'hijo', genero: 'otro' }, ctx);
+  for (let i = 1; i <= 8; i++) e = alta(e, 'familiar', { nombre: `F${i}`, aspecto: 'nino' }, ctx);
   for (let i = 1; i <= 4; i++) e = alta(e, 'mascota', { nombre: `M${i}`, especie: 'gato' }, ctx);
   assert.equal(puedeAgregarHabitante(e, 'familiar'), false);
   assert.equal(puedeAgregarHabitante(e, 'mascota'), false);
-  assert.equal(agregarHabitante(e, 'familiar', { nombre: 'F9', parentesco: 'hijo', genero: 'otro' }, ctx).error, 'limite');
+  assert.equal(agregarHabitante(e, 'familiar', { nombre: 'F9', aspecto: 'nino' }, ctx).error, 'limite');
   assert.equal(agregarHabitante(e, 'mascota', { nombre: 'M5', especie: 'gato' }, ctx).error, 'limite');
   e = eliminarHabitante(e, familiares(e)[0].id, ctx);
   assert.equal(contarHabitantes(e, 'familiar'), 7);
@@ -118,19 +136,19 @@ test('AC-3.5, AC-7.6, AC-10.1: editar cambia nombre y datos, rechaza el nombre v
   assert.equal(vacio.ok, false);
   assert.equal(vacio.error, 'vacio');
   assert.equal(buscarMiembro(vacio.estado, id).nombre, 'Diana');
-  e = editarHabitante(e, id, { nombre: 'Dana', parentesco: 'hermano', genero: 'otro' }, ctx).estado;
+  e = editarHabitante(e, id, { nombre: 'Dana', aspecto: 'anciana' }, ctx).estado;
   const f = buscarMiembro(e, id);
-  assert.deepEqual([f.id, f.nombre, f.parentesco, f.genero], [id, 'Dana', 'hermano', 'otro']);
+  assert.deepEqual([f.id, f.nombre, f.aspecto], [id, 'Dana', 'anciana']);
   assert.ok(f.actualizadoEn > f.creadoEn);
 });
 
-test('AC-7.5: editar una mascota cambia su especie y nunca le asigna parentesco ni género', () => {
+test('AC-6.5: editar una mascota cambia su especie y nunca le asigna aspecto', () => {
   const ctx = crearCtx();
   let e = alta(crearHogarInicial(ctx), 'mascota', MASCOTA, ctx);
   const id = mascotas(e)[0].id;
-  e = editarHabitante(e, id, { nombre: 'Firulais', especie: 'gato', parentesco: 'pareja', genero: 'femenino' }, ctx).estado;
+  e = editarHabitante(e, id, { nombre: 'Firulais', especie: 'conejo', aspecto: 'adulta' }, ctx).estado;
   const m = buscarMiembro(e, id);
-  assert.deepEqual([m.especie, m.parentesco, m.genero], ['gato', null, null]);
+  assert.deepEqual([m.especie, m.aspecto], ['conejo', null]);
 });
 
 test('AC-7.8, FR-4: el personaje del propietario no se edita como habitante ni se elimina', () => {
