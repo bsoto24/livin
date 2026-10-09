@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   crearHogarInicial, agregarHabitante, editarHabitante, eliminarHabitante, puedeAgregarHabitante, puedeEliminarMiembro,
   familiares, mascotas, habitantes, contarHabitantes, buscarMiembro, esPropietario, renombrarMiembro, espaciosActivos,
+  MENSAJES_ERROR,
 } from '../src/hogar.js';
 import { ASPECTOS, ESPECIES } from '../src/catalogo.js';
 import { crearCtx } from './ayuda.js';
@@ -189,4 +190,29 @@ test('AC-10.2: cada habitante tiene auditoría con la cuenta del propietario', (
     assert.equal(h.actualizadoPor, 'cuenta-1');
     assert.equal(h.eliminadoEn, null);
   }
+});
+
+test('AC-5.11, AC-6.9 (007): editar rechaza un aspecto o una especie fuera de las listas con el mensaje de la lista y deja el estado intacto', () => {
+  const ctx = crearCtx();
+  let e = alta(crearHogarInicial(ctx), 'familiar', FAMILIAR, ctx);
+  e = alta(e, 'mascota', MASCOTA, ctx);
+  const idFamiliar = familiares(e)[0].id;
+  const idMascota = mascotas(e)[0].id;
+  const casos = [
+    [idFamiliar, { nombre: 'Diana', aspecto: 'robot' }, 'aspecto'],
+    [idFamiliar, { nombre: 'Diana', aspecto: 'toString' }, 'aspecto'],
+    [idFamiliar, { nombre: 'Diana', aspecto: 'femenino' }, 'aspecto'], // la clave antigua de género ya no vale
+    [idFamiliar, { nombre: 'Diana' }, 'aspecto'],
+    [idMascota, { nombre: 'Firulais', especie: 'canario' }, 'especie'],
+    [idMascota, { nombre: 'Firulais', especie: 'toString' }, 'especie'],
+    [idMascota, { nombre: 'Firulais' }, 'especie'],
+  ];
+  for (const [id, datos, error] of casos) {
+    const r = editarHabitante(e, id, datos, ctx);
+    assert.equal(r.ok, false, JSON.stringify(datos));
+    assert.equal(r.error, error, JSON.stringify(datos));
+    assert.equal(r.estado, e, JSON.stringify(datos));
+  }
+  assert.equal(MENSAJES_ERROR.aspecto, 'Elige un aspecto de la lista.');
+  assert.equal(MENSAJES_ERROR.especie, 'Elige una especie de la lista.');
 });

@@ -874,3 +874,33 @@ test('AC-15.9 (007): en un documento v7, una actividad no eliminada asignada a u
   assert.match(abrirDatos(conActividad(base, { ...act1, miembroId: firulais.id })).aviso, /No se pudo recuperar/);
   assert.equal(abrirDatos(conActividad(base, { ...act1, miembroId: firulais.id, eliminadoEn: '2026-10-06T11:00:00.000Z' })).aviso, null);
 });
+
+test('AC-15.5 (007): un hogar de la versión 3, 4 o 5 con una actividad de una mascota se abre sin aviso, con esa actividad dada de baja y todo lo demás como estaba', () => {
+  const casos = [
+    [3, hogarConActividades, comoV3],
+    [4, hogarConBloques, comoV4],
+    [5, hogarConIntercambios, comoV5],
+  ];
+  for (const [version, construir, comoVersion] of casos) {
+    const base = construir(crearCtx());
+    const firulais = base.miembros[2];
+    const conMascota = {
+      ...base, actividades: [...base.actividades, actividadGuardada(base, 'act-9', { nombre: 'Paseo', miembroId: firulais.id, espacioId: null })],
+    };
+    const doc = comoVersion(conMascota);
+    assert.equal(doc.version, version);
+    const texto = JSON.stringify(doc);
+    const storage = almacenEnMemoria({ [CLAVE_DATOS]: texto });
+    const { estado, aviso } = iniciarSesion(crearAlmacen(storage), { cuentaId: 'cuenta-1', nuevoId: () => 'x', ahora: RELOJ });
+    const etiqueta = `versión ${version}`;
+    assert.equal(aviso, null, etiqueta);
+    assert.equal(estado.version, 7, etiqueta);
+    const paseo = estado.actividades.find((a) => a.id === 'act-9');
+    assert.equal(paseo.eliminadoEn, '2026-10-09T10:00:00.000Z', etiqueta);
+    assert.deepEqual(estado.actividades.filter((a) => a.id !== 'act-9'), base.actividades, etiqueta); // las demás, sin cambios
+    assert.deepEqual(estado.miembros, base.miembros, etiqueta); // mascota y aspectos migrados como siempre
+    assert.equal(estado.miembros[1].aspecto, 'adulta', etiqueta);
+    assert.deepEqual({ ...estado, actividades: base.actividades }, base, etiqueta);
+    assert.equal(storage.datos.get(CLAVE_DATOS), texto, etiqueta); // abrir no reescribe el documento
+  }
+});
