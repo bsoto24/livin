@@ -3,13 +3,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   crearHogarInicial, agregarHabitante, agregarEspacio, eliminarEspacio, eliminarHabitante, espaciosDeTipo, familiares, mascotas, banoDe,
-  consecuenciasDeEliminar,
+  consecuenciasDeEliminar, puedeEliminar,
 } from '../src/hogar.js';
 import { agregarActividad, editarActividad, eliminarActividad, marcarHecha, buscarActividad, limpiezaDeEspacio } from '../src/actividades.js';
 import { proponer, aceptar, esVigente } from '../src/intercambios.js';
 import { sumarDias } from '../src/fechas.js';
 import { LIMITE_HISTORIAL } from '../src/catalogo.js';
-import { crearCtx } from './ayuda.js';
+import { crearAlmacen } from '../src/almacen.js';
+import { crearCtx, almacenEnMemoria } from './ayuda.js';
 
 const HOY = '2026-10-06';
 
@@ -231,4 +232,57 @@ test('AC-7.9, AC-9.5: eliminar a la persona acreditada, o a quien calificó, con
   e = { ...e, historial: e.historial.map((x) => ({ ...x, estrellas: 4, calificadoPor: luis(e).id })) };
   assert.deepEqual(eliminarHabitante(e, diana(e).id, ctx).historial, e.historial);
   assert.deepEqual(eliminarHabitante(e, luis(e).id, ctx).historial, e.historial);
+});
+
+test('Reliability, AC-8.10 (005): "Hecho" tras eliminar al responsable original acredita a quien la tiene y la repetitiva se queda con él', () => {
+  const ctx = crearCtx();
+  let e = hogarBase(ctx);
+  e = nueva(e, 'Barrer', ctx, { icono: 'barrer', tipo: 'repetitiva', frecuenciaDias: 7 });
+  e = nueva(e, 'Basura', ctx, { icono: 'basura', miembroId: luis(e).id });
+  const id = (nombre) => e.actividades.find((a) => a.nombre === nombre).id;
+  const p = proponer(e, { proponenteId: diana(e).id, ofrecidaId: id('Barrer'), pedidaId: id('Basura') }, ctx);
+  e = aceptar(p.estado, p.estado.intercambios.at(-1).id, luis(e).id, ctx).estado;
+  const barrer = id('Barrer');
+  assert.deepEqual([buscarActividad(e, barrer).miembroId, buscarActividad(e, barrer).devolverA], [luis(e).id, diana(e).id]);
+  const dianaId = diana(e).id;
+  const luisId = luis(e).id;
+  e = eliminarHabitante(e, dianaId, ctx);
+  const despues = marcarHecha(e, barrer, HOY, ctx);
+  assert.equal(despues.historial.length, 1);
+  assert.equal(despues.historial[0].miembroId, luisId);
+  assert.notEqual(despues.historial[0].miembroId, dianaId);
+  const a = buscarActividad(despues, barrer);
+  assert.deepEqual([a.miembroId, a.devolverA], [luisId, null]);
+});
+
+test('Reliability: ninguna baja ni el tope de 200 entradas deja una entrada con referencias rotas (el documento v6 se vuelve a cargar)', () => {
+  const ctx = crearCtx();
+  let base = agregarEspacio(hogarBase(ctx), 'dormitorio', ctx);
+  base = agregarEspacio(base, 'bano', ctx);
+  const [d1] = espaciosDeTipo(base, 'dormitorio');
+  const bano = banoDe(base, d1.id);
+  base = hacer(base, 'Platos', ctx, { espacioId: cocina(base).id });
+  base = hacer(base, 'Ducha', ctx, { miembroId: luis(base).id, espacioId: bano.id });
+  base = hacer(base, 'Paseo', ctx, { miembroId: firulais(base).id });
+  base = hacer(base, 'Barrer', ctx, { tipo: 'repetitiva', frecuenciaDias: 7, espacioId: d1.id });
+  const recargado = (estado) => {
+    const almacen = crearAlmacen(almacenEnMemoria());
+    almacen.guardar(estado);
+    return almacen.cargar();
+  };
+  const verificar = (estado, que) => {
+    const { estado: leido, error } = recargado(estado);
+    assert.equal(error, null, que);
+    assert.deepEqual(leido, JSON.parse(JSON.stringify(estado)), que);
+  };
+  verificar(base, 'estado de partida');
+  const eliminables = base.espacios.filter((x) => x.eliminadoEn === null && puedeEliminar(base, x.id));
+  assert.ok(eliminables.length >= 3);
+  for (const x of eliminables) verificar(eliminarEspacio(base, x.id, ctx), `sin ${x.tipo}`);
+  for (const m of [...familiares(base), ...mascotas(base)]) verificar(eliminarHabitante(base, m.id, ctx), `sin ${m.nombre}`);
+  const lleno = conHistorial(hogarBase(ctx), LIMITE_HISTORIAL, ctx);
+  assert.equal(lleno.historial.length, LIMITE_HISTORIAL);
+  const tope = hacer(lleno, 'Una más', ctx);
+  assert.equal(tope.historial.length, LIMITE_HISTORIAL);
+  verificar(tope, 'tras superar el tope');
 });

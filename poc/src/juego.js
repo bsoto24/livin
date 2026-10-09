@@ -538,6 +538,7 @@ function cambiarDia(fecha) {
   escena().refrescarActividades();
   if (modo === 'edicion') pintarPanel();
   if (hojaActual) pintarHoja();
+  if (historialAbierto()) pintarHistorial(); // AC-2.5: "Hoy" y "Ayer" se recalculan con el día nuevo
 }
 
 // El minuto cambió en exploración (FR-3 de la 004): cada familiar con un objetivo nuevo empieza a ir a su lugar.
@@ -1138,6 +1139,7 @@ $('ficha-intercambio').querySelector('form').addEventListener('submit', (ev) => 
 });
 
 // ---------- Historial y calificaciones (FR-3 a FR-6 de la 006) ----------
+const historialAbierto = () => $('panel-historial').style.display === 'flex';
 let filtroHistorial = null; // null = "Todos"; si no, el id de un miembro. Vuelve a "Todos" cada vez que se abre el panel (AC-3.10)
 
 function abrirHistorial() {
