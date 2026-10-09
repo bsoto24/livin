@@ -16,10 +16,10 @@ function alta(estado, clase, datos, ctx) {
   return r.estado;
 }
 
-test('FR-1, AC-9.4 (002), FR-11 (003), FR-10 (004), FR-12 (005): el hogar inicial tiene versión 5, sin actividades, bloques ni intercambios, y el personaje del propietario no es un habitante', () => {
+test('FR-1, AC-9.4 (002), FR-11 (003), FR-10 (004), FR-12 (005), FR-8 (006): el hogar inicial tiene versión 6, sin actividades, bloques, intercambios ni historial, y el personaje del propietario no es un habitante', () => {
   const e = crearHogarInicial(crearCtx());
-  assert.equal(e.version, 5);
-  assert.deepEqual([e.actividades, e.bloques, e.intercambios], [[], [], []]);
+  assert.equal(e.version, 6);
+  assert.deepEqual([e.actividades, e.bloques, e.intercambios, e.historial], [[], [], [], []]);
   const [propietario] = e.miembros;
   assert.deepEqual([propietario.tipo, propietario.parentesco, propietario.genero, propietario.especie], ['persona', null, null, null]);
   assert.equal(esPropietario(e, propietario), true);

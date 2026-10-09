@@ -13,11 +13,11 @@ test('contrato del catálogo de intercambios: estados y límite', () => {
   assert.equal(catalogo.LIMITE_INTERCAMBIOS, 20);
 });
 
-test('contrato del modelo y del almacén: jugador activo, hogar inicial v5 y migración', () => {
+test('contrato del modelo y del almacén: jugador activo, hogar inicial v6 y migración', () => {
   for (const f of ['propietarioDe', 'personasQueJuegan', 'puedeJugar', 'jugadorInicial']) assert.equal(typeof hogar[f], 'function', f);
   assert.equal(typeof almacen.migrarAV5, 'function');
   const e = hogar.crearHogarInicial(crearCtx());
-  assert.deepEqual([e.version, e.intercambios], [5, []]);
+  assert.deepEqual([e.version, e.intercambios], [6, []]);
 });
 
 test('contrato de los intercambios: funciones y mensajes', () => {
