@@ -4,16 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-Livin turns household chore management into a GBA-style top-down 2D game: the family's real home is a walkable map. The repo is **docs-only so far** — no code, no commits. The first feature, `001-mapa-editor-hogar` (map + home editor), is specified and planned but not implemented. All docs are written in Spanish; keep the spec's domain vocabulary (hogar, espacio, cuarto, baño común, baño interno, modo edición).
+Livin turns household chore management into a GBA-style top-down 2D game: the family's real home is a walkable map. The code is a **disposable web PoC in `poc/`** (the official stack is still undecided); features 001 to 008 are implemented, merged into `main` and pushed, with 367 automated tests. All docs are written in Spanish; keep the spec's domain vocabulary (hogar, espacio, cuarto, baño común, baño interno, modo edición).
 
-Source of truth, in order: `docs/specs/001-mapa-editor-hogar/spec.md` (approved v1.0.0) → `plan.md` (phased, test-first, includes full code listings) → `data-model.md`, `prd.md`, and the two ADRs in `docs/adr/`. Project identity and principles live in `.claude/memory/foundation.md`; stack/test/convention context in `.claude/memory/steering/`; per-topic rules in `.claude/rules/`. SDD workflow: start with `sdd-superpowers:sdd-workflow`.
+Implemented features, one folder each under `docs/specs/`: `001-mapa-editor-hogar` (map and home editor), `002-familiares-y-mascotas` (family members and pets that walk), `003-actividades` (chores with clean/messy/disaster state), `004-rutinas` (weekly routines and the home's entrance), `005-jugador-activo-e-intercambios` (who plays, chore exchanges), `006-calificaciones-e-historial` (history and star ratings), `007-menu-y-formularios-simples` (bottom bar with a drawer per section, simple forms), and `008-base-visual-y-mundo` (pixel-art floors, walls and furniture, Silkscreen font). The saved document is at format `version: 7` (key `livin:datos:v1`; older versions migrate on load). Features 001 to 007 were verified on an Android phone; 008 is verified on desktop only, and its phone check and the map label size (`TAM_LETRA_MAPA` in `src/juego.js`) are still pending. The art plan continues with `009` (animated inhabitants) and `010` (cleanliness states and icons).
 
-## Planned commands (from plan.md; run inside `poc/`)
+Source of truth, per feature and in order: `docs/specs/NNN-slug/spec.md` (approved) → `plan.md` (phased, test-first, includes full code listings) → `data-model.md` (when the saved format changes), `prd.md`, `verification.md` (evidence), and the ADRs in `docs/adr/` (numbered by the feature that produced them). Project identity and principles live in `.claude/memory/foundation.md`; stack/test/convention context in `.claude/memory/steering/`; per-topic rules in `.claude/rules/`; narrative lessons in `docs/lessons/`. SDD workflow: start with `sdd-superpowers:sdd-workflow`; new features branch from `main` (`feat/NNN-slug`).
+
+## Commands (run inside `poc/`)
 
 The PoC lives in `poc/` (not the repo root), has no npm dependencies, and requires Node ≥ 20.
 
 ```bash
-cd poc && npm test                              # node --test "test/*.test.js" (plan expects 40 passing tests)
+cd poc && npm test                              # node --test "test/*.test.js" (367 passing tests as of feature 008)
 cd poc && node --test test/hogar.test.js        # a single test file
 cd poc && node --test --test-name-pattern="<name>" test/distribucion.test.js   # a single test by name
 cd poc && npm start                             # npx serve -l 8080 . → http://localhost:8080 (phone: http://<LAN-IP>:8080)
