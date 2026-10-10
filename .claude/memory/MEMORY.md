@@ -1,3 +1,3 @@
-- [Estado de Livin](livin-project-state.md) — 001 a 007 subidas y verificadas en el teléfono; 008 (arte pixel y Silkscreen) mergeada y subida el 2026-10-10, pendiente de teléfono y tamaño de letra; siguen 009 y 010
+- [Estado de Livin](livin-project-state.md) — 001 a 008 subidas (008 verificada en escritorio); 009 (habitantes animados) mergeada en local el 2026-10-10 y sin subir, con teléfono y medición con carga completa pendientes; sigue la 010
 - [Livin no está en producción](livin-no-esta-en-produccion.md) — se aceptan migraciones que descartan datos sin valor, pero nunca un error al abrir un hogar guardado
 - [Docs in Spanish](docs-in-spanish.md) — specs/ADRs/foundation and domain vocabulary are Spanish; chat is English
