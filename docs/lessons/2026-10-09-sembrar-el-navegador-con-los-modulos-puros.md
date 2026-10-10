@@ -19,6 +19,8 @@ En vez de crear todo a mano con el modo edición, se usó la consola del navegad
 - Para verificar una función de interfaz, sembrar el estado con las funciones puras importadas desde la página, guardarlo en `localStorage` y recargar; después manejar los paneles del DOM con JavaScript o con clics por coordenadas (las coordenadas de `computer` están en el doble de los píxeles CSS de la ventana).
 - Anotar en `verification.md` qué parte se sembró y qué no se tocó (los toques sobre el lienzo), para que la verificación en el teléfono la complete.
 - Apagar el servidor estático temporal y limpiar `localStorage` al terminar.
+- Al sembrar un documento de una versión anterior (por ejemplo, un v6 para probar la migración), respetar los valores admitidos por esa versión: en la 008 un v6 con mascotas «conejo» y «loro» (especies que solo existen desde la v7) se rechazó con «No se pudo recuperar tu hogar guardado» y se creó un hogar nuevo, y el error era de la prueba, no del producto. Si aparece ese aviso, comprobar primero los datos sembrados.
+- Para la carga completa (8 familiares, 4 mascotas, 50 pendientes, 200 entradas) bastó un bucle de `agregarActividad` y `marcarHecha`; la verificación de la 008 midió así de 105 a 120 fps y de 7,5 a 11,7 ms de redibujo en escritorio.
 
 ## Señales a vigilar
 
