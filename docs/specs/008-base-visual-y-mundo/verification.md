@@ -29,10 +29,28 @@
 | Redibujo en edición (AC-9.2) | 3 a 7 ms al agregar espacios hasta el hogar más grande permitido (meta: menos de 100 ms; la 007 medía 62,7 ms con la carga completa) |
 | Cuadros por segundo | 86 a 120 fps en el navegador de escritorio |
 
+## Ronda 2: evidencia que faltó en la primera revisión (2026-10-10)
+
+La primera pasada de `sdd-review` no halló desvíos de código, pero pidió evidencia en el navegador de escritorio que faltaba. Se recogió así:
+
+| Comprobación | Resultado |
+|---|---|
+| **Pestañas a 360 px (AC-7.2)** | con el viewport emulado a 360×800 las cuatro pestañas caben, también con «Intercambios (20)» en dos líneas |
+| **Carga completa en escritorio (AC-9.2, AC-9.6)** | hogar con 21 espacios, 8 familiares y el propietario, 4 mascotas, 50 actividades pendientes y 200 entradas de historial (armado con las funciones del dominio): movimiento **105 a 120 fps** durante 30 s con todos caminando; redibujo de edición al agregar y quitar espacios **7,5 a 11,7 ms** (meta 100 ms; la 007 medía 62,7 ms); arte **1 ms** |
+| **Nitidez (AC-9.1, riesgo D3)** | en un Phaser aparte se reprodujo la secuencia de la escena (textura de render de 16×16, filtro NEAREST, `resize` a 528×176 y `clear`): el `scaleMode` sigue en NEAREST y los parámetros GL de mínimo y máximo también, antes y después del `resize`. Capturas en exploración y en edición: píxeles nítidos |
+| **Orden de carga de la fuente (AC-8.2)** | por construcción (`await esperarFuente()` antes de `new Phaser.Game`, `juego.js:505`) y con varias recargas: la fuente figura `loaded` y las primeras capturas ya muestran Silkscreen |
+| **Toque en el mapa (AC-5.3)** | el código de toques no cambió; en edición con la sección «Espacios», tocar el mapa abrió la ficha del espacio («Sala 1») |
+| **Etiqueta de tamaño constante (AC-6.7)** | el mecanismo `setScale(1 / zoom)` no cambió; el texto se ve del mismo tamaño en exploración (zoom 3) y en edición |
+| **Hogar guardado de una versión anterior (AC-10.1, AC-10.2)** | un documento `version: 6` (con familiar, mascota «perro» y una actividad) se abrió sin aviso y con el arte nuevo; el documento sigue en `version: 6` hasta el siguiente cambio, como antes de esta feature |
+| **Posición guardada (AC-10.3)** | `posicion.js` y `distribucion.js` no cambiaron (diff vacío) y sus pruebas pasan; la comprobación manual no fue concluyente porque el canvas no recibió las flechas del teclado en la prueba automatizada |
+
+> Un primer intento con un documento v6 «de carga completa» dio el aviso «No se pudo recuperar tu hogar guardado» porque incluía mascotas «conejo» y «loro», especies que la versión 6 no admitía (error de la prueba, no del producto); con un v6 válido se abrió sin aviso.
+
 ## Límites aceptados y pendientes
 
 - **Tamaño de la letra del mapa (decisión pendiente, riesgo 1 de la spec):** `TAM_LETRA_MAPA = '12px'`. Con ese tamaño, en modo edición con el zoom bajo y varios espacios, los nombres largos («Espacio de mascota 1», «Lavandería 1») son más anchos que su espacio y se salen por el borde de la pantalla o se acercan a los vecinos. En la versión anterior (fuente del sistema) también eran más anchos que el espacio, pero unos 30 % menos. Quien decide el producto debe juzgarlo en el teléfono y, si hace falta, cambiar `TAM_LETRA_MAPA` en `poc/src/juego.js` (8 px es el tamaño nativo de la fuente y el más corto; 16 px, el más legible y el más ancho). No se probó un cambio en vivo porque el juego no expone la escena al navegador.
-- **Verificación en el teléfono Android:** pendiente (pasos 2, 3, 5, 7 y 10 del plan, más fps, `regen` y `arte` con la carga completa de 8 familiares, 4 mascotas, 50 actividades y 200 entradas). La carga completa no se midió en escritorio: el trabajo nuevo (el mundo) no depende de los habitantes ni de las actividades.
+- **Con la carga completa en modo edición, las etiquetas de nombre en Silkscreen de 12 px se amontonan** (junto a las burbujas de 50 actividades): las más largas se cortan por el borde de la pantalla y se pisan con las vecinas. Es el mismo caso que el riesgo 1 de la spec; el tamaño lo decide quien ve el teléfono.
+- **Verificación en el teléfono Android:** pendiente (pasos 2, 3, 5, 7 y 10 del plan: suelos, mobiliario, letra, pestañas y nitidez a simple vista, más fps, `regen` y `arte` en el dispositivo de referencia con la carga completa). En escritorio la carga completa ya se midió (ver «Ronda 2»).
 - **Dibujos:** son la primera versión de las cuadrículas; los ajustes visuales posteriores se hacen en `poc/src/arte/` sin tocar el resto.
 - El símbolo `✓` de la insignia «limpio» se dibuja con la fuente del sistema hasta la feature 010 (decisión (e) de la spec).
 - `distribucion.test.js` conserva dos importaciones sin uso (`cuartosEnOrden`, `eliminarEspacio`) tras mover el generador a `ayuda.js`; es inocuo.
