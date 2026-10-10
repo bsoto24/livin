@@ -65,8 +65,20 @@ Con el panel del navegador visible se midieron **109 a 121 fps** (el juego y `re
 - **Teléfono Android** (puede hacerse junto con la verificación pendiente de la 008): servir `poc/` en `0.0.0.0:8080` solo mientras dura la prueba y apagarlo después; cargar los dos hogares de prueba (por la consola del navegador del teléfono o con una pestaña de escritorio que comparta el origen) y repetir: reconocimiento de los 14 personajes (AC-2.5), caminar en las cuatro direcciones con el cambio de pie, modo edición, salida y regreso por la entrada, y nitidez. Con el hogar de carga completa, anotar fps, `regen` y `arte` del indicador (AC-9.5, AC-9.6, AC-9.7).
 - **Retoques de dibujo**: ninguno hizo falta en la verificación de escritorio; si en el teléfono algún rasgo (coletas, bastón, orejas del gato) no se distingue, se ajusta en `poc/src/arte/personajes.js` y se repiten las pruebas de `personajes.test.js`.
 
+## Revisión de la implementación (`sdd-review`, modo B)
+
+**Veredicto: SPEC-ALIGNED** (una ronda, 2026-10-10). Suite fresca: 391 pruebas, 0 fallos; la matriz cubre los 67 criterios: ninguno ✗ Missing.
+
+- **Pendientes del teléfono** (el código los soporta): AC-2.5, AC-9.5 (medición en el dispositivo de referencia), AC-9.6 y AC-9.7.
+- **Huecos de evidencia menores** (el código los soporta): AC-2.3 y AC-2.4 (neutro, conejo, hámster, loro y «Otro» no se vieron a tamaño completo en escritorio), AC-7.2 (dos habitantes en una casilla, uno en ruta y otro paseando), AC-7.4 (tocar un personaje en edición) y AC-6.2 (entrar en edición con un paso en curso: `entrarEdicion` no abre el drawer mientras el jugador camina, igual que antes de la 009). Se cubren en la pasada del teléfono.
+- **Notas** sin incumplir la spec: no hay una prueba específica de la 009 que fije que el documento guardado no cambia (AC-4.10; lo cubren el `git diff` vacío de los módulos del modelo, el viaje de ida y vuelta de `hogares-de-prueba.test.js` y las pruebas de la versión 7); el cambio de especie en la ficha (AC-3.6) no se probó en el navegador pero usa el mismo camino de redibujo que el cambio de aspecto.
+
 ## Límites aceptados
 
 - El indicador de fps de la pantalla no se actualiza cuando el navegador baja `requestAnimationFrame`; solo vale con la pestaña visible.
 - A 16×16 y con el zoom bajo del modo edición los personajes son muy pequeños y se leen sobre todo por el nombre (riesgo 1 de la spec).
 - Un habitante en ruta con muchos pasos seguidos alterna el pie en cada casilla, también si da la vuelta; no se reinicia el pie al girar.
+- Un habitante que pasa a ser quien juega a mitad de un paso conserva su registro de caminar, así que puede mostrar un cuadro de paso hasta 500 ms estando quieto.
+- Si la posición guardada deja de ser válida y el juego recoloca al jugador de frente, el registro de caminar conserva la dirección anterior hasta que se mueva.
+- El paso del tween usa el reloj de Phaser y el cuadro usa `performance.now()`: con la pestaña oculta puede desfasarse un cuadro de pie.
+- Un familiar que pasa a ser quien juega tras estar fuera de casa conserva la dirección de su último paso, no mira de frente.
