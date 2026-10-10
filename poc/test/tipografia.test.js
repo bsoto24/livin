@@ -16,3 +16,12 @@ test('AC-8.4: la fuente Silkscreen está en el repositorio, con su licencia y su
   assert.match(leeme, /SIL Open Font License/);
   assert.match(leeme, /https:\/\//);
 });
+
+test('AC-7.1, AC-7.3 y AC-8.1: index.html declara Silkscreen local y la usa solo en las pestañas y en el título del drawer', () => {
+  const html = leer('index.html');
+  assert.match(html, /@font-face\s*\{[^}]*font-family:\s*'Silkscreen'[^}]*url\('assets\/fonts\/silkscreen-latin\.woff2'\)/);
+  assert.match(html, /#barra \.pestana small\s*\{[^}]*font-family:\s*'Silkscreen'/);
+  assert.match(html, /#drawer-titulo\s*\{[^}]*font-family:\s*'Silkscreen'/);
+  assert.doesNotMatch(html, /fonts\.googleapis|fonts\.gstatic/);
+  assert.doesNotMatch(leer('src/juego.js'), /fonts\.googleapis|fonts\.gstatic/);
+});

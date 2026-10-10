@@ -40,22 +40,24 @@ import {
   sugerenciasPara, iconoDeFicha, iconoDeEdicion, OPCIONES_RECURRENCIA, datosDeRecurrencia, valorDeRecurrencia, resumenDeFicha, inicialDe,
 } from './formularios.js';
 import { ahoraLocal } from './fechas.js';
+import { PALETA, TAM } from './arte/paleta.js';
+import { TEXTURAS, arteDelMapa } from './arte/casillas.js';
 
 const TILE = 16;
 const MS_POR_CASILLA = 250; // 4 casillas por segundo (AC-2.2)
 const ZOOM_EXPLORACION = 3;
-const COLOR_PISO = { sala: 0xe8dcc0, comedor: 0xe2d2b0, cocina: 0xd9e4e8, bano: 0xcfe3ea, lavanderia: 0xdde3d6,
-  mascota: 0xeadfcf, dormitorio: 0xe9d6dc, oficina: 0xdcd8ea, pasillo: 0xd6d1c4 };
-const COLOR_MUEBLE = { B: 0x7f77dd, n: 0x8a6d4b, S: 0x1d9e75, T: 0x8a6d4b, M: 0x8a6d4b, s: 0xa6875f, K: 0x5f5e5a,
-  R: 0xb4b2a9, L: 0x888780, W: 0xffffff, w: 0xf1efe8, U: 0x85b7eb, E: 0x8a6d4b, e: 0x444441, V: 0xb4b2a9, P: 0xd85a30, o: 0xef9f27 };
-const COLOR_PARED = 0x5b4a3f;
-// Profundidades: mapa 0, etiquetas de espacio 5, personaje 10, nombre del personaje 20.
+// Tipografía (FR-7 de la 008): Silkscreen con la fuente del sistema como respaldo, también letra a letra si falta un símbolo (AC-6.5).
+// El tamaño de la etiqueta se ajusta con la medida del teléfono (Fase 6 del plan); 12 px es el de partida.
+const FUENTE = 'Silkscreen, system-ui, sans-serif';
+const TAM_LETRA_MAPA = '12px';
+const ESPERA_FUENTE_MS = 1000;
+// Profundidades: mundo 0, objetos del suelo 1, etiquetas de espacio 5, personaje 10, nombre del personaje 20.
 const PROF_ETIQUETA_ESPACIO = 5;
 const PROF_PERSONAJE = 10;
 const PROF_ETIQUETA_PERSONAJE = 20;
 // Las etiquetas se crean siempre con este estilo fijo y se contrarrestan con setScale(1 / zoom): así se ven 1:1 en pantalla.
 const ESTILO_ETIQUETA = {
-  fontFamily: 'system-ui, sans-serif', fontSize: '12px', color: '#2a221c',
+  fontFamily: FUENTE, fontSize: TAM_LETRA_MAPA, color: '#2a221c',
   backgroundColor: 'rgba(242,234,211,0.85)', padding: { x: 3, y: 2 },
 };
 // Aspecto de los habitantes (FR-8 de la 002, FR-5 y FR-6 de la 007), arte de marcador: personas de 12×14 —más pequeñas si son niños— y
@@ -155,11 +157,43 @@ function guardarPosicion() {
   if (!almacen.guardarPosicion(posGuardada).ok) avisar('No se pudo guardar la posición.');
 }
 
+// FR-1 y AC-9.5 de la 008: todos los dibujos se pintan una sola vez en una hoja de texturas, con un cuadro con nombre por clave.
+// Devuelve el tiempo que tardó, en milisegundos, para el indicador de depuración.
+function prepararArte(escena) {
+  const t0 = performance.now();
+  const claves = Object.keys(TEXTURAS);
+  const hoja = escena.textures.createCanvas('arte', TAM * claves.length, TAM);
+  const contexto = hoja.getContext();
+  claves.forEach((clave, i) => {
+    TEXTURAS[clave].forEach((fila, y) => [...fila].forEach((ch, x) => {
+      if (ch === '.') return;
+      contexto.fillStyle = PALETA[ch];
+      contexto.fillRect(i * TAM + x, y, 1, 1);
+    }));
+    hoja.add(clave, 0, i * TAM, 0, TAM, TAM);
+  });
+  hoja.refresh();
+  return performance.now() - t0;
+}
+
+// FR-7 de la 008: espera a Silkscreen hasta un segundo; si no llega o falla, el juego sigue con la fuente del sistema (AC-8.3).
+async function esperarFuente() {
+  const limite = new Promise((resolver) => { setTimeout(resolver, ESPERA_FUENTE_MS); });
+  try {
+    await Promise.race([document.fonts.load(`${TAM_LETRA_MAPA} Silkscreen`), limite]);
+  } catch {
+    // sin fuente: se usa la del sistema
+  }
+}
+
 class Escena extends Phaser.Scene {
   constructor() { super('principal'); }
 
   create() {
-    this.mapa = this.add.graphics();
+    this.msArte = prepararArte(this); // los dibujos se preparan una sola vez (AC-9.5)
+    this.mundo = this.add.renderTexture(0, 0, TILE, TILE).setOrigin(0, 0).setDepth(0); // suelo, paredes y mobiliario
+    this.mundo.texture.setFilter(Phaser.Textures.FilterMode.NEAREST); // píxeles nítidos a cualquier zoom (AC-9.1)
+    this.mapa = this.add.graphics().setDepth(1); // objetos del suelo: encima del mundo y debajo de los personajes (AC-5.1)
     this.etiquetas = new Map(); // clave de espacio → objeto de texto de su etiqueta (solo visuales, nunca interactivas)
     this.insignias = new Map(); // clave de espacio → insignia de su estado de limpieza (FR-5 de la 003)
     this.burbujas = []; // burbujas de los lugares con actividades por hacer, cada una con su texto (FR-6 de la 003)
@@ -185,28 +219,31 @@ class Escena extends Phaser.Scene {
   }
 
   redibujar() {
-    this.dibujarSuelo();
+    this.dibujarMundo();
+    this.dibujarObjetosDelSuelo();
     this.dibujarEtiquetas();
   }
 
-  // Casillas del mapa y, encima, los objetos del suelo según el estado de limpieza (FR-5 de la 003): decoración
-  // por debajo de los personajes, que no cambia las colisiones.
-  dibujarSuelo() {
+  // Suelo, paredes y mobiliario (FR-5 y FR-6 de la 008): cada casilla se compone a 1:1 en una sola imagen, que se amplía con la cámara.
+  // Solo hace falta cuando cambia la distribución; no cambia las colisiones.
+  dibujarMundo() {
+    const { ancho, alto } = distribucion;
+    if (this.mundo.width !== ancho * TILE || this.mundo.height !== alto * TILE) this.mundo.resize(ancho * TILE, alto * TILE);
+    this.mundo.clear();
+    this.mundo.beginDraw();
+    arteDelMapa(estado, distribucion).forEach((fila, y) => fila.forEach((celda, x) => {
+      if (!celda) return;
+      if (celda.base) this.mundo.batchDrawFrame('arte', celda.base, x * TILE, y * TILE);
+      if (celda.mueble) this.mundo.batchDrawFrame('arte', celda.mueble, x * TILE, y * TILE);
+    }));
+    this.mundo.endDraw();
+  }
+
+  // Objetos del suelo según el estado de limpieza (FR-5 de la 003): decoración por debajo de los personajes, que no cambia las
+  // colisiones. Se redibujan al cambiar las actividades o el día, sin rehacer el mundo.
+  dibujarObjetosDelSuelo() {
     const g = this.mapa;
     g.clear();
-    const tipoDe = new Map(espaciosActivos(estado).map((e) => [e.id, e.tipo]));
-    distribucion.tiles.forEach((fila, y) => [...fila].forEach((ch, x) => {
-      if (ch === ' ') return;
-      const clave = distribucion.espacioEn[y][x];
-      const tipo = clave?.startsWith('pasillo:') ? 'pasillo' : tipoDe.get(clave);
-      if (ch === '#') g.fillStyle(COLOR_PARED);
-      else g.fillStyle(COLOR_PISO[tipo] ?? 0xe8dcc0);
-      g.fillRect(x * TILE, y * TILE, TILE, TILE);
-      if (COLOR_MUEBLE[ch] !== undefined) {
-        g.fillStyle(COLOR_MUEBLE[ch]);
-        g.fillRect(x * TILE + 2, y * TILE + 2, TILE - 4, TILE - 4);
-      }
-    }));
     for (const espacio of espaciosActivos(estado)) {
       for (const o of objetosDelSuelo(distribucion, espacio.id, limpiezaDeEspacio(estado, espacio.id, hoy))) {
         g.fillStyle(COLOR_OBJETO[o.variante]);
@@ -217,7 +254,7 @@ class Escena extends Phaser.Scene {
 
   // Tras un cambio de actividades o de día: suelo, insignias, burbujas y la señal "!" del cartel, sin rehacer a los personajes.
   refrescarActividades() {
-    this.dibujarSuelo();
+    this.dibujarObjetosDelSuelo();
     this.dibujarInsignias();
     this.dibujarBurbujas();
     this.actualizarCartel();
@@ -244,7 +281,7 @@ class Escena extends Phaser.Scene {
   dibujarJugador(escala) {
     const miembro = buscarMiembro(estado, jugador.id);
     this.cuerpoPersonaje.setFillStyle(colorDe(miembro)).setSize(12 * escalaDe(miembro), 14 * escalaDe(miembro));
-    this.etiquetaPersonaje.setText(miembro.nombre).setScale(escala).setBackgroundColor(COLOR_RESALTE).setFontStyle('bold');
+    this.etiquetaPersonaje.setText(miembro.nombre).setScale(escala).setBackgroundColor(COLOR_RESALTE);
   }
 
   // Insignia del estado de limpieza junto al nombre de cada espacio (FR-5 de la 003); los pasillos no tienen etiqueta ni insignia.
@@ -461,10 +498,11 @@ class Escena extends Phaser.Scene {
     this.moverHabitantes(deltaMs);
     this.actualizarEtiquetas();
     if (!dir && !moviendo && posicionSinGuardar && modo === 'exploracion') guardarPosicion(); // en reposo tras caminar (FR-10)
-    $('depuracion').textContent = `${Math.round(this.game.loop.actualFps)} fps · regen ${ultimaRegeneracionMs.toFixed(1)} ms`;
+    $('depuracion').textContent = `${Math.round(this.game.loop.actualFps)} fps · regen ${ultimaRegeneracionMs.toFixed(1)} ms · arte ${this.msArte.toFixed(0)} ms`;
   }
 }
 
+await esperarFuente(); // las etiquetas se crean con Silkscreen ya disponible (AC-8.2)
 const juego = new Phaser.Game({
   type: Phaser.AUTO, parent: 'juego', backgroundColor: '#1d1d1d', pixelArt: true,
   scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' }, scene: Escena,
