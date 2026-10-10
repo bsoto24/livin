@@ -27,7 +27,7 @@ import {
   buscarBloque, bloquesDe, contarBloques, puedeAgregarBloque, agregarBloque, editarBloque, eliminarBloque, MENSAJES_BLOQUE,
   textoHora, textoBloque, textoBajas, objetivosDeFamiliares, textoVuelta,
 } from './rutinas.js';
-import { INSIGNIAS, objetosDelSuelo, casillaDeBurbuja, ubicarBurbujas } from './aspecto.js';
+import { INSIGNIAS, casillaDeBurbuja, ubicarBurbujas } from './aspecto.js';
 import {
   numeroRecibidas, intercambiosDe, actividadesOfrecibles, actividadesPedibles, motivoSinPropuesta, proponer, aceptar, rechazar, retirar,
   quitar, esVigente, textoPropuesta, textoIntercambio, MENSAJES_INTERCAMBIO,
@@ -41,7 +41,8 @@ import {
 } from './formularios.js';
 import { ahoraLocal } from './fechas.js';
 import { PALETA, TAM } from './arte/paleta.js';
-import { TEXTURAS, arteDelMapa } from './arte/casillas.js';
+import { TEXTURAS, arteDelMapa, ORDEN_DE_CAPAS, estadosCambiaron } from './arte/casillas.js';
+import { SUCIEDAD } from './arte/suciedad.js';
 import { CUADROS_DE_PERSONAJES, claveDeCuadro, personajeDe } from './arte/personajes.js';
 import {
   REPOSO, vistaDeDireccion, direccionDelPaso, pasoNuevo, mirarHacia, progresoDelPaso, cuadroDeCaminar,
@@ -55,7 +56,7 @@ const ZOOM_EXPLORACION = 3;
 const FUENTE = 'Silkscreen, system-ui, sans-serif';
 const TAM_LETRA_MAPA = '12px';
 const ESPERA_FUENTE_MS = 1000;
-// Profundidades: mundo 0, objetos del suelo 1, etiquetas de espacio 5, personaje 10, nombre del personaje 20.
+// Profundidades: mundo 0 (con el desorden de los espacios dentro), etiquetas de espacio 5, personaje 10, nombre del personaje 20.
 const PROF_ETIQUETA_ESPACIO = 5;
 const PROF_PERSONAJE = 10;
 const PROF_ETIQUETA_PERSONAJE = 20;
@@ -64,10 +65,9 @@ const ESTILO_ETIQUETA = {
   fontFamily: FUENTE, fontSize: TAM_LETRA_MAPA, color: '#2a221c',
   backgroundColor: 'rgba(242,234,211,0.85)', padding: { x: 3, y: 2 },
 };
-// Actividades (FR-5 y FR-6 de la 003), arte de marcador: iconos como emoji del sistema y objetos como cuadrados de colores.
+// Actividades (FR-5 y FR-6 de la 003), arte de marcador: iconos como emoji del sistema (feature 011).
 const GLIFO_ICONO = { platos: '🍽️', barrer: '🧹', ropa: '🧺', basura: '🗑️', limpiar: '🧽', compras: '🛒', plantas: '🪴', mascota: '🐾', otra: '📌' };
 const COLOR_INSIGNIA = { limpio: '#2e9e4f', desordenado: '#c98a00', desastre: '#c0392b' };
-const COLOR_OBJETO = [0xc0392b, 0x2980b9, 0xf1c40f, 0x8e44ad, 0x16a085, 0xd35400];
 const PROF_BURBUJA = 30;
 const ESTILO_BURBUJA = { fontFamily: 'system-ui, sans-serif', fontSize: '16px', color: '#2a221c', backgroundColor: '#ffffff', padding: { x: 4, y: 2 } };
 // Rutinas (FR-5 y FR-7 de la 004): en una casilla compartida, quien va en ruta se dibuja debajo de quien no; el cartel de la entrada.
@@ -171,21 +171,29 @@ function guardarPosicion() {
   if (!almacen.guardarPosicion(posGuardada).ok) avisar('No se pudo guardar la posición.');
 }
 
-// FR-1 y AC-9.5 de la 008, FR-6 y AC-9.5 de la 009: todos los dibujos (mundo y personajes) se pintan una sola vez en una hoja de texturas,
-// con un cuadro con nombre por clave. Devuelve el tiempo que tardó, en milisegundos, para el indicador de depuración.
+// Estado de limpieza de cada espacio activo (FR-8 de la 010): lo que el mundo necesita para dibujar el desorden. Se deriva de (estado, hoy) y no se guarda.
+const limpiezasDelHogar = () => new Map(espaciosActivos(estado).map((e) => [e.id, limpiezaDeEspacio(estado, e.id, hoy)]));
+
+// FR-1 y AC-9.5 de la 008, FR-6 y AC-9.5 de la 009, FR-8 y AC-10.6 de la 010: todos los dibujos (mundo, personajes y desorden) se pintan una
+// sola vez en una hoja de texturas repartida en una cuadrícula de 64 columnas, con un cuadro con nombre por clave, para no pasar de 4.096 px
+// por lado. Devuelve el tiempo que tardó, en milisegundos, para el indicador de depuración.
+const COLUMNAS_DE_LA_HOJA = 64;
 function prepararArte(escena) {
   const t0 = performance.now();
-  const dibujos = { ...TEXTURAS, ...CUADROS_DE_PERSONAJES };
+  const dibujos = { ...TEXTURAS, ...SUCIEDAD, ...CUADROS_DE_PERSONAJES };
   const claves = Object.keys(dibujos);
-  const hoja = escena.textures.createCanvas('arte', TAM * claves.length, TAM);
+  const columnas = Math.min(COLUMNAS_DE_LA_HOJA, claves.length);
+  const hoja = escena.textures.createCanvas('arte', TAM * columnas, TAM * Math.ceil(claves.length / columnas));
   const contexto = hoja.getContext();
   claves.forEach((clave, i) => {
+    const x0 = (i % columnas) * TAM;
+    const y0 = Math.floor(i / columnas) * TAM;
     dibujos[clave].forEach((fila, y) => [...fila].forEach((ch, x) => {
       if (ch === '.') return;
       contexto.fillStyle = PALETA[ch];
-      contexto.fillRect(i * TAM + x, y, 1, 1);
+      contexto.fillRect(x0 + x, y0 + y, 1, 1);
     }));
-    hoja.add(clave, 0, i * TAM, 0, TAM, TAM);
+    hoja.add(clave, 0, x0, y0, TAM, TAM);
   });
   hoja.refresh();
   return performance.now() - t0;
@@ -208,7 +216,6 @@ class Escena extends Phaser.Scene {
     this.msArte = prepararArte(this); // los dibujos se preparan una sola vez (AC-9.5)
     this.mundo = this.add.renderTexture(0, 0, TILE, TILE).setOrigin(0, 0).setDepth(0); // suelo, paredes y mobiliario
     this.mundo.texture.setFilter(Phaser.Textures.FilterMode.NEAREST); // píxeles nítidos a cualquier zoom (AC-9.1)
-    this.mapa = this.add.graphics().setDepth(1); // objetos del suelo: encima del mundo y debajo de los personajes (AC-5.1)
     this.etiquetas = new Map(); // clave de espacio → objeto de texto de su etiqueta (solo visuales, nunca interactivas)
     this.insignias = new Map(); // clave de espacio → insignia de su estado de limpieza (FR-5 de la 003)
     this.burbujas = []; // burbujas de los lugares con actividades por hacer, cada una con su texto (FR-6 de la 003)
@@ -231,41 +238,29 @@ class Escena extends Phaser.Scene {
 
   redibujar() {
     this.dibujarMundo();
-    this.dibujarObjetosDelSuelo();
     this.dibujarEtiquetas();
   }
 
-  // Suelo, paredes y mobiliario (FR-5 y FR-6 de la 008): cada casilla se compone a 1:1 en una sola imagen, que se amplía con la cámara.
-  // Solo hace falta cuando cambia la distribución; no cambia las colisiones.
+  // Suelo, paredes, mobiliario y desorden de los espacios (FR-5 y FR-6 de la 008, FR-6 y FR-8 de la 010): cada casilla se compone a 1:1 en una sola
+  // imagen, que se amplía con la cámara. Se recompone cuando cambia la distribución o el estado de limpieza de algún espacio; no cambia las colisiones.
   dibujarMundo() {
     const { ancho, alto } = distribucion;
+    const limpiezas = limpiezasDelHogar();
+    this.limpiezasDibujadas = limpiezas;
     if (this.mundo.width !== ancho * TILE || this.mundo.height !== alto * TILE) this.mundo.resize(ancho * TILE, alto * TILE);
     this.mundo.clear();
     this.mundo.beginDraw();
-    arteDelMapa(estado, distribucion).forEach((fila, y) => fila.forEach((celda, x) => {
+    arteDelMapa(estado, distribucion, limpiezas).forEach((fila, y) => fila.forEach((celda, x) => {
       if (!celda) return;
-      if (celda.base) this.mundo.batchDrawFrame('arte', celda.base, x * TILE, y * TILE);
-      if (celda.mueble) this.mundo.batchDrawFrame('arte', celda.mueble, x * TILE, y * TILE);
+      for (const capa of ORDEN_DE_CAPAS) if (celda[capa]) this.mundo.batchDrawFrame('arte', celda[capa], x * TILE, y * TILE);
     }));
     this.mundo.endDraw();
   }
 
-  // Objetos del suelo según el estado de limpieza (FR-5 de la 003): decoración por debajo de los personajes, que no cambia las
-  // colisiones. Se redibujan al cambiar las actividades o el día, sin rehacer el mundo.
-  dibujarObjetosDelSuelo() {
-    const g = this.mapa;
-    g.clear();
-    for (const espacio of espaciosActivos(estado)) {
-      for (const o of objetosDelSuelo(distribucion, espacio.id, limpiezaDeEspacio(estado, espacio.id, hoy))) {
-        g.fillStyle(COLOR_OBJETO[o.variante]);
-        g.fillRect(o.x * TILE + 4, o.y * TILE + 4, TILE - 8, TILE - 8);
-      }
-    }
-  }
-
-  // Tras un cambio de actividades o de día: suelo, insignias, burbujas y la señal "!" del cartel, sin rehacer a los personajes.
+  // Tras un cambio de actividades o de día: el mundo solo se recompone si cambió el estado de algún espacio (FR-7 de la 010); las insignias,
+  // las burbujas y la señal "!" del cartel se rehacen siempre, sin rehacer a los personajes.
   refrescarActividades() {
-    this.dibujarObjetosDelSuelo();
+    if (estadosCambiaron(this.limpiezasDibujadas, limpiezasDelHogar())) this.dibujarMundo();
     this.dibujarInsignias();
     this.dibujarBurbujas();
     this.actualizarCartel();

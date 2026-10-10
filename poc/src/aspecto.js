@@ -59,3 +59,44 @@ export function ubicarBurbujas(lista, distribucion, posiciones) {
     return p ? [{ ...b, x: p.x, y: p.y - 1 }] : [];
   });
 }
+
+// ---------- Casillas del desastre (FR-3 y FR-4 de la 010) ----------
+export const MANCHAS_POR_DESASTRE = 6;
+export const MOSCAS_POR_DESASTRE = 2;
+
+// Casillas libres de un espacio en orden de hash con una sal propia: otra tanda que la de los objetos del suelo. Mismo espacio, misma tanda.
+function casillasPorHash(distribucion, espacioId, sal) {
+  return casillasLibres(distribucion, espacioId)
+    .map((c) => ({ ...c, h: hash(`${sal}${espacioId}:${claveCasilla(c.x, c.y)}`) }))
+    .sort((a, b) => a.h - b.h)
+    .map(({ x, y }) => ({ x, y }));
+}
+
+// Manchas del piso: solo en desastre, hasta MANCHAS_POR_DESASTRE casillas libres.
+export const manchasDelSuelo = (distribucion, espacioId, limpieza) => (limpieza === 'desastre'
+  ? casillasPorHash(distribucion, espacioId, 'mancha:').slice(0, MANCHAS_POR_DESASTRE)
+  : []);
+
+// Casillas con moscas: solo en desastre, MOSCAS_POR_DESASTRE casillas libres. Qué tipos de espacio las llevan lo decide el arte.
+export const moscasDelSuelo = (distribucion, espacioId, limpieza) => (limpieza === 'desastre'
+  ? casillasPorHash(distribucion, espacioId, 'moscas:').slice(0, MOSCAS_POR_DESASTRE)
+  : []);
+
+const esPared = (distribucion, x, y) => distribucion.tiles[y]?.[x] === '#';
+
+// Esquinas superiores de un espacio (FR-4): casillas interiores suyas (ni pared ni vacío) con pared al norte y pared al oeste ('izquierda')
+// o, si no, pared al este ('derecha'). En orden de lectura; una sola esquina por casilla. Vale también si un mueble ocupa la casilla.
+export function esquinasDelEspacio(distribucion, espacioId) {
+  const r = distribucion.rects[espacioId];
+  if (!r) return [];
+  const esquinas = [];
+  for (let y = r.y; y < r.y + r.h; y++) {
+    for (let x = r.x; x < r.x + r.w; x++) {
+      const ch = distribucion.tiles[y][x];
+      if (distribucion.espacioEn[y][x] !== espacioId || ch === '#' || ch === ' ' || !esPared(distribucion, x, y - 1)) continue;
+      if (esPared(distribucion, x - 1, y)) esquinas.push({ x, y, lado: 'izquierda' });
+      else if (esPared(distribucion, x + 1, y)) esquinas.push({ x, y, lado: 'derecha' });
+    }
+  }
+  return esquinas;
+}
