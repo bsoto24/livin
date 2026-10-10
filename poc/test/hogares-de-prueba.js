@@ -2,7 +2,9 @@
 // Dos hogares de prueba (FR-7 de la 009) que juntos muestran los 14 personajes, para revisarlos en el juego. Se arman con las
 // operaciones reales del modelo y no forman parte de la aplicación; cómo cargarlos está en docs/specs/009-habitantes-animados/verification.md.
 import { ASPECTOS, ESPECIES } from '../src/catalogo.js';
-import { crearHogarInicial, agregarHabitante, renombrarMiembro, esPropietario } from '../src/hogar.js';
+import { crearHogarInicial, agregarHabitante, agregarEspacio, renombrarMiembro, esPropietario, espaciosActivos } from '../src/hogar.js';
+import { agregarActividad } from '../src/actividades.js';
+import { sumarDias } from '../src/fechas.js';
 
 // Ids y fechas predecibles, sin `crypto.randomUUID`, que no existe al abrir el juego por la IP de la red local (lección del 2026-10-05).
 export function ctxDePrueba() {
@@ -36,3 +38,22 @@ export const hogarDePrueba1 = (ctx = ctxDePrueba()) =>
 
 // AC-8.2: el protagonista, el neutro, el loro y «Otro».
 export const hogarDePrueba2 = (ctx = ctxDePrueba()) => armar(['neutro'], ['loro', 'otro'], ctx);
+
+// Días de atraso que dejan a un espacio en cada estado de limpieza (umbrales de 1 y 3 días de la 003).
+const ATRASO = { desordenado: 1, desastre: 3 };
+
+// FR-9 de la 010: un hogar con un espacio de cada uno de los ocho tipos y dos baños internos. Con `limpieza` 'desordenado' o 'desastre', cada
+// espacio tiene una actividad puntual a cargo del propietario atrasada 1 o 3 días respecto de `hoy` ('AAAA-MM-DD'); con 'limpio', ninguna.
+export function hogarDePruebaDeEstados(limpieza, hoy, ctx = ctxDePrueba()) {
+  let estado = crearHogarInicial(ctx);
+  const propietario = estado.miembros.find((m) => esPropietario(estado, m));
+  estado = exigir(renombrarMiembro(estado, propietario.id, 'Protagonista', ctx));
+  for (const tipo of ['comedor', 'lavanderia', 'mascota', 'oficina', 'bano', 'bano']) estado = agregarEspacio(estado, tipo, ctx);
+  if (!(limpieza in ATRASO)) return estado;
+  for (const espacio of espaciosActivos(estado)) {
+    estado = exigir(agregarActividad(estado, {
+      nombre: 'Limpiar', icono: 'limpiar', tipo: 'puntual', miembroId: propietario.id, espacioId: espacio.id, vence: sumarDias(hoy, -ATRASO[limpieza]),
+    }, ctx));
+  }
+  return estado;
+}
