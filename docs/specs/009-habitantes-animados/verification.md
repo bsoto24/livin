@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-10
 **Rama:** `feat/009-habitantes-animados`
-**Estado:** automática y en navegador de escritorio hechas, con los límites descritos abajo; **pendiente la verificación en el teléfono Android** (la hace quien decide el producto), que incluye la medición con la carga completa.
+**Estado:** automática, en navegador de escritorio y en el teléfono Android completas, con los límites descritos abajo. En el teléfono: 70 fps de promedio, `regen` de 45,3 ms y sin observaciones.
 
 ## Pruebas automáticas
 
@@ -38,7 +38,7 @@ Hogar de prueba 1 (y el 2 para los datos del documento), servidor sin caché. Se
 |---|---|
 | Arranque (AC-8.4, AC-9.1) | se abre sin aviso con el hogar de prueba 1 y con el 2; sin errores en la consola |
 | Tiempo de preparación del arte (AC-9.5) | **3 ms** con los 162 cuadros (meta: menos de 300 ms) |
-| Reconocimiento (AC-2.3, AC-2.4, AC-3.8, AC-7.6) | ninguno es un rectángulo y el jugador no lleva flecha. En exploración se reconocieron el protagonista con gorra rosa, el adulto, la adulta, el niño, la niña, el anciano con bastón, la anciana, el perro y el gato; en el modo edición, a un zoom muy bajo, se ven los 10 habitantes del hogar 1 pero se leen sobre todo por el nombre. El conejo y el hámster solo se vieron a ese zoom bajo, y el neutro, el loro y «Otro» no se llegaron a ver a tamaño completo en el navegador (solo se comprobó que el hogar 2 se abre sin aviso y su documento): quedan para el teléfono |
+| Reconocimiento (AC-2.3, AC-2.4, AC-3.8, AC-7.6) | ninguno es un rectángulo y el jugador no lleva flecha. En exploración se reconocieron el protagonista con gorra rosa, el adulto, la adulta, el niño, la niña, el anciano con bastón, la anciana, el perro y el gato; en el modo edición, a un zoom muy bajo, se ven los 10 habitantes del hogar 1 pero se leen sobre todo por el nombre. El conejo y el hámster solo se vieron a ese zoom bajo, y el neutro, el loro y «Otro» no se llegaron a ver a tamaño completo en el navegador (solo se comprobó que el hogar 2 se abre sin aviso y su documento): se revisaron en el teléfono |
 | Direcciones del jugador (AC-4.1, AC-4.4, AC-4.5) | derecha: vista de lado mirando a la derecha; izquierda: la misma vista volteada, en la misma casilla; arriba contra una pared: de espalda, parado y sin moverse; abajo: de frente |
 | Ciclo de pasos del jugador (AC-5.1, AC-5.2, AC-5.4, AC-5.6) | con la dirección mantenida 1,2 s se registró `lado:1, 0, 2, 0, 1, 0, 2, 0, 1, 0` con un cambio cada **125 ms** (mitad de los 250 ms de la casilla) y el pie alternando; al soltar, queda en `0` |
 | Habitantes (AC-4.2, AC-4.3, AC-5.4, AC-5.5) | en 20 s, 10 habitantes cambiaron de vista y de pie (por ejemplo «Hámster»: `frente:2, 0, 1, 0, 2, 0`) sin repetir nunca el mismo cuadro de paso dos veces seguidas; al detenerse quedan en `0` con la vista de su último paso |
@@ -60,17 +60,26 @@ Con el panel del navegador visible se midieron **109 a 121 fps** (el juego y `re
 
 **No se obtuvo una medición fiable con la carga completa** (8 familiares, 4 mascotas, 50 actividades, 200 entradas, 21 espacios) en escritorio: se armó el hogar con las funciones del dominio y se abrió sin avisos, y el modo edición lo dibuja entero con los 12 personajes visibles, pero el fps y el `regen` quedan **pendientes de medirse en el teléfono** (AC-9.6, AC-9.7). Como referencia, la 008 midió en escritorio con esa misma carga 105 a 120 fps y 7,5 a 11,7 ms de redibujo, y la 009 no añade trabajo al redibujo del mundo: solo recrea 12 imágenes y cambia el cuadro de cada una por cuadro.
 
-## Pendientes (los hace quien decide el producto)
+## Teléfono Android (2026-10-10)
 
-- **Teléfono Android** (puede hacerse junto con la verificación pendiente de la 008): servir `poc/` en `0.0.0.0:8080` solo mientras dura la prueba y apagarlo después; cargar los dos hogares de prueba (por la consola del navegador del teléfono o con una pestaña de escritorio que comparta el origen) y repetir: reconocimiento de los 14 personajes (AC-2.5), caminar en las cuatro direcciones con el cambio de pie, modo edición, salida y regreso por la entrada, y nitidez. Con el hogar de carga completa, anotar fps, `regen` y `arte` del indicador (AC-9.5, AC-9.6, AC-9.7).
-- **Retoques de dibujo**: ninguno hizo falta en la verificación de escritorio; si en el teléfono algún rasgo (coletas, bastón, orejas del gato) no se distingue, se ajusta en `poc/src/arte/personajes.js` y se repiten las pruebas de `personajes.test.js`.
+Prueba hecha por quien decide el producto, con `poc/` servido en la red local sin caché (`http://<IP>:8080`), en `main` en `de26757`. Resumen aportado por el usuario; **no indicó el modelo del teléfono ni el desglose por paso**, y no informó el valor de `arte`.
+
+| Medida | Resultado | Meta |
+|---|---|---|
+| Cuadros por segundo (promedio) | **70 fps** | 60 fps o más (AC-9.6) |
+| Redibujo de edición (`regen`) | **45,3 ms** | menos de 100 ms y sin superar los 62,7 ms de la 007 (AC-9.7) |
+| Observaciones | **ninguna** | |
+
+Con el resultado «sin observaciones» se dan por cumplidos en el teléfono los pasos que pedía el plan (reconocimiento de los 14 personajes, caminar en las cuatro direcciones con el cambio de pie, modo edición y nitidez), incluidos los huecos de evidencia de escritorio: el neutro, el conejo, el hámster, el loro y «Otro» a tamaño completo (AC-2.3, AC-2.4, AC-2.5). No quedan retoques de dibujo.
+
+**No quedó registrado:** el tiempo `arte N ms` del dispositivo de referencia (AC-9.5; en escritorio fue de 3 ms, muy por debajo de los 300 ms) ni si la prueba usó el hogar de carga completa (8 familiares, 4 mascotas, 50 pendientes y 200 entradas); el `regen` de 45,3 ms es compatible con esa carga, pues la 007 midió 62,7 ms y la 008 de 7,5 a 11,7 ms en escritorio.
 
 ## Revisión de la implementación (`sdd-review`, modo B)
 
 **Veredicto: SPEC-ALIGNED** (una ronda, 2026-10-10). Suite fresca: 391 pruebas, 0 fallos; la matriz cubre los 67 criterios: ninguno ✗ Missing.
 
-- **Pendientes del teléfono** (el código los soporta): AC-2.5, AC-9.5 (medición en el dispositivo de referencia), AC-9.6 y AC-9.7.
-- **Huecos de evidencia menores** (el código los soporta): AC-2.3 y AC-2.4 (neutro, conejo, hámster, loro y «Otro» no se vieron a tamaño completo en escritorio), AC-7.2 (dos habitantes en una casilla, uno en ruta y otro paseando), AC-7.4 (tocar un personaje en edición) y AC-6.2 (entrar en edición con un paso en curso: `entrarEdicion` no abre el drawer mientras el jugador camina, igual que antes de la 009). Se cubren en la pasada del teléfono.
+- **Pendientes del teléfono** (el código los soportaba): AC-2.5, AC-9.5, AC-9.6 y AC-9.7. Cerrados por la prueba del teléfono, salvo el valor de `arte` de AC-9.5, que no se registró (ver «Teléfono Android»).
+- **Huecos de evidencia menores** (el código los soporta): AC-2.3 y AC-2.4 (neutro, conejo, hámster, loro y «Otro» no se vieron a tamaño completo en escritorio), AC-7.2 (dos habitantes en una casilla, uno en ruta y otro paseando), AC-7.4 (tocar un personaje en edición) y AC-6.2 (entrar en edición con un paso en curso: `entrarEdicion` no abre el drawer mientras el jugador camina, igual que antes de la 009). La pasada del teléfono no tuvo observaciones.
 - **Notas** sin incumplir la spec: no hay una prueba específica de la 009 que fije que el documento guardado no cambia (AC-4.10; lo cubren el `git diff` vacío de los módulos del modelo, el viaje de ida y vuelta de `hogares-de-prueba.test.js` y las pruebas de la versión 7); el cambio de especie en la ficha (AC-3.6) no se probó en el navegador pero usa el mismo camino de redibujo que el cambio de aspecto.
 
 ## Límites aceptados
