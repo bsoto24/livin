@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-10
 **Rama:** `feat/008-base-visual-y-mundo`
-**Estado:** automática y en navegador de escritorio completas; **pendiente la verificación en el teléfono Android** (la hace quien decide el producto).
+**Estado:** automática y en navegador de escritorio completas; verificada también en el teléfono Android el 2026-10-10 (ver «Teléfono Android»).
 
 ## Pruebas automáticas
 
@@ -46,11 +46,15 @@ La primera pasada de `sdd-review` no halló desvíos de código, pero pidió evi
 
 > Un primer intento con un documento v6 «de carga completa» dio el aviso «No se pudo recuperar tu hogar guardado» porque incluía mascotas «conejo» y «loro», especies que la versión 6 no admitía (error de la prueba, no del producto); con un v6 válido se abrió sin aviso.
 
+## Teléfono Android (2026-10-10)
+
+Confirmado por quien decide el producto en la prueba de la feature 009, que usa el mismo mundo de esta feature (suelos, paredes, mobiliario, Silkscreen en el mapa, la barra y los títulos): **70 fps de promedio, `regen` de 45,3 ms y sin observaciones** (modelo del teléfono no indicado; resumen del usuario; detalle en `docs/specs/009-habitantes-animados/verification.md`). **Decisión sobre el tamaño de la letra del mapa: se mantiene en 12 px** (`TAM_LETRA_MAPA`). No se registraron por separado los pasos 2, 3, 5, 7 y 10 del plan ni el valor de `arte`.
+
 ## Límites aceptados y pendientes
 
-- **Tamaño de la letra del mapa (decisión pendiente, riesgo 1 de la spec):** `TAM_LETRA_MAPA = '12px'`. Con ese tamaño, en modo edición con el zoom bajo y varios espacios, los nombres largos («Espacio de mascota 1», «Lavandería 1») son más anchos que su espacio y se salen por el borde de la pantalla o se acercan a los vecinos. En la versión anterior (fuente del sistema) también eran más anchos que el espacio, pero unos 30 % menos. Quien decide el producto debe juzgarlo en el teléfono y, si hace falta, cambiar `TAM_LETRA_MAPA` en `poc/src/juego.js` (8 px es el tamaño nativo de la fuente y el más corto; 16 px, el más legible y el más ancho). No se probó un cambio en vivo porque el juego no expone la escena al navegador.
-- **Con la carga completa en modo edición, las etiquetas de nombre en Silkscreen de 12 px se amontonan** (junto a las burbujas de 50 actividades): las más largas se cortan por el borde de la pantalla y se pisan con las vecinas. Es el mismo caso que el riesgo 1 de la spec; el tamaño lo decide quien ve el teléfono.
-- **Verificación en el teléfono Android:** pendiente (pasos 2, 3, 5, 7 y 10 del plan: suelos, mobiliario, letra, pestañas y nitidez a simple vista, más fps, `regen` y `arte` en el dispositivo de referencia con la carga completa). En escritorio la carga completa ya se midió (ver «Ronda 2»).
+- **Tamaño de la letra del mapa (decidido el 2026-10-10: se mantiene en 12 px; ver «Teléfono Android»; riesgo 1 de la spec):** `TAM_LETRA_MAPA = '12px'`. Con ese tamaño, en modo edición con el zoom bajo y varios espacios, los nombres largos («Espacio de mascota 1», «Lavandería 1») son más anchos que su espacio y se salen por el borde de la pantalla o se acercan a los vecinos. En la versión anterior (fuente del sistema) también eran más anchos que el espacio, pero unos 30 % menos. Quien decide el producto lo juzgó en el teléfono y lo dejó como está; si más adelante hace falta, se cambia `TAM_LETRA_MAPA` en `poc/src/juego.js` (8 px es el tamaño nativo de la fuente y el más corto; 16 px, el más legible y el más ancho). No se probó un cambio en vivo porque el juego no expone la escena al navegador.
+- **Con la carga completa en modo edición, las etiquetas de nombre en Silkscreen de 12 px se amontonan** (junto a las burbujas de 50 actividades): las más largas se cortan por el borde de la pantalla y se pisan con las vecinas. Es el mismo caso que el riesgo 1 de la spec; el tamaño lo decidió quien vio el teléfono (se mantiene en 12 px).
+- **Verificación en el teléfono Android:** hecha el 2026-10-10 (ver «Teléfono Android»).
 - **Dibujos:** son la primera versión de las cuadrículas; los ajustes visuales posteriores se hacen en `poc/src/arte/` sin tocar el resto.
 - El símbolo `✓` de la insignia «limpio» se dibuja con la fuente del sistema hasta la feature 010 (decisión (e) de la spec).
 - `distribucion.test.js` conserva dos importaciones sin uso (`cuartosEnOrden`, `eliminarEspacio`) tras mover el generador a `ayuda.js`; es inocuo.

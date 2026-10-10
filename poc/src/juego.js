@@ -51,7 +51,7 @@ const TILE = 16;
 const MS_POR_CASILLA = 250; // 4 casillas por segundo (AC-2.2)
 const ZOOM_EXPLORACION = 3;
 // Tipografía (FR-7 de la 008): Silkscreen con la fuente del sistema como respaldo, también letra a letra si falta un símbolo (AC-6.5).
-// El tamaño de la etiqueta se ajusta con la medida del teléfono (Fase 6 del plan); 12 px es el de partida.
+// El tamaño de la etiqueta se decidió con la medida del teléfono (2026-10-10): se mantiene en 12 px.
 const FUENTE = 'Silkscreen, system-ui, sans-serif';
 const TAM_LETRA_MAPA = '12px';
 const ESPERA_FUENTE_MS = 1000;
