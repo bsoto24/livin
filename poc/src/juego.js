@@ -42,6 +42,10 @@ import {
 import { ahoraLocal } from './fechas.js';
 import { PALETA, TAM } from './arte/paleta.js';
 import { TEXTURAS, arteDelMapa } from './arte/casillas.js';
+import { CUADROS_DE_PERSONAJES, claveDeCuadro, personajeDe } from './arte/personajes.js';
+import {
+  REPOSO, vistaDeDireccion, direccionDelPaso, pasoNuevo, mirarHacia, progresoDelPaso, cuadroDeCaminar,
+} from './arte/caminar.js';
 
 const TILE = 16;
 const MS_POR_CASILLA = 250; // 4 casillas por segundo (AC-2.2)
@@ -60,9 +64,6 @@ const ESTILO_ETIQUETA = {
   fontFamily: FUENTE, fontSize: TAM_LETRA_MAPA, color: '#2a221c',
   backgroundColor: 'rgba(242,234,211,0.85)', padding: { x: 3, y: 2 },
 };
-// Aspecto de los habitantes (FR-8 de la 002, FR-5 y FR-6 de la 007), arte de marcador: personas de 12×14 —más pequeñas si son niños— y
-// mascotas de 8×8; los colores y la escala salen del catálogo.
-const COLOR_BORDE_HABITANTE = 0x2a221c;
 // Actividades (FR-5 y FR-6 de la 003), arte de marcador: iconos como emoji del sistema y objetos como cuadrados de colores.
 const GLIFO_ICONO = { platos: '🍽️', barrer: '🧹', ropa: '🧺', basura: '🗑️', limpiar: '🧽', compras: '🛒', plantas: '🪴', mascota: '🐾', otra: '📌' };
 const COLOR_INSIGNIA = { limpio: '#2e9e4f', desordenado: '#c98a00', desastre: '#c0392b' };
@@ -72,7 +73,7 @@ const ESTILO_BURBUJA = { fontFamily: 'system-ui, sans-serif', fontSize: '16px', 
 // Rutinas (FR-5 y FR-7 de la 004): en una casilla compartida, quien va en ruta se dibuja debajo de quien no; el cartel de la entrada.
 const PROF_EN_RUTA = 9;
 const ESTILO_CARTEL = { ...ESTILO_ETIQUETA, color: '#ffffff', backgroundColor: '#2a221c' };
-// Jugador activo (FR-1 de la 005): el color de cada miembro y el resalte de la etiqueta de quien juega.
+// Jugador activo (FR-1 de la 005): el resalte de la etiqueta de quien juega y el color de cada miembro en los círculos de responsable.
 const COLOR_PROPIETARIO = 0xd4537e;
 const COLOR_RESALTE = '#ffd166';
 function colorDe(miembro) {
@@ -80,7 +81,6 @@ function colorDe(miembro) {
   if (esPropietario(estado, miembro)) return COLOR_PROPIETARIO;
   return DATOS_ASPECTO[miembro.aspecto].color;
 }
-const escalaDe = (miembro) => (miembro.tipo === 'persona' && miembro.aspecto !== null ? DATOS_ASPECTO[miembro.aspecto].escala : 1);
 const colorCss = (color) => `#${color.toString(16).padStart(6, '0')}`;
 const iconoDeMiembro = (miembro) => (miembro.tipo === 'mascota' ? DATOS_ESPECIE[miembro.especie].icono : (DATOS_ASPECTO[miembro.aspecto]?.icono ?? '🧑'));
 
@@ -127,6 +127,20 @@ let hoy = ahora.fecha; // el día de hoy se inyecta en las funciones puras (ADR-
 let hojaActual = null; // hoja abierta: { tipo: 'espacio' | 'miembro', id } o { tipo: 'fuera' } (FR-7 de la 003, FR-5 de la 004)
 // FR-6 de la 004: al abrir, después del jugador, cada familiar donde dice su rutina y los demás al azar.
 let moviles = colocarHabitantes(idsHabitantes(), distribucion, casillaJugador(), azar, objetivosDeFamiliares(estado, ahora));
+// Caminar de cada personaje (FR-4 y FR-5 de la 009): id de miembro → registro de caminar. Vive fuera de los dibujos para que un redibujo
+// no lo reinicie (AC-6.5) y no se guarda en el documento (AC-4.10). Quien juega empieza mirando hacia donde se guardó (AC-4.8).
+const caminares = new Map([[jugador.id, mirarHacia(REPOSO, jugador.direccion)]]);
+const caminarDe = (id) => caminares.get(id) ?? REPOSO;
+// Quienes el juego coloca de nuevo aparecen parados y de frente (AC-4.7, AC-6.7).
+function deFrente(ids) { for (const id of ids) caminares.set(id, REPOSO); }
+// Cuadro de la hoja y volteo de un miembro: su personaje, la vista de su dirección y el cuadro de su paso; en edición, parado (AC-6.1).
+function cuadroDeMiembro(id, ahoraMs) {
+  const registro = caminarDe(id);
+  const { vista, volteada } = vistaDeDireccion(registro.direccion);
+  const progreso = modo === 'exploracion' ? progresoDelPaso(registro, ahoraMs) : null;
+  const personaje = personajeDe(estado, buscarMiembro(estado, id));
+  return { clave: claveDeCuadro(personaje, vista, cuadroDeCaminar(progreso, registro.pie)), volteada };
+}
 // Casilla actual de cada miembro en el mapa: el propietario es el jugador; los habitantes, sus móviles (FR-6 de la 003). Quien está
 // fuera de casa no está en el mapa (AC-5.8 de la 004).
 function posicionesDeMiembros() {
@@ -157,15 +171,16 @@ function guardarPosicion() {
   if (!almacen.guardarPosicion(posGuardada).ok) avisar('No se pudo guardar la posición.');
 }
 
-// FR-1 y AC-9.5 de la 008: todos los dibujos se pintan una sola vez en una hoja de texturas, con un cuadro con nombre por clave.
-// Devuelve el tiempo que tardó, en milisegundos, para el indicador de depuración.
+// FR-1 y AC-9.5 de la 008, FR-6 y AC-9.5 de la 009: todos los dibujos (mundo y personajes) se pintan una sola vez en una hoja de texturas,
+// con un cuadro con nombre por clave. Devuelve el tiempo que tardó, en milisegundos, para el indicador de depuración.
 function prepararArte(escena) {
   const t0 = performance.now();
-  const claves = Object.keys(TEXTURAS);
+  const dibujos = { ...TEXTURAS, ...CUADROS_DE_PERSONAJES };
+  const claves = Object.keys(dibujos);
   const hoja = escena.textures.createCanvas('arte', TAM * claves.length, TAM);
   const contexto = hoja.getContext();
   claves.forEach((clave, i) => {
-    TEXTURAS[clave].forEach((fila, y) => [...fila].forEach((ch, x) => {
+    dibujos[clave].forEach((fila, y) => [...fila].forEach((ch, x) => {
       if (ch === '.') return;
       contexto.fillStyle = PALETA[ch];
       contexto.fillRect(i * TAM + x, y, 1, 1);
@@ -198,11 +213,7 @@ class Escena extends Phaser.Scene {
     this.insignias = new Map(); // clave de espacio → insignia de su estado de limpieza (FR-5 de la 003)
     this.burbujas = []; // burbujas de los lugares con actividades por hacer, cada una con su texto (FR-6 de la 003)
     this.sprites = new Map(); // id de habitante → { cuerpo, etiqueta } (FR-8; nunca interactivos)
-    this.cuerpoPersonaje = this.add.rectangle(0, 0, 12, 14, COLOR_PROPIETARIO).setStrokeStyle(1, 0x4b1528);
-    this.personaje = this.add.container(0, 0, [
-      this.cuerpoPersonaje,
-      this.add.triangle(0, 5, 0, 0, 6, 0, 3, 4, 0x4b1528),
-    ]).setDepth(PROF_PERSONAJE);
+    this.personaje = this.add.image(0, 0, 'arte', cuadroDeMiembro(jugador.id, 0).clave).setDepth(PROF_PERSONAJE); // quien juega (FR-6 de la 009)
     this.etiquetaPersonaje = this.add.text(0, 0, '', ESTILO_ETIQUETA).setOrigin(0.5, 1).setDepth(PROF_ETIQUETA_PERSONAJE);
     this.cartel = this.add.text(0, 0, '', ESTILO_CARTEL).setOrigin(1, 0.5).setDepth(PROF_BURBUJA).setVisible(false); // FR-5 de la 004
     this.firmaCartel = null;
@@ -277,10 +288,11 @@ class Escena extends Phaser.Scene {
     this.actualizarCartel();
   }
 
-  // Nombre, color y resalte de quien juega (AC-2.8 de la 005): su etiqueta lleva un fondo de color que no tienen las demás.
+  // Nombre y resalte de quien juega (AC-2.8 de la 005): su etiqueta lleva un fondo de color que no tienen las demás. Su dibujo es el de su
+  // personaje (AC-3.7 de la 009).
   dibujarJugador(escala) {
     const miembro = buscarMiembro(estado, jugador.id);
-    this.cuerpoPersonaje.setFillStyle(colorDe(miembro)).setSize(12 * escalaDe(miembro), 14 * escalaDe(miembro));
+    this.pintarCuadro(this.personaje, jugador.id, performance.now());
     this.etiquetaPersonaje.setText(miembro.nombre).setScale(escala).setBackgroundColor(COLOR_RESALTE);
   }
 
@@ -333,7 +345,7 @@ class Escena extends Phaser.Scene {
     }
   }
 
-  // Cuerpos y nombres de los habitantes (FR-8): se rehacen desde `moviles` al redibujar o cambiar el zoom.
+  // Cuerpos y nombres de los habitantes (FR-8 de la 002, FR-6 de la 009): se rehacen desde `moviles` al redibujar o cambiar el zoom.
   sincronizarSprites() {
     for (const s of this.sprites.values()) {
       this.tweens.killTweensOf(s.cuerpo);
@@ -342,13 +354,13 @@ class Escena extends Phaser.Scene {
     }
     this.sprites.clear();
     const escala = 1 / this.cameras.main.zoom;
+    for (const id of [...caminares.keys()]) if (!buscarMiembro(estado, id)) caminares.delete(id); // sin estado de los eliminados (AC-6.6)
+    const ahoraMs = performance.now();
     for (const h of moviles) {
       const miembro = buscarMiembro(estado, h.id);
-      const cuerpo = miembro.tipo === 'mascota'
-        ? this.add.rectangle(0, 0, 8, 8, colorDe(miembro))
-        : this.add.rectangle(0, 0, 12 * escalaDe(miembro), 14 * escalaDe(miembro), colorDe(miembro));
-      cuerpo.setStrokeStyle(1, COLOR_BORDE_HABITANTE).setDepth(PROF_PERSONAJE)
-        .setPosition(h.x * TILE + TILE / 2, h.y * TILE + TILE / 2);
+      const { clave, volteada } = cuadroDeMiembro(h.id, ahoraMs); // conserva vista y cuadro tras el redibujo (AC-6.5)
+      const cuerpo = this.add.image(h.x * TILE + TILE / 2, h.y * TILE + TILE / 2, 'arte', clave)
+        .setFlipX(volteada).setDepth(PROF_PERSONAJE);
       const etiqueta = this.add.text(cuerpo.x, cuerpo.y - TILE * 0.6, miembro.nombre, ESTILO_ETIQUETA)
         .setOrigin(0.5, 1).setScale(escala).setDepth(PROF_ETIQUETA_PERSONAJE);
       cuerpo.setVisible(h.fase !== 'fuera'); // quien está fuera de casa no se ve (AC-4.1 de la 004)
@@ -374,12 +386,30 @@ class Escena extends Phaser.Scene {
       if (previo.fase === 'fuera' && visible) {
         this.tweens.killTweensOf(s.cuerpo);
         s.cuerpo.setPosition(h.x * TILE + TILE / 2, h.y * TILE + TILE / 2);
+        caminares.set(h.id, REPOSO); // vuelve parado y de frente, sin animación de llegada (AC-6.3)
         continue;
       }
       if (previo.x === h.x && previo.y === h.y) continue;
+      const registro = caminarDe(h.id);
+      // AC-4.2, AC-4.3 y AC-5.2: mira hacia donde va y cambia de pie en cada paso nuevo.
+      caminares.set(h.id, pasoNuevo(registro, direccionDelPaso(previo, h) ?? registro.direccion, performance.now(), MS_POR_PASO));
       this.tweens.add({ targets: s.cuerpo, x: h.x * TILE + TILE / 2, y: h.y * TILE + TILE / 2, duration: MS_POR_PASO, ease: 'Linear' });
     }
     if (firmaFuera() !== this.firmaCartel) this.actualizarCartel();
+  }
+
+  // FR-4 y FR-5 de la 009: en cada cuadro, quien juega y cada habitante muestran la vista de su dirección y el cuadro de su paso.
+  animarPersonajes() {
+    const ahoraMs = performance.now();
+    this.pintarCuadro(this.personaje, jugador.id, ahoraMs);
+    for (const [id, s] of this.sprites) this.pintarCuadro(s.cuerpo, id, ahoraMs);
+  }
+
+  // La izquierda es la vista de lado volteada, en la misma casilla (AC-4.5).
+  pintarCuadro(imagen, id, ahoraMs) {
+    const { clave, volteada } = cuadroDeMiembro(id, ahoraMs);
+    if (imagen.frame.name !== clave) imagen.setFrame(clave);
+    imagen.setFlipX(volteada);
   }
 
   // Cartel de la entrada (FR-5 de la 004): "n fuera" y " !" si alguno tiene actividades por hacer sin espacio. Se dibuja sobre la
@@ -434,7 +464,6 @@ class Escena extends Phaser.Scene {
 
   colocarPersonaje() {
     this.personaje.setPosition(jugador.x * TILE + TILE / 2, jugador.y * TILE + TILE / 2);
-    this.personaje.setAngle({ abajo: 0, izquierda: 90, arriba: 180, derecha: 270 }[jugador.direccion]);
   }
 
   // La vista de la cámara: en exploración termina donde empieza la barra, así el cartel de la entrada nunca queda debajo de ella (AC-1.2); en
@@ -478,10 +507,10 @@ class Escena extends Phaser.Scene {
     const origen = { x: jugador.x, y: jugador.y };
     jugador = { id: jugador.id, x: r.x, y: r.y, direccion: r.direccion };
     posicionSinGuardar = true;
-    if (!r.movio) { this.colocarPersonaje(); return; }
+    if (!r.movio) { caminares.set(jugador.id, mirarHacia(caminarDe(jugador.id), direccion)); this.colocarPersonaje(); return; } // gira sin moverse (AC-4.4)
     moviendo = true;
     jugadorDesde = origen;
-    this.personaje.setAngle({ abajo: 0, izquierda: 90, arriba: 180, derecha: 270 }[direccion]);
+    caminares.set(jugador.id, pasoNuevo(caminarDe(jugador.id), direccion, performance.now(), MS_POR_CASILLA)); // AC-4.4, AC-5.6, AC-5.7
     this.tweens.add({
       targets: this.personaje, x: r.x * TILE + TILE / 2, y: r.y * TILE + TILE / 2, duration: MS_POR_CASILLA, ease: 'Linear',
       onComplete: () => { moviendo = false; jugadorDesde = null; if (cambioPendiente) elegirJugador(cambioPendiente); },
@@ -496,6 +525,7 @@ class Escena extends Phaser.Scene {
     const dir = this.direccionActual();
     if (dir) this.mover(dir);
     this.moverHabitantes(deltaMs);
+    this.animarPersonajes();
     this.actualizarEtiquetas();
     if (!dir && !moviendo && posicionSinGuardar && modo === 'exploracion') guardarPosicion(); // en reposo tras caminar (FR-10)
     $('depuracion').textContent = `${Math.round(this.game.loop.actualFps)} fps · regen ${ultimaRegeneracionMs.toFixed(1)} ms · arte ${this.msArte.toFixed(0)} ms`;
@@ -590,6 +620,7 @@ function cerrarSeccion() {
   ahora = ahoraLocal(new Date());
   // FR-6 de la 004: primero el jugador; después cada familiar donde dice su rutina en este momento, con los cambios hechos en edición.
   moviles = colocarHabitantes(idsHabitantes(), distribucion, casillaJugador(), azar, objetivosDeFamiliares(estado, ahora));
+  deFrente(moviles.map((h) => h.id)); // todos vuelven a colocarse: parados y de frente (AC-4.7)
   mostrarChrome();
   const s = escena();
   s.redibujar();
@@ -608,7 +639,10 @@ function aplicar(nuevo) {
   if (puedeJugar(estado, jugador.id)) jugador = { id: jugador.id, ...resolverPosicion(distribucion, posGuardada) };
   else pasarElJuegoAlPropietario(); // la persona que jugaba se eliminó (AC-4.7 de la 005)
   actualizarBotones(); // el indicador "Juega" y el rótulo de Intercambios se ven también en edición (AC-12.1, AC-1.8)
+  const antes = new Map(moviles.map((h) => [h.id, h]));
   moviles = sincronizarHabitantes(moviles, idsHabitantes(), distribucion, casillaJugador(), azar); // FR-7, AC-7.7 de la 002
+  // Los nuevos y los recolocados aparecen parados y de frente; los demás conservan su vista (AC-4.7, AC-6.7).
+  deFrente(moviles.filter((h) => antes.get(h.id)?.x !== h.x || antes.get(h.id)?.y !== h.y).map((h) => h.id));
   const s = escena();
   s.redibujar();
   ultimaRegeneracionMs = performance.now() - t0; // medición de la meta de 100 ms (NFR)
@@ -1252,7 +1286,7 @@ function elegirJugador(id) {
   const saliente = { id: jugador.id, x: jugador.x, y: jugador.y, direccion: jugador.direccion };
   const r = cambiarJugador(moviles, saliente, id, distribucion, objetivosDeFamiliares(estado, ahora));
   moviles = modo === 'edicion' ? congelarHabitantes(r.moviles) : r.moviles; // en edición nadie camina (AC-12.4)
-  jugador = r.jugador;
+  jugador = { ...r.jugador, direccion: caminarDe(id).direccion }; // sigue mirando hacia donde miraba (AC-4.9)
   cerrarFichasYHojas(); // AC-12.4
   guardarPosicion(); // AC-5.2
   actualizarBotones();
@@ -1268,7 +1302,7 @@ function elegirJugador(id) {
 function pasarElJuegoAlPropietario() {
   const r = cambiarJugador(moviles, null, propietario().id, distribucion);
   moviles = r.moviles;
-  jugador = r.jugador;
+  jugador = { ...r.jugador, direccion: caminarDe(r.jugador.id).direccion }; // el propietario sigue mirando hacia donde miraba (AC-4.9)
   guardarPosicion();
 }
 
