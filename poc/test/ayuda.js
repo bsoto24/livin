@@ -1,4 +1,7 @@
 import { agregarActividad } from '../src/actividades.js';
+import { crearHogarInicial, agregarEspacio, eliminarEspacio, banoDe, cuartosEnOrden } from '../src/hogar.js';
+
+const agregarTipos = (estado, ctx, ...tipos) => tipos.reduce((e, t) => agregarEspacio(e, t, ctx), estado);
 
 // Contexto determinista para las pruebas: ids y fechas predecibles.
 export function crearCtx() {
@@ -42,4 +45,22 @@ export function agregarActividadLegada(estado, datos, ctx) {
   if (!r.ok) return r;
   const actividades = r.estado.actividades.map((a, i, todas) => (i === todas.length - 1 ? { ...a, miembroId: mascota.id } : a));
   return { ok: true, estado: { ...r.estado, actividades } };
+}
+
+// Las 7.560 combinaciones permitidas de espacios: comedor, cocinas, lavanderías, espacios de mascota, dormitorios, oficinas y baños internos.
+export function* todasLasCombinaciones() {
+  for (const comedor of [0, 1]) for (const cocinas of [1, 2]) for (const lav of [0, 1, 2]) for (const masc of [0, 1, 2])
+    for (const dorms of [1, 2, 3, 4]) for (const ofis of [0, 1, 2]) {
+      const ctx = crearCtx();
+      let base = crearHogarInicial(ctx);
+      base = agregarTipos(base, ctx, ...Array(comedor).fill('comedor'), ...Array(cocinas - 1).fill('cocina'),
+        ...Array(lav).fill('lavanderia'), ...Array(masc).fill('mascota'), ...Array(dorms - 1).fill('dormitorio'), ...Array(ofis).fill('oficina'));
+      const cuartos = cuartosEnOrden(base);
+      base = agregarTipos(base, ctx, ...Array(cuartos.length).fill('bano'));
+      for (let mascara = 0; mascara < 2 ** cuartos.length; mascara++) {
+        let e = base;
+        cuartos.forEach((c, i) => { if (!(mascara & (1 << i))) e = eliminarEspacio(e, banoDe(e, c.id).id, ctx); });
+        yield e;
+      }
+    }
 }

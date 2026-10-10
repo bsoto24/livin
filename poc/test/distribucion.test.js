@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { crearHogarInicial, agregarEspacio, eliminarEspacio, espaciosDeTipo, espaciosActivos, banoDe, banoComun, cuartosEnOrden } from '../src/hogar.js';
 import { generarDistribucion, esTransitable } from '../src/distribucion.js';
 import { paso } from '../src/posicion.js';
-import { crearCtx } from './ayuda.js';
+import { crearCtx, todasLasCombinaciones } from './ayuda.js';
 
 const agregar = (estado, ctx, ...tipos) => tipos.reduce((e, t) => agregarEspacio(e, t, ctx), estado);
 const VECINOS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -73,23 +73,6 @@ function verificarMapa(estado) {
   }
   assert.equal(esTransitable(d, d.entrada.x, d.entrada.y + 1), false, 'la entrada lleva fuera del hogar');
   assert.deepEqual(generarDistribucion(estado), d, 'no determinista');
-}
-
-function* todasLasCombinaciones() {
-  for (const comedor of [0, 1]) for (const cocinas of [1, 2]) for (const lav of [0, 1, 2]) for (const masc of [0, 1, 2])
-    for (const dorms of [1, 2, 3, 4]) for (const ofis of [0, 1, 2]) {
-      const ctx = crearCtx();
-      let base = crearHogarInicial(ctx);
-      base = agregar(base, ctx, ...Array(comedor).fill('comedor'), ...Array(cocinas - 1).fill('cocina'),
-        ...Array(lav).fill('lavanderia'), ...Array(masc).fill('mascota'), ...Array(dorms - 1).fill('dormitorio'), ...Array(ofis).fill('oficina'));
-      const cuartos = cuartosEnOrden(base);
-      base = agregar(base, ctx, ...Array(cuartos.length).fill('bano'));
-      for (let mascara = 0; mascara < 2 ** cuartos.length; mascara++) {
-        let e = base;
-        cuartos.forEach((c, i) => { if (!(mascara & (1 << i))) e = eliminarEspacio(e, banoDe(e, c.id).id, ctx); });
-        yield e;
-      }
-    }
 }
 
 test('Reliability: todas las combinaciones generan mapas correctos y navegables', () => {
