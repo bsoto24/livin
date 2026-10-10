@@ -7,7 +7,8 @@ import { casillasLibres, objetosDelSuelo, manchasDelSuelo, moscasDelSuelo, esqui
 import { arteDelMapa, ORDEN_DE_CAPAS, estadosCambiaron, TEXTURAS } from '../src/arte/casillas.js';
 import { LETRAS_MUEBLE } from '../src/arte/mobiliario.js';
 import { SUCIEDAD, SOBREPOSICIONES, GRUPO_DE_TIPO, TIPOS_CON_AGUA, TIPOS_CON_MOSCAS } from '../src/arte/suciedad.js';
-import { crearCtx, todasLasCombinaciones } from './ayuda.js';
+import { crearAlmacen, CLAVE_DATOS } from '../src/almacen.js';
+import { crearCtx, todasLasCombinaciones, almacenEnMemoria } from './ayuda.js';
 
 // Hogar con un espacio de cada tipo y dos baños internos: sala, comedor, cocina, baño común, lavandería, mascota, dormitorio, oficina y 2 baños.
 function hogarCompleto() {
@@ -215,28 +216,60 @@ test('Error: un espacio de un tipo sin grupo de objetos se dibuja sin objetos ni
   assert.ok(conCapa(mapa, 'telarana').length > 0);
 });
 
-test('Reliability: en los 7.560 mapas toda casilla tiene arte en desastre y todo lo dibujado existe, en casillas libres y sin repetir capas', () => {
+test('AC-10.2: el arte no cambia el modelo: el documento guardado es idéntico antes y después de dibujar los tres estados', () => {
+  // Congela recursivamente: cualquier escritura sobre el estado lanzaría TypeError (los módulos ES son estrictos).
+  const congelar = (o) => {
+    if (o !== null && typeof o === 'object' && !Object.isFrozen(o)) { Object.freeze(o); for (const v of Object.values(o)) congelar(v); }
+    return o;
+  };
+  const guardado = (estado) => {
+    const memoria = almacenEnMemoria();
+    assert.equal(crearAlmacen(memoria).guardar(estado).ok, true);
+    return memoria.datos.get(CLAVE_DATOS);
+  };
+  const estado = hogarCompleto();
+  const instantanea = JSON.stringify(estado);
+  const documentoAntes = guardado(estado);
+  congelar(estado);
+
+  const d = generarDistribucion(estado);
+  for (const limpieza of ['limpio', 'desordenado', 'desastre']) arteDelMapa(estado, d, todos(estado, limpieza));
+  for (const espacio of espaciosActivos(estado)) {
+    manchasDelSuelo(d, espacio.id, 'desastre');
+    moscasDelSuelo(d, espacio.id, 'desastre');
+    esquinasDelEspacio(d, espacio.id);
+    objetosDelSuelo(d, espacio.id, 'desastre');
+  }
+
+  assert.equal(JSON.stringify(estado), instantanea);
+  assert.equal(guardado(estado), documentoAntes);
+  assert.equal(documentoAntes, instantanea);
+});
+
+test('Reliability: en los 7.560 mapas toda casilla tiene arte en los tres estados (limpio, desordenado y desastre) y todo lo dibujado existe, en casillas libres y sin repetir capas', () => {
   const conocidas = new Set([...Object.keys(TEXTURAS), ...Object.keys(SUCIEDAD)]);
   let total = 0;
   for (const estado of todasLasCombinaciones()) {
     const d = generarDistribucion(estado);
-    const limpiezas = todos(estado, total % 3 === 0 ? 'desordenado' : 'desastre');
-    const arte = arteDelMapa(estado, d, limpiezas);
-    const fallos = [];
     const libres = new Set(espaciosActivos(estado).flatMap((s) => casillasLibres(d, s.id).map(clave)));
-    d.tiles.forEach((fila, y) => [...fila].forEach((ch, x) => {
-      const celda = arte[y][x];
-      if (ch === ' ') { if (celda !== null) fallos.push(`vacío con arte en (${x},${y})`); return; }
-      for (const capa of ORDEN_DE_CAPAS) {
-        if (celda[capa] !== null && !conocidas.has(celda[capa])) fallos.push(`${capa} sin dibujo en (${x},${y}): ${celda[capa]}`);
-      }
-      for (const capa of ['mancha', 'objeto', 'moscas']) {
-        if (celda[capa] !== null && !libres.has(clave({ x, y }))) fallos.push(`${capa} fuera de las casillas libres en (${x},${y})`);
-      }
-      if (ch === '#' && ORDEN_DE_CAPAS.some((c) => c !== 'base' && celda[c] !== null)) fallos.push(`pared con capas en (${x},${y})`);
-    }));
-    assert.deepEqual(fallos, [], `mapa ${total}`);
-    if (total % 500 === 0) assert.deepEqual(arteDelMapa(estado, d, limpiezas), arte, 'no determinista');
+    for (const limpieza of ['limpio', 'desordenado', 'desastre']) {
+      const limpiezas = todos(estado, limpieza);
+      const arte = arteDelMapa(estado, d, limpiezas);
+      const fallos = [];
+      d.tiles.forEach((fila, y) => [...fila].forEach((ch, x) => {
+        const celda = arte[y][x];
+        if (ch === ' ') { if (celda !== null) fallos.push(`vacío con arte en (${x},${y})`); return; }
+        for (const capa of ORDEN_DE_CAPAS) {
+          if (celda[capa] !== null && !conocidas.has(celda[capa])) fallos.push(`${capa} sin dibujo en (${x},${y}): ${celda[capa]}`);
+        }
+        for (const capa of ['mancha', 'objeto', 'moscas']) {
+          if (celda[capa] !== null && !libres.has(clave({ x, y }))) fallos.push(`${capa} fuera de las casillas libres en (${x},${y})`);
+        }
+        if (ch === '#' && ORDEN_DE_CAPAS.some((c) => c !== 'base' && celda[c] !== null)) fallos.push(`pared con capas en (${x},${y})`);
+      }));
+      assert.deepEqual(fallos, [], `mapa ${total}, estado ${limpieza}`);
+      if (total % 500 === 0) assert.deepEqual(arteDelMapa(estado, d, limpiezas), arte, `no determinista (mapa ${total}, estado ${limpieza})`);
+    }
     total++;
   }
   assert.equal(total, 7560);
