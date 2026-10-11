@@ -5,9 +5,10 @@ import { SECCIONES, textoPestana, accionDeToque, ocupanteEn } from '../src/secci
 
 const TOQUE = { ocupante: 'm1', enCartel: true, burbuja: { tipo: 'espacio', id: 'e1' }, espacioId: 'e1' };
 
-test('AC-1.1: la barra tiene cuatro secciones, en este orden, cada una con su etiqueta y su icono', () => {
+test('AC-1.1: la barra tiene cuatro secciones, en este orden, cada una con su etiqueta y la clave de su icono', () => {
   assert.deepEqual(SECCIONES.map((s) => [s.clave, s.etiqueta, s.icono]), [
-    ['espacios', 'Espacios', '🏠'], ['familia', 'Familia', '👨‍👩‍👧'], ['actividades', 'Actividades', '📋'], ['intercambios', 'Intercambios', '🔄'],
+    ['espacios', 'Espacios', 'pestana:espacios'], ['familia', 'Familia', 'pestana:familia'],
+    ['actividades', 'Actividades', 'pestana:actividades'], ['intercambios', 'Intercambios', 'pestana:intercambios'],
   ]);
 });
 
