@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-10
 **Rama:** `feat/010-estados-de-limpieza`
-**Estado:** automática completa; navegador de escritorio parcial (ver los límites abajo); **teléfono Android pendiente** (la hace el usuario).
+**Estado:** automática completa, navegador de escritorio con los límites descritos abajo y teléfono Android completo: **70 fps, `regen` de 24,9 ms y sin observaciones**.
 
 ## Pruebas automáticas
 
@@ -43,14 +43,18 @@ Servidor sin caché, sin errores en la consola.
 | Capas (AC-8.2, AC-8.4) | el protagonista, los familiares, las mascotas, los nombres, las insignias (✓ ! !!) y las burbujas quedan por encima del desorden; no se ve ningún cuadrado liso de color de la versión anterior |
 | Carga completa en escritorio (AC-10.4, AC-10.5) | hogar `version: 7` de 21 espacios (el mayor permitido, mapa de 33×40 casillas, 528×640 px), 8 familiares, 4 mascotas y el propietario, y 50 actividades atrasadas 3 días repartidas por todos los espacios (todo en desastre): `dibujarMundo` tarda **1,5 ms** de media (50 llamadas); el indicador marcó **105 a 120 fps**; abre sin aviso. No incluye las 200 entradas de historial, que no intervienen en el dibujo del mundo |
 
+## Teléfono Android (2026-10-10)
+
+Confirmado por quien decide el producto con el servidor sin caché en la red local y los hogares de prueba de estados: **70 fps, `regen` de 24,9 ms y sin observaciones** (modelo del teléfono, valor de `arte` y paso a paso no indicados; resumen del usuario). Cumple las metas de la spec: 60 fps o más, y `regen` por debajo de los 100 ms y de los 45,3 ms que midió el teléfono con la 009 (AC-10.4, AC-10.5). No se registraron por separado los pasos 1 a 4 de «Pasos de teléfono» ni el tamaño de la hoja en el teléfono.
+
 ## Límites de esta verificación
 
-- **Teléfono Android:** pendiente. Hay que repetir con los tres hogares de prueba y con la carga completa: reconocimiento de los estados con el zoom de exploración y con el zoom bajo de edición, fps, `regen`, `arte` y la recomposición al cambiar un estado.
+- **Teléfono Android:** hecho (ver arriba), pero solo como resumen del usuario: no hay registro del valor de `arte`, del modelo del teléfono ni de qué pasos se repitieron con qué hogar.
 - **No se comprobó** en el navegador: agregar desde la ficha una actividad atrasada a un espacio limpio (AC-7.2: la misma ruta `aplicarActividades` → `refrescarActividades` que la baja y «Hecho», que sí se vieron; la derivación de 1 y 3 días la cubre el cambio de día de arriba), el hogar `limpio` cargado como tal (se vio la cocina y la sala limpias tras la baja y «Hecho», y la 008 no cambió en limpio: AC-8.1 lo prueba la suite), eliminar un espacio en edición (mismo camino `redibujar` que agregar uno) y abrir un hogar guardado de una versión anterior a la 7 (AC-10.1: lo cubren las pruebas del almacén, que no cambian, y el arte es una función pura del documento `version: 7`).
 - **Retoques a los dibujos:** ninguno todavía. Los dibujos son los bocetos del plan. Si en el teléfono algún objeto se confunde con un mueble o el desastre se ve demasiado cargado, se retocan en `src/arte/suciedad.js` o se baja la cantidad de manchas (spec, Open Questions).
 - **Tiempo de dibujo medido de lado de la CPU** (JavaScript hasta `endDraw`); no incluye el trabajo de la tarjeta gráfica, que no se puede medir desde la consola.
 
-## Pasos de teléfono para quien verifica
+## Pasos de teléfono (usados en la verificación)
 
 1. Cargar `hogarDePruebaDeEstados('desastre', …)` y mirar cada espacio con el zoom de exploración y en edición: ¿se reconoce cada tipo sin leer la insignia? ¿los objetos se distinguen del mobiliario?
 2. Repetir con `'desordenado'` y `'limpio'`.
