@@ -3,10 +3,10 @@
 // mapa al tocarlo según la sección abierta (FR-1 y FR-2 de la 007).
 
 export const SECCIONES = [
-  { clave: 'espacios', etiqueta: 'Espacios', icono: '🏠' },
-  { clave: 'familia', etiqueta: 'Familia', icono: '👨‍👩‍👧' },
-  { clave: 'actividades', etiqueta: 'Actividades', icono: '📋' },
-  { clave: 'intercambios', etiqueta: 'Intercambios', icono: '🔄' },
+  { clave: 'espacios', etiqueta: 'Espacios', icono: 'pestana:espacios' },
+  { clave: 'familia', etiqueta: 'Familia', icono: 'pestana:familia' },
+  { clave: 'actividades', etiqueta: 'Actividades', icono: 'pestana:actividades' },
+  { clave: 'intercambios', etiqueta: 'Intercambios', icono: 'pestana:intercambios' },
 ];
 
 // Rótulo de una pestaña (AC-1.8): Intercambios muestra las propuestas recibidas vigentes de quien juega.

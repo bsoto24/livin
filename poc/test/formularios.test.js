@@ -64,12 +64,12 @@ test('AC-9.7: la recurrencia es un solo selector que se traduce a tipo y frecuen
   assert.equal(etiquetaDeRecurrencia('3'), 'Cada 3 días');
 });
 
-test('AC-9.4, AC-9.8: la línea-resumen dice la fecha, la recurrencia y los lugares', () => {
+test('AC-9.4, AC-9.8: la línea-resumen dice la fecha, la recurrencia y los lugares, sin símbolo al comienzo', () => {
   const hoy = '2026-10-06';
-  assert.equal(resumenDeFicha({ vence: hoy, hoy, recurrencia: '0', lugares: [] }), '📅 Hoy · Una vez · Sin lugar');
-  assert.equal(resumenDeFicha({ vence: '2026-10-09', hoy, recurrencia: '7', lugares: ['Sala'] }), '📅 2026-10-09 · Cada 7 días · Sala');
-  assert.equal(resumenDeFicha({ vence: hoy, hoy, recurrencia: '1', lugares: ['Sala', 'Cocina', 'Dormitorio 1'] }), '📅 Hoy · Cada día · 3 lugares');
-  assert.equal(resumenDeFicha({ vence: '', hoy, recurrencia: '0', lugares: [] }), '📅 Sin fecha · Una vez · Sin lugar');
+  assert.equal(resumenDeFicha({ vence: hoy, hoy, recurrencia: '0', lugares: [] }), 'Hoy · Una vez · Sin lugar');
+  assert.equal(resumenDeFicha({ vence: '2026-10-09', hoy, recurrencia: '7', lugares: ['Sala'] }), '2026-10-09 · Cada 7 días · Sala');
+  assert.equal(resumenDeFicha({ vence: hoy, hoy, recurrencia: '1', lugares: ['Sala', 'Cocina', 'Dormitorio 1'] }), 'Hoy · Cada día · 3 lugares');
+  assert.equal(resumenDeFicha({ vence: '', hoy, recurrencia: '0', lugares: [] }), 'Sin fecha · Una vez · Sin lugar');
 });
 
 test('AC-9.1: la inicial de un círculo es la primera letra del nombre en mayúscula', () => {

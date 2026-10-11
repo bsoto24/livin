@@ -5,9 +5,10 @@ import { SECCIONES, textoPestana, accionDeToque, ocupanteEn } from '../src/secci
 
 const TOQUE = { ocupante: 'm1', enCartel: true, burbuja: { tipo: 'espacio', id: 'e1' }, espacioId: 'e1' };
 
-test('AC-1.1: la barra tiene cuatro secciones, en este orden, cada una con su etiqueta y su icono', () => {
+test('AC-1.1: la barra tiene cuatro secciones, en este orden, cada una con su etiqueta y la clave de su icono', () => {
   assert.deepEqual(SECCIONES.map((s) => [s.clave, s.etiqueta, s.icono]), [
-    ['espacios', 'Espacios', '🏠'], ['familia', 'Familia', '👨‍👩‍👧'], ['actividades', 'Actividades', '📋'], ['intercambios', 'Intercambios', '🔄'],
+    ['espacios', 'Espacios', 'pestana:espacios'], ['familia', 'Familia', 'pestana:familia'],
+    ['actividades', 'Actividades', 'pestana:actividades'], ['intercambios', 'Intercambios', 'pestana:intercambios'],
   ]);
 });
 
@@ -54,4 +55,13 @@ test('AC-2.2: quien está fuera de casa (ausente del mapa) nunca responde, ni si
   const sinPropietario = new Map([['h1', { x: 3, y: 4 }]]);
   assert.equal(ocupanteEn(0, 0, sinPropietario, 'p'), null);
   assert.equal(ocupanteEn(3, 4, sinPropietario, 'p'), 'h1');
+});
+
+import { ICONOS_DE_INTERFAZ } from '../src/arte/iconos.js';
+
+test('AC-2.1: cada pestaña lleva la clave de un icono que existe, y ninguna es un emoji', () => {
+  for (const s of SECCIONES) {
+    assert.ok(Object.hasOwn(ICONOS_DE_INTERFAZ, s.icono), s.icono);
+    assert.doesNotMatch(s.icono, /\p{Extended_Pictographic}/u);
+  }
 });

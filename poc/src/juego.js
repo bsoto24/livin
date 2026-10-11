@@ -27,7 +27,7 @@ import {
   buscarBloque, bloquesDe, contarBloques, puedeAgregarBloque, agregarBloque, editarBloque, eliminarBloque, MENSAJES_BLOQUE,
   textoHora, textoBloque, textoBajas, objetivosDeFamiliares, textoVuelta,
 } from './rutinas.js';
-import { INSIGNIAS, casillaDeBurbuja, ubicarBurbujas } from './aspecto.js';
+import { casillaDeBurbuja, ubicarBurbujas } from './aspecto.js';
 import {
   numeroRecibidas, intercambiosDe, actividadesOfrecibles, actividadesPedibles, motivoSinPropuesta, proponer, aceptar, rechazar, retirar,
   quitar, esVigente, textoPropuesta, textoIntercambio, MENSAJES_INTERCAMBIO,
@@ -43,6 +43,11 @@ import { ahoraLocal } from './fechas.js';
 import { PALETA, TAM } from './arte/paleta.js';
 import { TEXTURAS, arteDelMapa, ORDEN_DE_CAPAS, estadosCambiaron } from './arte/casillas.js';
 import { SUCIEDAD } from './arte/suciedad.js';
+import {
+  claveDeIconoDeActividad, claveDeIconoDeEstado, claveDeAvatar, claveDeAvatarDePersonaje, ICONOS_DE_INTERFAZ,
+} from './arte/iconos.js';
+import { COLORES_DEL_MAPA, numeroDeColor } from './arte/colores.js';
+import { fijarVariablesDeColor, prepararImagenes, imagen } from './imagenes.js';
 import { CUADROS_DE_PERSONAJES, claveDeCuadro, personajeDe } from './arte/personajes.js';
 import {
   REPOSO, vistaDeDireccion, direccionDelPaso, pasoNuevo, mirarHacia, progresoDelPaso, cuadroDeCaminar,
@@ -60,31 +65,43 @@ const ESPERA_FUENTE_MS = 1000;
 const PROF_ETIQUETA_ESPACIO = 5;
 const PROF_PERSONAJE = 10;
 const PROF_ETIQUETA_PERSONAJE = 20;
-// Las etiquetas se crean siempre con este estilo fijo y se contrarrestan con setScale(1 / zoom): así se ven 1:1 en pantalla.
+// Las etiquetas se crean siempre con este estilo fijo y se contrarrestan con setScale(1 / zoom): así se ven 1:1 en pantalla. Colores de la paleta (FR-7 de la 011).
 const ESTILO_ETIQUETA = {
-  fontFamily: FUENTE, fontSize: TAM_LETRA_MAPA, color: '#2a221c',
-  backgroundColor: 'rgba(242,234,211,0.85)', padding: { x: 3, y: 2 },
+  fontFamily: FUENTE, fontSize: TAM_LETRA_MAPA, color: COLORES_DEL_MAPA.etiquetaTx,
+  backgroundColor: COLORES_DEL_MAPA.etiquetaFondo, padding: { x: 3, y: 2 },
 };
-// Actividades (FR-5 y FR-6 de la 003), arte de marcador: iconos como emoji del sistema (feature 011).
-const GLIFO_ICONO = { platos: '🍽️', barrer: '🧹', ropa: '🧺', basura: '🗑️', limpiar: '🧽', compras: '🛒', plantas: '🪴', mascota: '🐾', otra: '📌' };
-const COLOR_INSIGNIA = { limpio: '#2e9e4f', desordenado: '#c98a00', desastre: '#c0392b' };
 const PROF_BURBUJA = 30;
-const ESTILO_BURBUJA = { fontFamily: 'system-ui, sans-serif', fontSize: '16px', color: '#2a221c', backgroundColor: '#ffffff', padding: { x: 4, y: 2 } };
+// Burbuja (FR-4 de la 011): un recuadro claro con borde oscuro, el icono de la actividad más atrasada (16 px) y un «+» en texto si hay más.
+const ALTO_BURBUJA = 20;
+const ANCHO_BURBUJA = 20;
+const ANCHO_BURBUJA_CON_MAS = 30;
+const ESTILO_MAS = { fontFamily: FUENTE, fontSize: TAM_LETRA_MAPA, color: COLORES_DEL_MAPA.etiquetaTx };
 // Rutinas (FR-5 y FR-7 de la 004): en una casilla compartida, quien va en ruta se dibuja debajo de quien no; el cartel de la entrada.
 const PROF_EN_RUTA = 9;
-const ESTILO_CARTEL = { ...ESTILO_ETIQUETA, color: '#ffffff', backgroundColor: '#2a221c' };
+const ESTILO_CARTEL = { ...ESTILO_ETIQUETA, color: COLORES_DEL_MAPA.cartelTx, backgroundColor: COLORES_DEL_MAPA.cartelFondo };
 // Jugador activo (FR-1 de la 005): el resalte de la etiqueta de quien juega y el color de cada miembro en los círculos de responsable.
 const COLOR_PROPIETARIO = 0xd4537e;
-const COLOR_RESALTE = '#ffd166';
+const COLOR_RESALTE = COLORES_DEL_MAPA.resalte;
 function colorDe(miembro) {
   if (miembro.tipo === 'mascota') return DATOS_ESPECIE[miembro.especie].color;
   if (esPropietario(estado, miembro)) return COLOR_PROPIETARIO;
   return DATOS_ASPECTO[miembro.aspecto].color;
 }
 const colorCss = (color) => `#${color.toString(16).padStart(6, '0')}`;
-const iconoDeMiembro = (miembro) => (miembro.tipo === 'mascota' ? DATOS_ESPECIE[miembro.especie].icono : (DATOS_ASPECTO[miembro.aspecto]?.icono ?? '🧑'));
 
 const $ = (id) => document.getElementById(id);
+// FR-6 y FR-7 de la 011: los colores y las imágenes de la interfaz se preparan una sola vez, antes de crear la barra y los listados; mientras
+// tanto la página está oculta (`preparando`). El tiempo se suma al de la hoja de texturas en el indicador.
+fijarVariablesDeColor();
+const msImagenes = prepararImagenes();
+
+// Iconos y avatares de la interfaz (FR-2 y FR-3 de la 011): una imagen entera dentro de un `span.icono`; `imagen` ya cuida el respaldo (FR-6).
+function iconoEl(clave, escala) {
+  const contenedor = elemento('span', undefined, 'icono');
+  contenedor.append(imagen(clave, escala));
+  return contenedor;
+}
+const iconoDeActividadEl = (icono, escala) => iconoEl(claveDeIconoDeActividad(icono), escala);
 // Si el navegador bloquea el almacenamiento, hasta acceder a localStorage lanza; se usa uno que siempre falla
 // para que el almacén muestre el aviso y la app funcione sin persistencia.
 function obtenerStorage() {
@@ -180,7 +197,7 @@ const limpiezasDelHogar = () => new Map(espaciosActivos(estado).map((e) => [e.id
 const COLUMNAS_DE_LA_HOJA = 64;
 function prepararArte(escena) {
   const t0 = performance.now();
-  const dibujos = { ...TEXTURAS, ...SUCIEDAD, ...CUADROS_DE_PERSONAJES };
+  const dibujos = { ...TEXTURAS, ...SUCIEDAD, ...CUADROS_DE_PERSONAJES, ...ICONOS_DE_INTERFAZ };
   const claves = Object.keys(dibujos);
   const columnas = Math.min(COLUMNAS_DE_LA_HOJA, claves.length);
   const hoja = escena.textures.createCanvas('arte', TAM * columnas, TAM * Math.ceil(claves.length / columnas));
@@ -291,15 +308,15 @@ class Escena extends Phaser.Scene {
     this.etiquetaPersonaje.setText(miembro.nombre).setScale(escala).setBackgroundColor(COLOR_RESALTE);
   }
 
-  // Insignia del estado de limpieza junto al nombre de cada espacio (FR-5 de la 003); los pasillos no tienen etiqueta ni insignia.
+  // Insignia del estado de limpieza junto al nombre de cada espacio (FR-5 de la 003, FR-4 de la 011): el icono de su estado, a 16 px en pantalla;
+  // los pasillos no tienen etiqueta ni insignia.
   dibujarInsignias() {
     this.insignias.forEach((t) => t.destroy());
     this.insignias.clear();
     const escala = 1 / this.cameras.main.zoom;
     for (const clave of this.etiquetas.keys()) {
       const limpieza = limpiezaDeEspacio(estado, clave, hoy);
-      const estilo = { ...ESTILO_ETIQUETA, color: '#ffffff', backgroundColor: COLOR_INSIGNIA[limpieza] };
-      const insignia = this.add.text(0, 0, INSIGNIAS[limpieza], estilo).setOrigin(0, 0.5).setScale(escala).setDepth(PROF_ETIQUETA_ESPACIO);
+      const insignia = this.add.image(0, 0, 'arte', claveDeIconoDeEstado(limpieza)).setOrigin(0, 0.5).setScale(escala).setDepth(PROF_ETIQUETA_ESPACIO);
       this.insignias.set(clave, insignia);
     }
     this.colocarInsignias();
@@ -314,17 +331,21 @@ class Escena extends Phaser.Scene {
     }
   }
 
-  // Una burbuja por lugar con actividades por hacer (FR-6 de la 003): icono de la más atrasada y "+" si hay más.
+  // Una burbuja por lugar con actividades por hacer (FR-6 de la 003, FR-4 de la 011): icono de la más atrasada y "+" si hay más.
   // La de un espacio queda fija en su casilla; la de un miembro la coloca `colocarBurbujas` en cada cuadro.
   dibujarBurbujas() {
-    for (const b of this.burbujas) b.texto.destroy();
+    for (const b of this.burbujas) b.objeto.destroy();
     const escala = 1 / this.cameras.main.zoom;
     this.burbujas = burbujas(estado, hoy).map((b) => {
-      const texto = this.add.text(0, 0, `${GLIFO_ICONO[b.icono]}${b.mas ? '+' : ''}`, ESTILO_BURBUJA)
-        .setOrigin(0.5).setScale(escala).setDepth(PROF_BURBUJA);
+      const ancho = b.mas ? ANCHO_BURBUJA_CON_MAS : ANCHO_BURBUJA;
+      const fondo = this.add.rectangle(0, 0, ancho, ALTO_BURBUJA, numeroDeColor(COLORES_DEL_MAPA.burbujaFondo))
+        .setStrokeStyle(1, numeroDeColor(COLORES_DEL_MAPA.burbujaBorde));
+      const partes = [fondo, this.add.image(b.mas ? -5 : 0, 0, 'arte', claveDeIconoDeActividad(b.icono))];
+      if (b.mas) partes.push(this.add.text(9, 0, '+', ESTILO_MAS).setOrigin(0.5));
+      const objeto = this.add.container(0, 0, partes).setScale(escala).setDepth(PROF_BURBUJA);
       const casilla = b.tipo === 'espacio' ? casillaDeBurbuja(distribucion, b.id) : null;
-      if (casilla) texto.setPosition(casilla.x * TILE + TILE / 2, casilla.y * TILE + TILE / 2);
-      return { ...b, texto };
+      if (casilla) objeto.setPosition(casilla.x * TILE + TILE / 2, casilla.y * TILE + TILE / 2);
+      return { ...b, objeto };
     });
     this.colocarBurbujas();
   }
@@ -335,8 +356,8 @@ class Escena extends Phaser.Scene {
     for (const b of this.burbujas) {
       if (b.tipo !== 'miembro') continue;
       const cuerpo = b.id === jugador.id ? this.personaje : this.sprites.get(b.id)?.cuerpo;
-      b.texto.setVisible(Boolean(cuerpo?.visible));
-      if (cuerpo) b.texto.setPosition(cuerpo.x, cuerpo.y - TILE);
+      b.objeto.setVisible(Boolean(cuerpo?.visible));
+      if (cuerpo) b.objeto.setPosition(cuerpo.x, cuerpo.y - TILE);
     }
   }
 
@@ -523,13 +544,13 @@ class Escena extends Phaser.Scene {
     this.animarPersonajes();
     this.actualizarEtiquetas();
     if (!dir && !moviendo && posicionSinGuardar && modo === 'exploracion') guardarPosicion(); // en reposo tras caminar (FR-10)
-    $('depuracion').textContent = `${Math.round(this.game.loop.actualFps)} fps · regen ${ultimaRegeneracionMs.toFixed(1)} ms · arte ${this.msArte.toFixed(0)} ms`;
+    $('depuracion').textContent = `${Math.round(this.game.loop.actualFps)} fps · regen ${ultimaRegeneracionMs.toFixed(1)} ms · arte ${this.msArte.toFixed(0)} ms · ui ${msImagenes.toFixed(0)} ms`;
   }
 }
 
 await esperarFuente(); // las etiquetas se crean con Silkscreen ya disponible (AC-8.2)
 const juego = new Phaser.Game({
-  type: Phaser.AUTO, parent: 'juego', backgroundColor: '#1d1d1d', pixelArt: true,
+  type: Phaser.AUTO, parent: 'juego', backgroundColor: COLORES_DEL_MAPA.fondo, pixelArt: true,
   scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' }, scene: Escena,
 });
 const escena = () => juego.scene.getScene('principal');
@@ -537,6 +558,7 @@ const escena = () => juego.scene.getScene('principal');
 // ---------- Cruceta ----------
 for (const boton of document.querySelectorAll('#cruceta button')) {
   const dir = boton.dataset.dir;
+  boton.append(imagen(`flecha:${dir}`, 2)); // la flecha dibujada (AC-6.4); el nombre accesible sigue en aria-label
   boton.addEventListener('pointerdown', (ev) => { ev.preventDefault(); direccionTactil = dir; escena().mover(dir); });
   for (const fin of ['pointerup', 'pointerleave', 'pointercancel']) {
     boton.addEventListener(fin, () => { if (direccionTactil === dir) direccionTactil = null; });
@@ -553,7 +575,7 @@ for (const s of SECCIONES) {
   const pestana = elemento('button', undefined, 'pestana');
   pestana.type = 'button';
   pestana.dataset.seccion = s.clave;
-  pestana.append(elemento('span', s.icono, 'icono'), elemento('small', s.etiqueta, 'etiqueta'));
+  pestana.append(iconoEl(s.icono, 2), elemento('small', s.etiqueta, 'etiqueta')); // AC-2.2: el icono dibujado a ×2
   pestana.addEventListener('click', () => abrirSeccion(s.clave));
   $('barra').append(pestana);
 }
@@ -749,7 +771,7 @@ function pintarFamilia() {
     if (lista.length === 0) cont.append(elemento('p', vacio, 'nota'));
     for (const m of lista) {
       const fila = elemento('div', undefined, 'fila actividad');
-      fila.append(elemento('span', iconoDeMiembro(m), 'icono'), elemento('strong', m.nombre));
+      fila.append(iconoEl(claveDeAvatar(estado, m), 2), elemento('strong', m.nombre)); // AC-5.4: el avatar de su personaje
       fila.addEventListener('click', () => abrirFichaHabitante(clase, m.id));
       cont.append(fila);
     }
@@ -789,7 +811,7 @@ function pintarPendientes() {
     const datos = elemento('span');
     const nota = textoIntercambio(estado, a); // AC-8.6
     datos.append(elemento('strong', a.nombre), elemento('small', `${buscarMiembro(estado, a.miembroId).nombre} · ${lugar} · ${textoPlazo(a, hoy)}${nota ? ` · ${nota}` : ''}`));
-    fila.append(elemento('span', GLIFO_ICONO[a.icono], 'icono'), datos);
+    fila.append(iconoDeActividadEl(a.icono, 2), datos); // AC-3.1, AC-3.5
     fila.addEventListener('click', () => abrirFichaActividad(a.id));
     cont.append(fila);
   }
@@ -798,22 +820,21 @@ function pintarPendientes() {
 // ---------- Fichas ----------
 let fichaActual = null; // { tipo: 'espacio' | 'propietario' | 'habitante', id, clase?, icono? }
 
-// Opciones del selector de iconos de un habitante: los aspectos de un familiar o las especies de una mascota (AC-5.2, AC-6.2).
+// Opciones del selector de iconos de un habitante: los aspectos de un familiar o las especies de una mascota (AC-5.2, AC-6.2), cada una con su
+// avatar (AC-5.5). Las claves de aspecto y de especie son las de sus personajes.
 function opcionesDeIcono(clase) {
-  return clase === 'familiar'
-    ? Object.entries(ASPECTOS).map(([clave, etiqueta]) => [clave, DATOS_ASPECTO[clave].icono, etiqueta])
-    : Object.entries(ESPECIES).map(([clave, etiqueta]) => [clave, DATOS_ESPECIE[clave].icono, etiqueta]);
+  return Object.entries(clase === 'familiar' ? ASPECTOS : ESPECIES).map(([clave, etiqueta]) => [clave, claveDeAvatarDePersonaje(clave), etiqueta]);
 }
-const glifoDeIcono = (clase, clave) => (clase === 'familiar' ? DATOS_ASPECTO[clave].icono : DATOS_ESPECIE[clave].icono);
 
-// Selector de iconos (AC-5.2, AC-6.2, AC-8.7): una rejilla de [clave, icono, etiqueta] con la actual marcada; al elegir una, se cierra y llama a `alElegir`.
-function abrirSelectorIconos(titulo, opcionesLista, actual, alElegir) {
+// Selector de iconos (AC-5.2, AC-6.2, AC-8.7): una rejilla de [clave, clave de imagen, etiqueta] con la actual marcada; al elegir una, se cierra y
+// llama a `alElegir`. `escala` es el tamaño de la imagen (×2 los avatares, ×3 los iconos de actividad; FR-2).
+function abrirSelectorIconos(titulo, opcionesLista, actual, alElegir, escala) {
   $('selector-titulo').textContent = titulo;
-  $('selector-lista').replaceChildren(...opcionesLista.map(([clave, icono, etiqueta]) => {
+  $('selector-lista').replaceChildren(...opcionesLista.map(([clave, claveImagen, etiqueta]) => {
     const boton = elemento('button', undefined, 'opcion-icono');
     boton.type = 'button';
     boton.setAttribute('aria-pressed', String(clave === actual));
-    boton.append(elemento('span', icono, 'icono'), elemento('small', etiqueta));
+    boton.append(iconoEl(claveImagen, escala), elemento('small', etiqueta));
     boton.addEventListener('click', () => { cerrarSelectorIconos(); alElegir(clave); });
     return boton;
   }));
@@ -831,8 +852,8 @@ function actualizarGuardar() {
 
 function pintarIconoFicha() {
   const boton = $('ficha-icono');
-  boton.style.display = 'block';
-  boton.textContent = glifoDeIcono(fichaActual.clase, fichaActual.icono);
+  boton.style.display = 'flex';
+  boton.replaceChildren(imagen(claveDeAvatarDePersonaje(fichaActual.icono), 2)); // AC-5.5: el avatar del aspecto o de la especie elegidos
   boton.setAttribute('aria-label', fichaActual.clase === 'familiar' ? 'Elegir aspecto' : 'Elegir especie');
 }
 
@@ -841,7 +862,7 @@ $('ficha-icono').addEventListener('click', () => {
   abrirSelectorIconos(clase === 'familiar' ? 'Aspecto' : 'Especie', opcionesDeIcono(clase), icono, (clave) => {
     fichaActual.icono = clave;
     pintarIconoFicha();
-  });
+  }, 2);
 });
 
 // Ficha de un espacio o del personaje del propietario (como en la 001: solo renombrar; Eliminar solo en espacios; sin icono, AC-5.10).
@@ -986,7 +1007,7 @@ function pintarHoja() {
       botones.append(editar, eliminar);
     }
     const item = elemento('div', undefined, 'item');
-    item.append(elemento('span', GLIFO_ICONO[a.icono], 'icono'), datos, botones);
+    item.append(iconoDeActividadEl(a.icono, 2), datos, botones);
     cont.append(item);
   }
   $('hoja').style.display = 'block';
@@ -1028,7 +1049,7 @@ function opciones(select, pares, valor) {
   select.value = valor;
 }
 
-// Alta (AC-8.1, AC-9.2, AC-9.4): nombre vacío, icono 📌, quien juega, hoy, una vez y sin lugar. Edición: los datos de la actividad (AC-8.15).
+// Alta (AC-8.1, AC-9.2, AC-9.4): nombre vacío, icono genérico, quien juega, hoy, una vez y sin lugar. Edición: los datos de la actividad (AC-8.15).
 function abrirFichaActividad(id) {
   actividadEnFicha = id;
   const a = id ? buscarActividad(estado, id) : null;
@@ -1053,11 +1074,12 @@ function abrirFichaActividad(id) {
 function pintarFichaActividad() {
   const texto = $('actividad-nombre').value;
   const icono = $('actividad-icono');
-  icono.textContent = GLIFO_ICONO[fichaAct.icono.icono];
+  icono.replaceChildren(imagen(claveDeIconoDeActividad(fichaAct.icono.icono), 2)); // AC-3.4
   icono.setAttribute('aria-disabled', String(!fichaAct.icono.editable));
   icono.setAttribute('aria-label', fichaAct.icono.editable ? 'Elegir icono' : 'Icono de la sugerencia');
   $('actividad-sugerencias').replaceChildren(...sugerenciasPara(texto).map((s) => { // AC-8.2, AC-8.3
-    const chip = elemento('button', `${GLIFO_ICONO[s.icono]} ${s.nombre}`, 'chip');
+    const chip = elemento('button', undefined, 'chip');
+    chip.append(imagen(claveDeIconoDeActividad(s.icono), 1), elemento('span', s.nombre)); // AC-3.6: icono a ×1 antes del nombre
     chip.type = 'button';
     chip.addEventListener('click', () => { $('actividad-nombre').value = s.nombre; alCambiarNombre(); }); // AC-8.5
     return chip;
@@ -1079,10 +1101,10 @@ function pintarFichaActividad() {
     chip.addEventListener('click', () => alTocarLugar(e.id));
     return chip;
   }));
-  $('actividad-resumen').textContent = resumenDeFicha({
+  $('actividad-resumen').replaceChildren(imagen('fecha', 1), elemento('span', resumenDeFicha({ // AC-6.3: el icono de fecha y el texto sin símbolo
     vence: $('actividad-vence').value, hoy, recurrencia: $('actividad-recurrencia').value,
     lugares: espacios.filter((e) => fichaAct.lugares.has(e.id)).map((e) => nombreVisible(estado, e)),
-  });
+  })));
   $('actividad-mas').style.display = fichaAct.desplegada ? 'block' : 'none';
   $('actividad-cambiar').textContent = fichaAct.desplegada ? 'Ocultar' : 'Cambiar';
   // En un alta, guardar se activa con nombre y responsable (AC-8.12). En una edición queda activo: un nombre vacío llega a editarActividad,
@@ -1136,11 +1158,11 @@ $('ficha-actividad').querySelector('form').addEventListener('submit', (ev) => {
 $('actividad-nombre').addEventListener('input', alCambiarNombre);
 $('actividad-icono').addEventListener('click', () => {
   if (!fichaAct.icono.editable) return; // con una sugerencia el icono es el suyo (AC-8.5)
-  const lista = Object.entries(ICONOS).map(([clave, etiqueta]) => [clave, GLIFO_ICONO[clave], etiqueta]);
+  const lista = Object.entries(ICONOS).map(([clave, etiqueta]) => [clave, claveDeIconoDeActividad(clave), etiqueta]);
   abrirSelectorIconos('Icono de la actividad', lista, fichaAct.icono.icono, (clave) => {
     fichaAct.icono = iconoDeFicha($('actividad-nombre').value, clave); // AC-8.7
     pintarFichaActividad();
-  });
+  }, 3); // AC-3.3: ×3 (48 px)
 });
 for (const campo of ['actividad-vence', 'actividad-recurrencia']) {
   $(campo).addEventListener('input', () => { $('actividad-error').textContent = ''; pintarFichaActividad(); });
@@ -1395,11 +1417,12 @@ function pintarHistorial() {
 // pueden tocar (libre, mía) o no (propia, bloqueada), y solo una calificación mía ofrece "Quitar" (AC-4.1, AC-4.3, AC-5.1, AC-5.5).
 function filaDeHistorial(entrada) {
   const situacion = estadoDeCalificacion(entrada, jugador.id);
-  const titulo = elemento('div');
-  titulo.append(elemento('span', GLIFO_ICONO[entrada.icono], 'icono'), elemento('strong', entrada.nombre));
+  const titulo = elemento('div', undefined, 'titulo-historial'); // el icono y el nombre en una fila (AC-8.6)
+  titulo.append(iconoDeActividadEl(entrada.icono, 2), elemento('strong', entrada.nombre));
   const estrellas = elemento('span', undefined, 'estrellas');
   for (let k = 1; k <= MAX_ESTRELLAS; k += 1) {
-    const boton = elemento('button', entrada.estrellas !== null && k <= entrada.estrellas ? '★' : '☆');
+    const boton = elemento('button');
+    boton.append(imagen(entrada.estrellas !== null && k <= entrada.estrellas ? 'estrella:llena' : 'estrella:vacia', 2)); // AC-6.1
     boton.type = 'button';
     boton.disabled = situacion === 'propia' || situacion === 'bloqueada';
     boton.setAttribute('aria-label', `${k} ${k === 1 ? 'estrella' : 'estrellas'}`);
@@ -1447,4 +1470,5 @@ document.addEventListener('visibilitychange', () => {
 });
 actualizarBotones();
 mostrarChrome();
+document.body.classList.remove('preparando'); // AC-9.5: la interfaz aparece ya con sus colores e imágenes
 if (inicio.aviso) avisar(inicio.aviso);
