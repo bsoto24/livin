@@ -6,126 +6,139 @@
   <title>Livin · PoC mapa del hogar</title>
   <style>
     @font-face { font-family: 'Silkscreen'; src: url('assets/fonts/silkscreen-latin.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
-    :root { --base: calc(56px + env(safe-area-inset-bottom)); } /* alto de la barra inferior */
-    html, body { margin: 0; height: 100%; background: #1d1d1d; overflow: hidden; font-family: system-ui, sans-serif; touch-action: none; }
+    :root {
+      --base: calc(68px + env(safe-area-inset-bottom)); /* alto de la barra inferior */
+      --borde: 3px solid var(--linea); --borde-fino: 2px solid var(--linea);
+      --sombra: 3px 3px 0 var(--linea); --sombra-fina: 2px 2px 0 var(--linea);
+      --letra-juego: 'Silkscreen', system-ui, sans-serif;
+    }
+    body.preparando > * { visibility: hidden; } /* hasta que juego.js fija los colores y prepara las imágenes (AC-9.5) */
+    html, body { margin: 0; height: 100%; background: var(--fondo); overflow: hidden; font-family: system-ui, sans-serif; touch-action: none; }
     #juego { position: fixed; inset: 0; }
-    button { font: inherit; border: 0; border-radius: 8px; background: #f2ead3; color: #2a221c; }
-    button:disabled { opacity: .35; }
+    .px { image-rendering: pixelated; display: block; flex: none; }
+    button { font: inherit; font-family: var(--letra-juego); font-size: 12px; border: var(--borde-fino); border-radius: 0; background: var(--suave); color: var(--suave-tx);
+      box-shadow: var(--sombra-fina); }
+    button:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
+    button:disabled { opacity: .45; box-shadow: none; }
     #juega { position: fixed; top: calc(12px + env(safe-area-inset-top)); right: 12px; padding: 10px 14px; max-width: 62vw;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--panel); color: var(--tx); }
     #cruceta { position: fixed; left: 16px; bottom: calc(24px + var(--base)); display: grid; grid-template: repeat(3, 52px) / repeat(3, 52px);
       gap: 4px; user-select: none; pointer-events: none; } /* los huecos de la cruceta dejan pasar el toque al mapa: cartel y burbujas (AC-5.4) */
-    #cruceta button { font-size: 20px; background: rgba(242, 234, 211, .85); pointer-events: auto; }
+    #cruceta button { padding: 0; display: flex; align-items: center; justify-content: center; pointer-events: auto; }
     #cruceta [data-dir="arriba"] { grid-area: 1 / 2; } #cruceta [data-dir="izquierda"] { grid-area: 2 / 1; }
     #cruceta [data-dir="derecha"] { grid-area: 2 / 3; } #cruceta [data-dir="abajo"] { grid-area: 3 / 2; }
     #barra { position: fixed; left: 0; right: 0; bottom: 0; height: var(--base); padding-bottom: env(safe-area-inset-bottom); box-sizing: border-box;
-      display: flex; background: #2a221c; }
+      display: flex; background: var(--barra); border-top: var(--borde); }
     #barra .pestana { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-      padding: 4px 2px; border-radius: 0; background: transparent; color: #f2ead3; }
-    #barra .pestana .icono { font-size: 20px; line-height: 1; }
+      padding: 4px 2px; border: 0; box-shadow: none; background: transparent; color: var(--barra-tx); }
+    #barra .pestana:active:not(:disabled) { transform: none; }
     #barra .pestana small { font-family: 'Silkscreen', system-ui, sans-serif; font-size: 8px; line-height: 1.2; text-align: center; overflow-wrap: anywhere; }
     #drawer-titulo { font-family: 'Silkscreen', system-ui, sans-serif; font-size: 16px; font-weight: 400; }
-    #barra .pestana[aria-pressed="true"] { background: #f2ead3; color: #2a221c; }
+    #barra .pestana[aria-pressed="true"] { background: var(--sel); color: var(--sel-tx); }
     #drawer { position: fixed; left: 0; right: 0; bottom: var(--base); height: 45%; overflow-y: auto; box-sizing: border-box; display: none;
-      background: #f2ead3; color: #2a221c; padding: 0 16px 12px; border-radius: 14px 14px 0 0; }
-    #drawer header { position: sticky; top: 0; display: flex; justify-content: space-between; align-items: center; padding: 12px 0 8px; background: #f2ead3; }
-    #drawer button { background: #2a221c; color: #f2ead3; }
-    #drawer select { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; margin: 4px 0; }
+      background: var(--panel); color: var(--tx); padding: 0 16px 12px; border: var(--borde); border-bottom: 0; box-shadow: var(--sombra); }
+    #drawer header { position: sticky; top: 0; display: flex; justify-content: space-between; align-items: center; padding: 12px 0 8px; background: var(--panel); }
+    #drawer button { background: var(--boton); color: var(--boton-tx); }
+    input, select { font: inherit; background: var(--campo); color: var(--tx); border: var(--borde-fino); border-radius: 0; box-sizing: border-box; }
+    #drawer select { width: 100%; padding: 8px; margin: 4px 0; }
     .fila { display: grid; grid-template-columns: 1fr 36px 28px 36px; align-items: center; gap: 6px; padding: 4px 0; }
-    .fila small { display: block; opacity: .7; }
-    .fila button { height: 32px; font-size: 18px; }
+    .fila small { display: block; opacity: .75; }
+    .fila button { height: 32px; font-size: 16px; }
     .fila .cuenta { text-align: center; }
     .fila.cabecera { grid-template-columns: 1fr auto auto; }
-    .fila.cabecera button { font-size: 15px; padding: 0 10px; }
-    .fila.actividad { grid-template-columns: 28px 1fr; cursor: pointer; }
-    .icono { font-size: 20px; text-align: center; }
+    .fila.cabecera button { font-size: 12px; padding: 0 10px; }
+    .fila.actividad { grid-template-columns: 36px 1fr; cursor: pointer; }
+    .icono { display: flex; align-items: center; justify-content: center; }
     .subtitulo { display: block; margin: 12px 0 4px; }
     .selector { display: flex; gap: 6px; margin-bottom: 8px; }
     .selector button { flex: 1; padding: 8px 10px; }
-    #drawer .selector button[aria-pressed="false"], #rutina .selector button[aria-pressed="false"] { background: #d9cfb4; color: #2a221c; }
-    #ficha-actividad select { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; margin: 4px 0; }
-    #ficha, #ficha-actividad { position: fixed; inset: 0; background: rgba(0, 0, 0, .55); display: none; align-items: center; justify-content: center; }
-    #ficha form, #ficha-actividad form { background: #f2ead3; color: #2a221c; padding: 16px; border-radius: 12px; width: min(320px, 86vw);
+    #drawer .selector button[aria-pressed="false"], #rutina .selector button[aria-pressed="false"] { background: var(--suave); color: var(--suave-tx); }
+    #ficha-actividad select { width: 100%; padding: 8px; margin: 4px 0; }
+    #ficha, #ficha-actividad { position: fixed; inset: 0; background: var(--velo); display: none; align-items: center; justify-content: center; }
+    #ficha form, #ficha-actividad form { background: var(--panel); color: var(--tx); padding: 16px; border: var(--borde); box-shadow: var(--sombra); width: min(320px, 86vw);
       max-height: 90vh; overflow-y: auto; box-sizing: border-box; }
-    #ficha input, #ficha-actividad input { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; margin: 8px 0 4px; }
-    #ficha .error, #ficha-actividad .error { color: #a32d2d; min-height: 1.2em; font-size: 13px; }
+    #ficha input, #ficha-actividad input { width: 100%; padding: 8px; margin: 8px 0 4px; }
+    #ficha .error, #ficha-actividad .error { color: var(--peligro); min-height: 1.2em; font-size: 13px; }
     #ficha .acciones, #ficha-actividad .acciones { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
-    #ficha .acciones button, #ficha-actividad .acciones button { padding: 8px 12px; background: #2a221c; color: #f2ead3; }
-    #ficha .acciones .peligro, #ficha-actividad .acciones .peligro { background: #a32d2d; margin-right: auto; }
+    #ficha .acciones button, #ficha-actividad .acciones button { padding: 8px 12px; background: var(--boton); color: var(--boton-tx); }
+    #ficha .acciones .peligro, #ficha-actividad .acciones .peligro { background: var(--peligro); color: var(--peligro-tx); margin-right: auto; }
     .fila-nombre { display: flex; gap: 8px; align-items: center; margin: 8px 0 4px; }
     #ficha .fila-nombre input, #ficha-actividad .fila-nombre input { flex: 1; width: auto; min-width: 0; margin: 0; }
-    .icono-boton { width: 44px; height: 44px; flex: none; padding: 0; font-size: 22px; background: #fff; border: 1px solid #b9ad8c; }
-    .icono-boton[aria-disabled="true"] { background: #e9e2cb; }
+    .icono-boton { width: 44px; height: 44px; flex: none; padding: 0; display: flex; align-items: center; justify-content: center; background: var(--campo); }
+    .icono-boton[aria-disabled="true"] { background: var(--suave); box-shadow: none; }
     .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
-    .chip { padding: 6px 10px; border-radius: 16px; background: #d9cfb4; color: #2a221c; }
-    .chip[aria-pressed="true"] { background: #2a221c; color: #f2ead3; }
+    .chip { padding: 6px 10px; display: flex; align-items: center; gap: 4px; text-align: left; font-family: system-ui, sans-serif; font-size: 14px;
+      background: var(--suave); color: var(--suave-tx); }
+    .chip[aria-pressed="true"] { background: var(--boton); color: var(--boton-tx); }
     .circulos { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
-    .circulo { width: 40px; height: 40px; padding: 0; border-radius: 50%; color: #fff; font-weight: bold; outline-offset: 2px; }
-    .circulo[aria-pressed="true"] { outline: 3px solid #2a221c; }
-    .resumen-ficha { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #d9cfb4; }
-    .resumen-ficha button { padding: 6px 10px; background: #2a221c; color: #f2ead3; }
+    .circulo { width: 40px; height: 40px; padding: 0; border-radius: 50%; color: var(--panel); font-family: system-ui, sans-serif; font-size: 16px; font-weight: bold;
+      box-shadow: none; outline-offset: 2px; }
+    .circulo[aria-pressed="true"] { outline: 3px solid var(--linea); }
+    .resumen-ficha { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 2px solid var(--separador); }
+    .resumen-ficha button { padding: 6px 10px; background: var(--boton); color: var(--boton-tx); }
+    #actividad-resumen { display: flex; align-items: center; gap: 4px; }
     #actividad-mas label { display: block; margin: 6px 0; font-size: 13px; }
     .rejilla { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-    .opcion-icono { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; background: #d9cfb4; color: #2a221c; }
-    .opcion-icono .icono { font-size: 26px; }
-    .opcion-icono[aria-pressed="true"] { outline: 3px solid #2a221c; }
-    #hoja { position: fixed; left: 0; right: 0; bottom: 0; max-height: 55%; overflow-y: auto; background: #f2ead3; color: #2a221c;
-      padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-radius: 14px 14px 0 0; display: none; }
+    .opcion-icono { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; background: var(--suave); color: var(--suave-tx); }
+    .opcion-icono[aria-pressed="true"] { background: var(--sel); color: var(--sel-tx); }
+    #hoja { position: fixed; left: 0; right: 0; bottom: 0; max-height: 55%; overflow-y: auto; background: var(--panel); color: var(--tx);
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border: var(--borde); border-bottom: 0; box-shadow: var(--sombra); display: none; }
     #hoja header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-    #hoja .item { display: grid; grid-template-columns: 28px 1fr auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid #d9cfb4; }
-    #hoja .item small { display: block; opacity: .7; }
+    #hoja .item { display: grid; grid-template-columns: 36px 1fr auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 2px solid var(--separador); }
+    #hoja .item small { display: block; opacity: .75; }
     #hoja .botones { display: flex; gap: 6px; }
-    #hoja button { padding: 6px 10px; background: #2a221c; color: #f2ead3; }
-    #hoja .peligro { background: #a32d2d; }
+    #hoja button { padding: 6px 10px; background: var(--boton); color: var(--boton-tx); }
+    #hoja .peligro { background: var(--peligro); color: var(--peligro-tx); }
     #hoja .item.tocable { cursor: pointer; }
-    #ficha .rutina { width: 100%; padding: 8px; margin: 4px 0; background: #2a221c; color: #f2ead3; }
-    #rutina, #ficha-bloque { position: fixed; inset: 0; background: rgba(0, 0, 0, .55); display: none; align-items: center; justify-content: center; }
-    #rutina section, #ficha-bloque form { background: #f2ead3; color: #2a221c; padding: 16px; border-radius: 12px; width: min(340px, 90vw);
+    #ficha .rutina { width: 100%; padding: 8px; margin: 4px 0; background: var(--boton); color: var(--boton-tx); }
+    #rutina, #ficha-bloque { position: fixed; inset: 0; background: var(--velo); display: none; align-items: center; justify-content: center; }
+    #rutina section, #ficha-bloque form { background: var(--panel); color: var(--tx); padding: 16px; border: var(--borde); box-shadow: var(--sombra); width: min(340px, 90vw);
       max-height: 80vh; overflow-y: auto; box-sizing: border-box; }
     #rutina header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-    #rutina button, #ficha-bloque .acciones button { padding: 6px 10px; background: #2a221c; color: #f2ead3; }
-    #rutina .bloque { padding: 10px 0; border-top: 1px solid #d9cfb4; cursor: pointer; }
-    #ficha-bloque select { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; margin: 4px 0; }
-    #ficha-bloque .error { color: #a32d2d; min-height: 1.2em; font-size: 13px; }
+    #rutina button, #ficha-bloque .acciones button { padding: 6px 10px; background: var(--boton); color: var(--boton-tx); }
+    #rutina .bloque { padding: 10px 0; border-top: 2px solid var(--separador); cursor: pointer; }
+    #ficha-bloque select { width: 100%; padding: 8px; margin: 4px 0; }
+    #ficha-bloque .error { color: var(--peligro); min-height: 1.2em; font-size: 13px; }
     #ficha-bloque .acciones { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
-    #ficha-bloque .acciones .peligro { background: #a32d2d; margin-right: auto; }
-    #aviso { position: fixed; top: calc(60px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); background: #2a221c;
-      color: #f2ead3; padding: 8px 14px; border-radius: 8px; display: none; max-width: 86vw; }
-    #depuracion { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 8px; color: #9fe1cb; font: 12px monospace; }
-    .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .55); display: none; align-items: center; justify-content: center; }
-    .modal section, .modal form { background: #f2ead3; color: #2a221c; padding: 16px; border-radius: 12px; width: min(340px, 90vw);
+    #ficha-bloque .acciones .peligro { background: var(--peligro); color: var(--peligro-tx); margin-right: auto; }
+    #aviso { position: fixed; top: calc(60px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); background: var(--barra);
+      color: var(--barra-tx); border: var(--borde-fino); box-shadow: var(--sombra-fina); padding: 8px 14px; display: none; max-width: 86vw; }
+    #depuracion { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 8px; color: var(--depuracion); font: 12px monospace; }
+    .modal { position: fixed; inset: 0; background: var(--velo); display: none; align-items: center; justify-content: center; }
+    .modal section, .modal form { background: var(--panel); color: var(--tx); padding: 16px; border: var(--borde); box-shadow: var(--sombra); width: min(340px, 90vw);
       max-height: 80vh; overflow-y: auto; box-sizing: border-box; }
     .modal header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-    .modal button { padding: 6px 10px; background: #2a221c; color: #f2ead3; }
-    .modal .peligro, #drawer .peligro { background: #a32d2d; }
-    .modal .item, #drawer .item { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid #d9cfb4; }
+    .modal button { padding: 6px 10px; background: var(--boton); color: var(--boton-tx); }
+    .modal .peligro, #drawer .peligro { background: var(--peligro); color: var(--peligro-tx); }
+    .modal .item, #drawer .item { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 2px solid var(--separador); }
     .modal .item.tocable, #drawer .item.tocable { cursor: pointer; }
-    .modal .item small, #drawer .item small { display: block; opacity: .7; }
+    .modal .item small, #drawer .item small { display: block; opacity: .75; }
     .modal .botones, #drawer .botones { display: flex; gap: 6px; }
     .modal .subtitulo { display: block; margin: 12px 0 4px; }
-    .modal select { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; margin: 4px 0; }
-    .modal .error, #drawer .error { color: #a32d2d; min-height: 1.2em; font-size: 13px; }
+    .modal select { width: 100%; padding: 8px; margin: 4px 0; }
+    .modal .error, #drawer .error { color: var(--peligro); min-height: 1.2em; font-size: 13px; }
     .modal .acciones { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
     .modal .ancho, #drawer .ancho { width: 100%; margin-top: 8px; padding: 10px; }
-    .nota { display: block; font-size: 13px; opacity: .7; min-height: 1em; }
+    .nota { display: block; font-size: 13px; opacity: .75; min-height: 1em; }
     .modal .resumen, #drawer .resumen { display: block; margin: 8px 0; }
-    .modal .fila-historial, #drawer .fila-historial { padding: 8px 0; border-top: 1px solid #d9cfb4; }
-    .modal .fila-historial small, #drawer .fila-historial small { display: block; opacity: .7; }
+    .modal .fila-historial, #drawer .fila-historial { padding: 8px 0; border-top: 2px solid var(--separador); }
+    .modal .fila-historial small, #drawer .fila-historial small { display: block; opacity: .75; }
     .modal .fila-historial .pie, #drawer .fila-historial .pie { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
     .modal .estrellas, #drawer .estrellas { display: flex; gap: 2px; }
-    .modal .estrellas button, #drawer .estrellas button { min-width: 40px; min-height: 40px; padding: 0; font-size: 22px; background: transparent; color: #2a221c; }
+    .modal .estrellas button, #drawer .estrellas button { min-width: 40px; min-height: 40px; padding: 0; display: flex; align-items: center; justify-content: center;
+      background: transparent; border: 0; box-shadow: none; }
     .modal .estrellas button:disabled, #drawer .estrellas button:disabled { opacity: .45; }
   </style>
 </head>
-<body>
+<body class="preparando">
   <div id="juego"></div>
   <div id="depuracion"></div>
   <button id="juega">Juega</button>
   <div id="cruceta">
-    <button data-dir="arriba" aria-label="Arriba">▲</button>
-    <button data-dir="izquierda" aria-label="Izquierda">◀</button>
-    <button data-dir="derecha" aria-label="Derecha">▶</button>
-    <button data-dir="abajo" aria-label="Abajo">▼</button>
+    <button data-dir="arriba" aria-label="Arriba"></button>
+    <button data-dir="izquierda" aria-label="Izquierda"></button>
+    <button data-dir="derecha" aria-label="Derecha"></button>
+    <button data-dir="abajo" aria-label="Abajo"></button>
   </div>
   <section id="drawer" aria-label="Sección abierta">
     <header><strong id="drawer-titulo"></strong><button type="button" id="listo">Listo</button></header>
@@ -250,6 +263,7 @@
     </section>
   </div>
   <div id="aviso" role="status"></div>
+  <script>setTimeout(function () { document.body.classList.remove('preparando'); }, 4000);</script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.1/phaser.min.js"></script>
   <script type="module" src="src/juego.js"></script>
 </body>
