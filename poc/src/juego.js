@@ -1417,7 +1417,7 @@ function pintarHistorial() {
 // pueden tocar (libre, mía) o no (propia, bloqueada), y solo una calificación mía ofrece "Quitar" (AC-4.1, AC-4.3, AC-5.1, AC-5.5).
 function filaDeHistorial(entrada) {
   const situacion = estadoDeCalificacion(entrada, jugador.id);
-  const titulo = elemento('div');
+  const titulo = elemento('div', undefined, 'titulo-historial'); // el icono y el nombre en una fila (AC-8.6)
   titulo.append(iconoDeActividadEl(entrada.icono, 2), elemento('strong', entrada.nombre));
   const estrellas = elemento('span', undefined, 'estrellas');
   for (let k = 1; k <= MAX_ESTRELLAS; k += 1) {
