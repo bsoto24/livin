@@ -1,12 +1,22 @@
 # Feature 011: Iconos propios y recolor de la interfaz
 
 **Status:** Approved
-**Version:** 1.0.0
+**Version:** 1.0.1
 **Created:** 2026-10-10
+**Last Updated:** 2026-10-11
 **Branch:** `feat/011-iconos-propios-y-recolor`
 **Source:** [prd.md](prd.md) · [ADR el arte de la interfaz HTML sale de las cuadrículas y la paleta](../../adr/011-arte-de-la-interfaz-html-desde-las-cuadriculas.md) · [ADR el arte como cuadrículas de texto con paleta compartida](../../adr/008-arte-cuadriculas-con-paleta.md) · se apoya en la [spec 003](../003-actividades/spec.md) (v1.0.0), la [spec 007](../007-menu-y-formularios-simples/spec.md) (v1.0.0), la [spec 008](../008-base-visual-y-mundo/spec.md) (v1.0.0), la [spec 009](../009-habitantes-animados/spec.md) (v1.0.0) y la [spec 010](../010-estados-de-limpieza/spec.md) (v1.0.0)
 
 Los criterios llevan al final la forma de comprobarlos: **[auto]** (prueba automática sin Phaser ni pantalla) o **[nav]** (se mira o mide en el navegador de escritorio y en el teléfono con el hogar de prueba).
+
+---
+
+## Changelog
+
+| Version | Date | Change |
+|---------|------|--------|
+| 1.0.0 | 2026-10-10 | Spec inicial aprobada |
+| 1.0.1 | 2026-10-11 | PATCH, solo aclaraciones tras la revisión de la implementación (sin cambio de comportamiento): FR-7 añade el rol `separador` (clave `A`) que ya usaba el plan, y aclara que `opacity` y `transparent` no son colores propios; FR-8 y AC-8.3 aclaran que los chips y los círculos de responsable conservan la fuente del sistema porque llevan texto del usuario; FR-6 recoge el respaldo de 4 s si el módulo no llega a cargar; AC-7.4 recoge la excepción aceptada del «★» del resumen del historial. Motivo: lo construido y validado en pantalla ya hacía esto; la spec no lo decía. Confirmado por el usuario el 2026-10-11. |
 
 ---
 
@@ -155,7 +165,7 @@ El resto de las specs 001 a 010 sigue vigente sin cambios.
 - [ ] **AC-7.1** Dada la paleta de 32 colores, Cuando se calculan las variables de color de la interfaz, Entonces hay una por clave de la paleta, con exactamente el valor de su color, y la función es pura (mismo resultado en cada llamada). **[auto]**
 - [ ] **AC-7.2** Dada la hoja de estilos de `index.html`, Cuando se examina su texto, Entonces no contiene ningún color escrito a mano (`#hex`, `rgb(`, `hsl(` ni nombres de color) salvo las variables de FR-7, y `rgba` solo aparece con una variable de la paleta con alfa. **[auto]**
 - [ ] **AC-7.3** Dado `index.html`, Cuando se examina, Entonces tampoco quedan emoji ni símbolos-icono (🏠 👨‍👩‍👧 📋 🔄 🍽️ 📅 ★ ☆ ▲ ◀ ▶ ▼ ✓…) en su contenido. **[auto]**
-- [ ] **AC-7.4** Dados `juego.js`, `secciones.js`, `formularios.js` y el módulo de presentación nuevo, Cuando se examina su texto, Entonces no contienen emoji ni símbolos-icono; quedan fuera de esta comprobación `catalogo.js` y `aspecto.js` (`INSIGNIAS`). **[auto]**
+- [ ] **AC-7.4** Dados `juego.js`, `secciones.js`, `formularios.js` y el módulo de presentación nuevo, Cuando se examina su texto, Entonces no contienen emoji ni símbolos-icono; quedan fuera de esta comprobación `catalogo.js` y `aspecto.js` (`INSIGNIAS`). Excepción aceptada: el resumen del historial (`textoResumen` de `historial.js`, p. ej. «Diana: 4,3 ★ (4 calificadas)») sigue mostrando el símbolo ★ como texto, porque esta feature no toca `historial.js` y las pruebas de la 006 lo fijan. **[auto]**
 - [ ] **AC-7.5** Dado que `juego.js` ya no usa los emoji de `DATOS_ASPECTO`, `DATOS_ESPECIE` ni `INSIGNIAS`, Cuando se examina, Entonces no los importa ni los usa. **[auto]**
 - [ ] **AC-7.6** Dada cada pantalla de la interfaz (barra, drawers, hoja de lugar, fichas, selectores, modales, avisos, botones y cruceta), Cuando se muestra, Entonces solo se ven colores de la paleta, con el texto legible sobre su fondo (los pares de FR-7). **[nav]**
 - [ ] **AC-7.7** Dados los pares de color de texto y fondo de FR-7, Cuando se calcula su contraste con los valores de la paleta, Entonces cada par cumple al menos 4,5 a 1 (texto normal). **[auto]**
@@ -172,7 +182,7 @@ El resto de las specs 001 a 010 sigue vigente sin cambios.
 
 - [ ] **AC-8.1** Dados la barra, el drawer, la hoja de lugar, las fichas y los modales, Cuando se muestran, Entonces tienen esquinas cuadradas, un borde oscuro de 3 px y una sombra dura sin desenfoque, según FR-8. **[nav]**
 - [ ] **AC-8.2** Dados los botones, Cuando se muestran, Entonces tienen borde oscuro y sombra dura, y al pulsarlos se hunden (sin sombra); activo, pulsado, desactivado y peligro se distinguen entre sí por los colores de la paleta. **[nav]**
-- [ ] **AC-8.3** Dados los títulos de los drawers, el rótulo de las pestañas y el texto de los botones, Cuando se muestran, Entonces usan Silkscreen; los campos de texto, las listas, la ficha de actividad y el historial siguen con la fuente del sistema. **[nav]**
+- [ ] **AC-8.3** Dados los títulos de los drawers, el rótulo de las pestañas y el texto de los botones, Cuando se muestran, Entonces usan Silkscreen; los campos de texto, las listas, la ficha de actividad y el historial siguen con la fuente del sistema. Los chips y los círculos de responsable, aunque son botones, conservan la fuente del sistema. **[nav]**
 - [ ] **AC-8.4** Dado un error de formulario, Cuando se muestra, Entonces usa el color de peligro de la paleta con contraste suficiente. **[nav]**
 - [ ] **AC-8.5** Dados todos los controles que se tocan (botones, pestañas, chips, filas, estrellas, flechas), Cuando se miden, Entonces su área táctil es la misma o mayor que la de la 010 (no se encogen). **[nav]**
 - [ ] **AC-8.6** Dada cada pantalla, Cuando se compara su disposición con la de la 010, Entonces los controles están en el mismo orden y con las mismas funciones: solo cambia el aspecto. **[nav]**
@@ -283,7 +293,7 @@ El avatar de un familiar o una mascota es el cuadro de frente en reposo (vista `
 **Must:**
 - Preparar cada icono y cada avatar una sola vez al arrancar y reutilizarlo en cada pantalla.
 - Si una imagen no se puede preparar, mostrar el respaldo (`actividad:otra` en actividades, el avatar `neutro` en habitantes) o, si ni eso es posible, nada, sin lanzar errores.
-- Que la interfaz no se vea sin estilo mientras se preparan los colores y las imágenes.
+- Que la interfaz no se vea sin estilo mientras se preparan los colores y las imágenes. Si el módulo no llega a cargar, a los 4 segundos la página se muestra de todos modos (sin colores ni imágenes de la paleta) en lugar de quedar oculta.
 
 **Must not:**
 - No bloquear el arranque del juego por esperar a un dibujo, más allá de lo que ya espera por la fuente (hasta 1 s).
@@ -309,13 +319,14 @@ Toda la interfaz HTML usa variables de color derivadas de la paleta, una por cla
 | Velo de los modales | `k` con alfa | `#2e2233` al 55 % |
 | Campos de texto (fondo y borde) | `j` y `k` | `#f4f1ea` y `#2e2233` |
 | Texto del indicador de depuración | `p` | `#8bc27d` |
+| Separadores de fila (líneas finas entre filas de listas) | `A` | `#d4c3a8` |
 | Etiquetas de nombre del mapa (fondo y texto) | `z` y `k` | `#eadfcf` y `#2e2233` |
 | Cartel «n fuera» (fondo y texto) | `k` y `j` | `#2e2233` y `#f4f1ea` |
 | Resalte de la etiqueta de quien juega | `r` | `#f2c14e` |
 
 **Must:**
 - Que el texto de cada par de la tabla tenga un contraste de al menos 4,5 a 1 sobre su fondo (AC-7.7); si un par no lo cumple, se elige otra clave de la paleta para ese rol y se corrige esta tabla.
-- Que la transparencia solo exista como una variable de la paleta con alfa; los botones de la cruceta pasan a ser opacos.
+- Que la transparencia de un color solo exista como una variable de la paleta con alfa (la propiedad `opacity`, que atenúa el texto secundario y los controles desactivados, y el valor `transparent`, que quita un fondo, no son colores propios y se permiten); los botones de la cruceta pasan a ser opacos.
 - Que `index.html` solo use esas variables para colorear (fondo, texto, borde, sombra y relleno).
 
 **Must not:**
@@ -328,7 +339,7 @@ Toda la interfaz HTML usa variables de color derivadas de la paleta, una por cla
 - Esquinas cuadradas (sin redondeo) en barra, drawer, hoja, fichas, modales, botones, chips, selectores y campos.
 - Borde oscuro de 3 px en paneles y de 2 px en botones, chips y campos, y sombra dura (sin desenfoque) de 3 px en paneles y de 2 px en botones.
 - Botones con relieve: sombra dura en reposo y sin sombra, desplazados, al pulsarlos.
-- Silkscreen en títulos de drawers, rótulos de pestañas y texto de botones; los campos de texto, las listas, la ficha de actividad y el historial siguen con la fuente del sistema.
+- Silkscreen en títulos de drawers, rótulos de pestañas y texto de botones; los campos de texto, las listas, la ficha de actividad y el historial siguen con la fuente del sistema. Los chips (sugerencias y lugares) y los círculos de responsable también conservan la fuente del sistema, aunque sean botones, porque llevan texto del usuario (nombres de actividades, lugares y personas).
 - Conservar disposición, tamaños de área táctil y comportamiento de cada control.
 
 **Must not:**

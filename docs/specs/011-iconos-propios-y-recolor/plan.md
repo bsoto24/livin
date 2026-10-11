@@ -1,6 +1,6 @@
 # Implementation Plan: Iconos propios y recolor de la interfaz
 
-**Spec:** docs/specs/011-iconos-propios-y-recolor/spec.md (v1.0.0, aprobada)
+**Spec:** docs/specs/011-iconos-propios-y-recolor/spec.md (v1.0.1, aprobada; el PATCH 1.0.1 solo aclara y no cambia este plan)
 **Decisions:** docs/adr/011-arte-de-la-interfaz-html-desde-las-cuadriculas.md, docs/adr/008-arte-cuadriculas-con-paleta.md
 **Created:** 2026-10-10
 
