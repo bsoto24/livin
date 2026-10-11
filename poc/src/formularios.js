@@ -37,11 +37,12 @@ export const datosDeRecurrencia = (valor) => (valor === '0'
 export const valorDeRecurrencia = (actividad) => (actividad.tipo === 'puntual' ? '0' : String(actividad.frecuenciaDias));
 export const etiquetaDeRecurrencia = (valor) => OPCIONES_RECURRENCIA.find(([v]) => v === valor)?.[1] ?? 'Una vez';
 
-// Línea-resumen de la ficha (AC-9.4, AC-9.8): fecha, recurrencia y lugares (sus nombres).
+// Línea-resumen de la ficha (AC-9.4, AC-9.8, FR-5 de la 011): fecha, recurrencia y lugares (sus nombres), sin símbolo al comienzo;
+// la presentación dibuja el icono de fecha antes del texto.
 export function resumenDeFicha({ vence, hoy, recurrencia, lugares }) {
   const fecha = vence === hoy ? 'Hoy' : (vence || 'Sin fecha');
   const donde = lugares.length === 0 ? 'Sin lugar' : (lugares.length === 1 ? lugares[0] : `${lugares.length} lugares`);
-  return `📅 ${fecha} · ${etiquetaDeRecurrencia(recurrencia)} · ${donde}`;
+  return `${fecha} · ${etiquetaDeRecurrencia(recurrencia)} · ${donde}`;
 }
 
 // Inicial de un círculo de responsable (AC-9.1): la primera letra del nombre, en mayúscula.
