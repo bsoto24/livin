@@ -17,13 +17,12 @@ const CLAVES_ESPERADAS = [
   'actividad:mascota', 'actividad:otra',
   'estado:limpio', 'estado:desordenado', 'estado:desastre',
   'estrella:llena', 'estrella:vacia', 'fecha',
-  'flecha:arriba', 'flecha:izquierda', 'flecha:derecha', 'flecha:abajo',
 ];
 
-test('AC-1.1: el catálogo tiene exactamente los 23 iconos de FR-1, sin repetidos', () => {
+test('AC-1.1: el catálogo tiene exactamente los 19 iconos de FR-1, sin repetidos', () => {
   assert.deepEqual([...CLAVES_DE_ICONOS].sort(), [...CLAVES_ESPERADAS].sort());
-  assert.equal(CLAVES_DE_ICONOS.length, 23);
-  assert.equal(new Set(CLAVES_DE_ICONOS).size, 23);
+  assert.equal(CLAVES_DE_ICONOS.length, 19);
+  assert.equal(new Set(CLAVES_DE_ICONOS).size, 19);
 });
 
 test('AC-1.2 y AC-1.3: cada icono mide 16×16 y solo usa claves de la paleta o transparente', () => {
