@@ -1,6 +1,6 @@
 # Implementation Plan: Iconos propios y recolor de la interfaz
 
-**Spec:** docs/specs/011-iconos-propios-y-recolor/spec.md (v1.0.1, aprobada; el PATCH 1.0.1 solo aclara y no cambia este plan)
+**Spec:** docs/specs/011-iconos-propios-y-recolor/spec.md (v2.0.0, aprobada; la Fase 8 de este plan recoge el cambio de 2.0.0)
 **Decisions:** docs/adr/011-arte-de-la-interfaz-html-desde-las-cuadriculas.md, docs/adr/008-arte-cuadriculas-con-paleta.md
 **Created:** 2026-10-10
 
@@ -1249,3 +1249,115 @@ Los bloques de código de las Fases 0 a 6 se aplicaron a una **copia de `poc/` f
 - **Catálogo:** `CLAVES_DE_ICONOS` tiene 23 claves y `AVATARES` 14.
 - **En el navegador** (copia servida sin caché, viewport de teléfono 375×812, hogar de prueba `desastre`): se abre sin errores en la consola; la barra muestra sus cuatro iconos con Silkscreen y la pestaña abierta resaltada; la cruceta muestra las cuatro flechas; «Juega: Protagonista» y el drawer de Familia se ven con el marco de videojuego (borde, sombra dura, esquinas cuadradas); en edición se ven las burbujas con su icono y las insignias de estado dibujadas junto a los nombres de los espacios.
 - **No validado:** el aspecto final de los iconos en el teléfono, que la barra de 68 px acepte el rótulo de dos líneas de «Intercambios (n)», los tiempos de `arte` y `ui` en el teléfono, que 50 y 200 filas se desplacen sin tirones y el tamaño de las burbujas con el zoom bajo de la edición (ya era mayor que una casilla antes de esta feature); todo se verifica en la Fase 7.
+
+---
+
+## Phase 8: Cruceta sutil y imágenes no seleccionables (spec 2.0.0)
+
+**Implements:** FR-1 (19 iconos), FR-5, FR-6, FR-7, FR-8 (cruceta) | **Satisfies:** AC-1.1, AC-1.9, AC-6.4, AC-7.2, AC-7.3, AC-8.2, AC-9.6
+**Files:** `poc/test/iconos.test.js`, `poc/test/colores.test.js`, `poc/test/interfaz-estatica.test.js`, `poc/src/arte/iconos.js`, `poc/src/arte/colores.js`, `poc/index.html`, `poc/src/juego.js`
+**Interfaces:** Consumes: lo de las Fases 1, 2, 4 y 5. Produces: `CRUCETA: { clave, alfa }` y la variable `--cruceta-fondo` (en `colores.js`); el catálogo de 19 iconos (sin `flecha:*`); la cruceta con los símbolos ▲ ◀ ▶ ▼ como texto; `.px` sin selección ni arrastre.
+
+Cambio pedido tras la prueba en el teléfono (2026-10-11): mantener pulsada una flecha (una imagen) para caminar activaba la selección y descarga de la imagen del navegador, y la cruceta con marco quedaba recargada. La cruceta vuelve a la de la 010 (botones con el símbolo como texto, fondo semitransparente derivado de la paleta, esquinas redondeadas de 8 px, sin marco ni sombra), se quitan los 4 iconos de flecha, y todas las imágenes de la interfaz dejan de ser seleccionables y pasan el toque a su contenedor.
+
+- [ ] Ajustar `poc/test/iconos.test.js` al catálogo de 19 iconos. Quitar de `CLAVES_ESPERADAS` las cuatro líneas de `flecha:*` (la lista termina en `'estrella:llena', 'estrella:vacia', 'fecha',`), y en el test de AC-1.1 cambiar el título y los números:
+
+```js
+test('AC-1.1: el catálogo tiene exactamente los 19 iconos de FR-1, sin repetidos', () => {
+  assert.deepEqual([...CLAVES_DE_ICONOS].sort(), [...CLAVES_ESPERADAS].sort());
+  assert.equal(CLAVES_DE_ICONOS.length, 19);
+  assert.equal(new Set(CLAVES_DE_ICONOS).size, 19);
+});
+```
+
+- [ ] Añadir a `poc/test/colores.test.js` (el import pasa a incluir `CRUCETA`):
+
+```js
+test('AC-6.4 y FR-7: el fondo de la cruceta es la clave z de la paleta con alfa 0,85, como en la 010', () => {
+  assert.deepEqual(CRUCETA, { clave: 'z', alfa: 0.85 });
+  assert.equal(variablesDeColor()['--cruceta-fondo'], 'rgba(234, 223, 207, 0.85)');
+  assert.equal(variablesDeColor({ ...PALETA, z: '#000000' })['--cruceta-fondo'], 'rgba(0, 0, 0, 0.85)');
+});
+```
+
+- [ ] Ajustar `poc/test/interfaz-estatica.test.js`: AC-7.3 admite solo los símbolos de la cruceta; y pruebas nuevas de la cruceta y de AC-9.6. Reemplazar el test de AC-7.3 por:
+
+```js
+test('AC-7.3: index.html no contiene emoji ni símbolos-icono, salvo los cuatro símbolos de la cruceta', () => {
+  const html = leer('index.html');
+  const sinCruceta = html.replace(/(<button data-dir="[a-z]+" aria-label="[A-Za-z]+">)[▲◀▶▼](<\/button>)/g, '$1$2');
+  assert.doesNotMatch(sinCruceta, SIMBOLO);
+  assert.equal([...html.matchAll(/<button data-dir="[a-z]+" aria-label="[A-Za-z]+">[▲◀▶▼]<\/button>/g)].length, 4);
+});
+
+test('AC-6.4: la cruceta usa símbolos de texto y su fondo semitransparente sale de la paleta, sin marco ni sombra', () => {
+  const html = leer('index.html');
+  const regla = html.match(/#cruceta button\s*\{([^}]*)\}/)[1];
+  assert.match(regla, /background:\s*var\(--cruceta-fondo\)/);
+  assert.match(regla, /border-radius:\s*8px/);
+  assert.match(regla, /border:\s*0/);
+  assert.match(regla, /box-shadow:\s*none/);
+  assert.doesNotMatch(leer('src/juego.js'), /flecha:/);
+});
+
+test('AC-9.6: las imágenes de la interfaz no se seleccionan ni se arrastran y pasan el toque a su contenedor', () => {
+  const html = leer('index.html');
+  const regla = html.match(/\.px\s*\{([^}]*)\}/)[1];
+  assert.match(regla, /pointer-events:\s*none/);
+  assert.match(regla, /user-select:\s*none/);
+  assert.match(regla, /-webkit-touch-callout:\s*none/);
+  assert.match(leer('src/imagenes.js'), /img\.draggable = false/);
+});
+```
+
+- [ ] Run: `cd poc && node --test test/iconos.test.js test/colores.test.js test/interfaz-estatica.test.js` — expect: FAIL (el catálogo tiene 23, no existe `CRUCETA`, la cruceta tiene imágenes y `.px` no bloquea la selección).
+- [ ] En `poc/src/arte/iconos.js`: borrar `girar`, `flechaArriba`, las constantes `ARRIBA`, `DERECHA`, `ABAJO`, `IZQUIERDA` y las cuatro entradas `'flecha:*'` del catálogo; actualizar el comentario de cabecera (`19 cuadrículas`). `TAM` se sigue usando en `estrella`.
+- [ ] En `poc/src/arte/colores.js`: añadir la constante `CRUCETA` y la variable. Sustituir el bloque del velo y `variablesDeColor` por:
+
+```js
+// Transparencias de la interfaz: un color de la paleta con alfa. El velo de los modales y el fondo de los botones de la cruceta (FR-7).
+export const VELO = { clave: 'k', alfa: 0.55 };
+export const CRUCETA = { clave: 'z', alfa: 0.85 };
+
+const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+const conAlfa = (hex, alfa) => { const [r, g, b] = rgb(hex); return `rgba(${r}, ${g}, ${b}, ${alfa})`; };
+
+// Variables CSS: una por clave de la paleta (`--c-k`), una por rol (`--barra`), `--velo` y `--cruceta-fondo`. Pura: mismo resultado en cada llamada.
+export function variablesDeColor(paleta = PALETA) {
+  const v = {};
+  for (const [clave, color] of Object.entries(paleta)) v[`--c-${clave}`] = color;
+  for (const [rol, clave] of Object.entries(ROLES)) v[`--${rol}`] = paleta[clave];
+  v['--velo'] = conAlfa(paleta[VELO.clave], VELO.alfa);
+  v['--cruceta-fondo'] = conAlfa(paleta[CRUCETA.clave], CRUCETA.alfa);
+  return v;
+}
+```
+
+(y borrar la definición anterior de `VELO`, `rgb` y `variablesDeColor`; `luminancia` sigue usando `rgb`.)
+- [ ] En `poc/index.html`: (1) los botones de la cruceta vuelven al texto:
+
+```html
+  <div id="cruceta">
+    <button data-dir="arriba" aria-label="Arriba">▲</button>
+    <button data-dir="izquierda" aria-label="Izquierda">◀</button>
+    <button data-dir="derecha" aria-label="Derecha">▶</button>
+    <button data-dir="abajo" aria-label="Abajo">▼</button>
+  </div>
+```
+
+(2) en el `<style>`, la regla `.px` y la de los botones de la cruceta pasan a:
+
+```css
+    .px { image-rendering: pixelated; display: block; flex: none; pointer-events: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+```
+
+```css
+    #cruceta button { padding: 0; display: flex; align-items: center; justify-content: center; pointer-events: auto; font-family: system-ui, sans-serif; font-size: 20px;
+      background: var(--cruceta-fondo); color: var(--tx); border: 0; border-radius: 8px; box-shadow: none; }
+    #cruceta button:active:not(:disabled) { transform: none; }
+```
+
+y en la regla `#cruceta { … }` añadir `-webkit-touch-callout: none;` junto a `user-select: none;`.
+- [ ] En `poc/src/juego.js`: borrar la línea de la cruceta `boton.append(imagen(`flecha:${dir}`, 2)); // la flecha dibujada (AC-6.4); …` (el nombre accesible sigue en `aria-label`).
+- [ ] Run: `cd poc && node --check src/juego.js && npm test` — expect: PASS, 0 fallos (456 menos 0 más las pruebas nuevas: 458).
+- [ ] Commit: `fix(interfaz): cruceta sutil con símbolos de texto e imágenes no seleccionables` (cuerpo: `Plan section: Phase 8: Cruceta sutil y imágenes no seleccionables (spec 2.0.0)` y `Feature: 011-iconos-propios-y-recolor`)
