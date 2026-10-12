@@ -1,4 +1,4 @@
-- [Estado de Livin](livin-project-state.md) — 001 a 010 subidas y verificadas en el teléfono; la 011 (iconos y recolor, 2026-10-11) mergeada y subida, falta la verificación en el teléfono y actualizar CLAUDE.md y reglas
+- [Estado de Livin](livin-project-state.md) — 001 a 011 subidas y verificadas en el teléfono (la 011 el 2026-10-11: 70 fps, regen 0,0 ms; la cruceta volvió a ser de texto); el plan de arte está completo
 - [Livin no está en producción](livin-no-esta-en-produccion.md) — se aceptan migraciones que descartan datos sin valor, pero nunca un error al abrir un hogar guardado
 - [Docs in Spanish](docs-in-spanish.md) — specs/ADRs/foundation and domain vocabulary are Spanish; chat is English
 - [Brainstorm visual en el navegador](feedback-brainstorm-visual-en-navegador.md) — para arte, muestras con el arte real en el navegador; el usuario mezcla opciones

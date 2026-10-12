@@ -70,3 +70,7 @@ Reglas que fija la decisión:
 - El avatar depende de que existan los cuadros de frente de los 14 personajes; un personaje nuevo en la 009 se vería en las listas sin tocar nada, pero un hueco en esa hoja dejaría el avatar vacío (la spec fija el respaldo).
 
 **A revisar si este ADR es reemplazado:** si el stack oficial trae un sistema de iconos y temas propio, o si el costo de las imágenes en el teléfono (arranque o memoria con el hogar completo) no cumple los criterios de la feature.
+
+## Actualización (2026-10-11, spec 2.0.0)
+
+Tras la prueba en el teléfono, las cuatro flechas de la cruceta de movimiento dejaron de ser iconos: mantener pulsada una imagen para caminar activaba la selección y la descarga de la imagen del navegador. El catálogo queda en **19 iconos** (sin `flecha:*`), la cruceta usa los símbolos ▲ ◀ ▶ ▼ como texto con un fondo semitransparente derivado de la paleta (`--cruceta-fondo`), y todas las imágenes de la interfaz son no seleccionables y pasan el toque a su contenedor. La decisión de fondo (canvas a imagen al arrancar y variables CSS desde la paleta) no cambia. Consecuencia añadida a la sección anterior: un control que se mantiene pulsado no debe ser una imagen.

@@ -3,6 +3,8 @@
 **Date:** 2026-10-10
 **Feature:** 011-iconos-propios-y-recolor
 
+> **Nota (2026-10-11):** este PRD se escribió antes de la implementación. Tras la prueba en el teléfono, las cuatro flechas de la cruceta dejaron de ser iconos (el juego queda en **19 iconos** y la cruceta conserva los símbolos de texto ▲ ◀ ▶ ▼); ver la spec 2.0.0 y el [ADR-011](../../adr/011-arte-de-la-interfaz-html-desde-las-cuadriculas.md). Donde este PRD dice 23 iconos o flechas dibujadas, vale lo de la spec.
+
 ## Problem
 
 Tras la 008 a la 010 el mapa del hogar se ve como un videojuego GBA en pixel art, pero **todo lo que rodea al mapa sigue sin pertenecer a ese mundo**: la barra inferior, los drawers, las fichas y las burbujas usan emoji del sistema (que se ven distinto en cada teléfono) y una interfaz de marrón y crema que no sale de la paleta del juego. Las insignias de estado (✓ ! !!) son cuadros de texto de color y las estrellas del historial son los símbolos ★ ☆. El resultado es una pantalla de dos estilos: un mapa de pixel art y una interfaz HTML genérica.
