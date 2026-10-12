@@ -1,7 +1,7 @@
 # Phaser 3 presentation layer (livin)
 
 - ✓ Phaser is the renderer only: it draws the generator's output (tile grid, collisions, doors, tile→space map).
-- ✓ Load Phaser pinned at 3.80.1 from cdnjs; do not bump without updating the plan.
+- ✓ Load Phaser pinned at 3.80.1 from cdnjs with `integrity` (SHA-512, the value cdnjs publishes) and `crossorigin="anonymous"`; do not bump without updating the plan, the hash and `test/despliegue.test.js`.
 - ✓ Scenes own input; entities read input state instead of registering their own listeners.
 - ✓ Tiles are 16 px; character walks 4 directions at 4 tiles/s (250 ms per tile); vertical orientation only.
 - ✓ Use original art only: 16×16 grids from `src/arte/` (one shared palette) for the world, and for the 14 characters of the inhabitants and the player (nine frames each, flipped for the left view); the activity bubbles and the cleanliness badges are icons from `src/arte/iconos.js` drawn from the same texture sheet (a bubble is a `Container`: a light rectangle, the icon and a text "+"), with no emoji anywhere in the map or the interface; the map text (labels, sign, highlight) takes its colours from `COLORES_DEL_MAPA` in `src/arte/colores.js`; never third-party copyrighted sprites or imported PNGs.

@@ -10,3 +10,4 @@
 - ✓ Test files named `*.test.js`, mirroring the module under test.
 - ✗ No tests that depend on timers, real rendering, or frame rate; measure performance separately.
 - ✗ No mocking of the domain; mock only the persistence boundary (`almacen`) when needed.
+- ✓ `test/despliegue.test.js` checks statically the Phaser SRI, the CSP `<meta>` (and the hash of each inline script), that no path is root-absolute, the publish workflow (triggers, `needs: pruebas`, main only, minimal permissions, official pinned actions, only `index.html`, `src/` and `assets/` published) and that git tracks no key or credential files.

@@ -1,0 +1,52 @@
+# Publica la PoC (poc/) en GitHub Pages: las pruebas son la compuerta y solo se publica main (feature 012).
+name: Publicar PoC
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: npm test
+        working-directory: poc
+
+  publicar:
+    needs: pruebas
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.despliegue.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Preparar el sitio (solo index.html, src/ y assets/)
+        run: |
+          mkdir _sitio
+          cp -R poc/index.html poc/src poc/assets _sitio/
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _sitio
+      - id: despliegue
+        uses: actions/deploy-pages@v5
