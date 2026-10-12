@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-10
 **Rama:** `feat/011-iconos-propios-y-recolor`
-**Estado:** automática, escritorio y teléfono Android verificados (el teléfono el 2026-10-11, con y sin carga completa); solo quedan sin evidencia explícita algunos puntos visuales menores (ver «Sin evidencia explícita en el teléfono»).
+**Estado:** **completa.** Automática, escritorio y teléfono Android verificados (el teléfono el 2026-10-11, con y sin carga completa, y las comprobaciones visuales y táctiles).
 
 ## Pruebas automáticas
 
@@ -99,9 +99,18 @@ Hogar de carga completa con dos familiares con un bloque de rutina «Fuera de ca
 | Pasillo sin insignia (AC-4.6) | En edición, el pasillo del hogar de prueba `desastre` se ve sin etiqueta ni icono de estado, mientras todos los espacios sí los tienen (captura de la primera pasada). |
 | Cruceta (AC-6.4) | Botones semitransparentes de esquinas redondeadas con los símbolos ▲ ◀ ▶ ▼, como en la 010. |
 
-## Sin evidencia explícita en el teléfono
+## Teléfono Android: comprobaciones visuales y táctiles (el usuario, 2026-10-11)
 
-Solo en el teléfono, y no se reportó de forma específica: el reconocimiento de los iconos a ×2 sobre crema y morado (AC-1.9), las áreas táctiles (AC-8.5), la lectura de las burbujas con el zoom bajo de la edición y el ancho de la letra de los botones en Silkscreen. El cartel «n fuera», las estrellas desactivadas y el pasillo sin insignia se comprobaron en el escritorio (ver arriba).
+Versión servida desde `main`, sin caché, por la red local. Respuesta del usuario punto por punto:
+
+| Paso | Resultado |
+|---|---|
+| Iconos a ×2 (AC-1.9) | Se reconocen sin leer el nombre; sin observaciones. |
+| Áreas táctiles (AC-8.5) | Se toca con el pulgar sin problemas; sin observaciones. |
+| Burbujas con el zoom bajo de la edición | No estorban; sin observaciones. |
+| Letra de los botones en Silkscreen | El texto se ve correctamente; sin observaciones. |
+
+Con esto, todos los criterios de la spec tienen evidencia: automática, de escritorio o del teléfono.
 
 ## Límites conocidos
 
