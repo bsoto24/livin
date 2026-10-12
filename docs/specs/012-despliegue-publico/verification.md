@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-12
 **Spec:** [spec.md](spec.md) (v1.0.2) · **Plan:** [plan.md](plan.md) · **Guía:** [quickstart.md](quickstart.md)
-**Estado:** **casi completa.** Automática, escritorio, flujo de publicación y teléfono Android verificados sobre el sitio real; queda **una comprobación de la persona responsable**: el uso de facturación en $0 (ver «Pendiente»).
+**Estado:** **completa.** Automática, escritorio, flujo de publicación, teléfono Android y costo verificados sobre el sitio real (el costo, por la persona responsable el 2026-10-12).
 **Commit publicado:** `e188b7b` (merge de la 012 en `main`). Sitio: https://bsoto24.github.io/livin/
 
 ---
@@ -114,7 +114,7 @@ Navegador del panel de la app, ventana sin datos previos de ese origen:
 | AC-6.1, AC-6.2 | ✓ |
 | AC-6.3 | ✓ con salvedad: 78 fps, `regen` 8,2 ms (< 24,9 ms de la 010 y < 100 ms); no es comparable con el 0,0 ms de la 011 (ver «Teléfono Android») |
 | NFR: primera carga ≤ 2 MB | ✓ 1,39 MB descomprimidos |
-| NFR: costo $0 | ⏳ pendiente: confirmar en Settings → Billing (persona responsable); el flujo solo usa Actions y Pages de un repo público |
+| NFR: costo $0 | ✓ confirmado por la persona responsable el 2026-10-12: sin cobros en GitHub (Billing); el flujo solo usa Actions y Pages de un repo público |
 
 ## Teléfono Android, sitio publicado (AC-1.2, AC-6.3)
 
@@ -129,6 +129,6 @@ Medido por la persona responsable el 2026-10-12 en un teléfono Android, navegad
 
 **Salvedades.** (1) No se anotó qué hogar tenía cargado el teléfono; como `test/` no se publica, no se pudo cargar `hogarDeCargaCompleta` con la vía de la 011, así que la medición corresponde a una partida normal de ese origen y no a la carga completa que menciona AC-6.3. (2) `regen` es el tiempo de la última redibujada del mundo y vale 0,0 ms cuando no hubo ninguna desde el arranque (así se registró en la 011), por eso 8,2 ms no es una regresión comparable con ese valor; es menor que el de la 010 y que el límite de 100 ms. (3) Ningún módulo de `src/` cambió en esta feature (AC-6.2), así que no hay un cambio de código que pueda haber alterado el redibujo; los fps y la preparación de arte y de interfaz están dentro de lo registrado en la 011.
 
-## Pendiente (persona responsable)
+## Pendiente
 
-1. **Costo $0:** revisar en GitHub → Settings → Billing que el uso de Actions y Pages del mes está en $0.
+Nada. El desvío del orden de AC-4.1 y FR-6 (repo público antes de la primera búsqueda de secretos) se mantiene como desvío registrado, sin cambio de spec (decisión de la persona responsable, 2026-10-12).
