@@ -1,9 +1,11 @@
 // test/hogares-de-prueba.js
 // Dos hogares de prueba (FR-7 de la 009) que juntos muestran los 14 personajes, para revisarlos en el juego. Se arman con las
 // operaciones reales del modelo y no forman parte de la aplicación; cómo cargarlos está en docs/specs/009-habitantes-animados/verification.md.
-import { ASPECTOS, ESPECIES } from '../src/catalogo.js';
-import { crearHogarInicial, agregarHabitante, agregarEspacio, renombrarMiembro, esPropietario, espaciosActivos } from '../src/hogar.js';
-import { agregarActividad } from '../src/actividades.js';
+import { ASPECTOS, ESPECIES, ICONOS, LIMITES_HABITANTES, LIMITE_ACTIVIDADES, LIMITE_HISTORIAL } from '../src/catalogo.js';
+import {
+  crearHogarInicial, agregarHabitante, agregarEspacio, renombrarMiembro, esPropietario, espaciosActivos, familiares, actividadesPendientes,
+} from '../src/hogar.js';
+import { agregarActividad, marcarHecha } from '../src/actividades.js';
 import { sumarDias } from '../src/fechas.js';
 
 // Ids y fechas predecibles, sin `crypto.randomUUID`, que no existe al abrir el juego por la IP de la red local (lección del 2026-10-05).
@@ -55,5 +57,35 @@ export function hogarDePruebaDeEstados(limpieza, hoy, ctx = ctxDePrueba()) {
       nombre: 'Limpiar', icono: 'limpiar', tipo: 'puntual', miembroId: propietario.id, espacioId: espacio.id, vence: sumarDias(hoy, -ATRASO[limpieza]),
     }, ctx));
   }
+  return estado;
+}
+
+// Carga completa para medir el rendimiento en el teléfono (verificaciones de la 008 a la 011): 8 familiares, 4 mascotas, 50 actividades
+// pendientes atrasadas 3 días (todos los espacios en desastre) y 200 entradas de historial, el tope. Las 200 entradas salen de cuatro tandas de
+// 50 actividades puntuales hechas hoy; al final se agregan las 50 pendientes. Se arma con las operaciones reales del modelo.
+export function hogarDeCargaCompleta(hoy, ctx = ctxDePrueba()) {
+  const aspectos = Object.keys(ASPECTOS);
+  const especies = Object.keys(ESPECIES);
+  let estado = hogarDePruebaDeEstados('limpio', hoy, ctx);
+  for (let i = 0; i < LIMITES_HABITANTES.familiar; i++) {
+    const aspecto = aspectos[i % aspectos.length];
+    estado = exigir(agregarHabitante(estado, 'familiar', { nombre: `${ASPECTOS[aspecto]} ${i + 1}`, aspecto }, ctx));
+  }
+  for (let i = 0; i < LIMITES_HABITANTES.mascota; i++) {
+    const especie = especies[i % especies.length];
+    estado = exigir(agregarHabitante(estado, 'mascota', { nombre: `${ESPECIES[especie]} ${i + 1}`, especie }, ctx));
+  }
+  const personas = [estado.miembros.find((m) => esPropietario(estado, m)), ...familiares(estado)].filter(Boolean);
+  const espacios = espaciosActivos(estado);
+  const iconos = Object.keys(ICONOS);
+  const nueva = (i, vence) => ({
+    nombre: `Tarea ${i + 1}`, icono: iconos[i % iconos.length], tipo: 'puntual', miembroId: personas[i % personas.length].id,
+    espacioId: espacios[i % espacios.length].id, vence,
+  });
+  for (let tanda = 0; tanda < LIMITE_HISTORIAL / LIMITE_ACTIVIDADES; tanda++) {
+    for (let i = 0; i < LIMITE_ACTIVIDADES; i++) estado = exigir(agregarActividad(estado, nueva(i, hoy), ctx));
+    for (const a of actividadesPendientes(estado)) estado = marcarHecha(estado, a.id, hoy, ctx);
+  }
+  for (let i = 0; i < LIMITE_ACTIVIDADES; i++) estado = exigir(agregarActividad(estado, nueva(i, sumarDias(hoy, -3)), ctx));
   return estado;
 }
