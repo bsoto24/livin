@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com 'sha256-OVaPb1Xg4e319UWloNbKPvLAsSeTGHPmO8K4zzIRlHk='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <title>Livin · PoC mapa del hogar</title>
   <style>
@@ -267,7 +268,7 @@
   </div>
   <div id="aviso" role="status"></div>
   <script>setTimeout(function () { document.body.classList.remove('preparando'); }, 4000);</script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.1/phaser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.1/phaser.min.js" integrity="sha512-zQK11u7QyhUWLmhK+Kyn4Oac0n2d5+AcuEiCagfm2YrGa2wMrdbj5EJammEmGU7bGnckmRoNTUT29Dl+DaRSlg==" crossorigin="anonymous"></script>
   <script type="module" src="src/juego.js"></script>
 </body>
 </html>
