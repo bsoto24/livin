@@ -1,7 +1,7 @@
 # Feature 012: Despliegue público de la PoC
 
 **Status:** Approved
-**Version:** 1.0.1
+**Version:** 1.0.2
 **Created:** 2026-10-12
 **Last Updated:** 2026-10-12
 **Branch:** `feat/012-despliegue-publico`
@@ -17,6 +17,7 @@ Los criterios llevan al final la forma de comprobarlos: **[auto]** (prueba autom
 |---------|------|--------|
 | 1.0.0 | 2026-10-12 | Spec inicial aprobada |
 | 1.0.1 | 2026-10-12 | PATCH: el hash de integridad de Phaser pasa de SHA-384 a SHA-512 (AC-3.1, AC-3.2, FR-4). Motivo: cdnjs publica para `phaser.min.js` 3.80.1 solo el hash SHA-512, y así AC-3.2 compara directo los tres valores. Confirmado por el usuario el 2026-10-12. |
+| 1.0.2 | 2026-10-12 | PATCH, solo aclaración numérica (sin cambio de comportamiento): la suite existente tiene 463 pruebas, no 459 (AC-2.1, AC-6.1); el número de `CLAUDE.md` estaba desactualizado. Medido con `npm test` en `main` antes de empezar la feature. |
 
 ---
 
@@ -82,7 +83,7 @@ La PoC de Livin solo se puede jugar en la máquina de desarrollo o, con el servi
 
 **Acceptance criteria:**
 
-- [ ] **AC-2.1** Given un commit en `main` con las 459 pruebas actuales y las nuevas en verde When termina el flujo de publicación Then la dirección pública sirve el mismo `index.html` que `poc/index.html` de ese commit. **[nav]**
+- [ ] **AC-2.1** Given un commit en `main` con las 463 pruebas actuales y las nuevas en verde When termina el flujo de publicación Then la dirección pública sirve el mismo `index.html` que `poc/index.html` de ese commit. **[nav]**
 - [ ] **AC-2.2** Given un commit con al menos una prueba en rojo When corre el flujo de publicación Then no se publica nada y el sitio conserva la versión anterior. **[auto]** para la dependencia (la definición del flujo hace que publicar dependa de que las pruebas pasen) y **[manual]** con una ejecución real sobre una rama de prueba con una prueba fallando, registrada en `verification.md`.
 - [ ] **AC-2.3** Given `main` When la persona responsable lanza el flujo a mano desde GitHub, sin hacer un commit nuevo Then se publica el contenido actual de `main` igual que con un push. **[manual]**
 - [ ] **AC-2.4** Given un push a una rama que no es `main`, o un pull request When corre algún flujo Then no se publica nada en la dirección pública. **[auto]** (la definición del flujo solo publica desde `main`) y **[manual]** (confirmado en una rama de prueba).
@@ -139,7 +140,7 @@ La PoC de Livin solo se puede jugar en la máquina de desarrollo o, con el servi
 
 **Acceptance criteria:**
 
-- [ ] **AC-6.1** Given el repo con esta feature aplicada When se ejecuta la suite completa de la PoC Then pasan las 459 pruebas anteriores sin modificar y las nuevas de esta feature. **[auto]**
+- [ ] **AC-6.1** Given el repo con esta feature aplicada When se ejecuta la suite completa de la PoC Then pasan las 463 pruebas anteriores sin modificar y las nuevas de esta feature. **[auto]**
 - [ ] **AC-6.2** Given el código de la PoC When se compara con `main` anterior a esta feature Then no cambia ningún módulo del modelo ni del generador (`catalogo.js`, `hogar.js`, `almacen.js`, `distribucion.js`, `posicion.js`), ni el formato guardado (`version: 7`, clave `livin:datos:v1`). **[manual]** (revisión del diff, registrada en `verification.md`); el formato guardado además lo cubren las pruebas existentes.
 - [ ] **AC-6.3** Given el sitio publicado en el teléfono Android When se mide un recorrido con el hogar de carga completa de la feature 011 Then se mantienen los 60 cuadros por segundo o más y el tiempo de redibujo del mundo no empeora respecto a lo registrado en la verificación de la 011 (24,9 ms en la 010, 0,0 ms en la 011). **[nav]**
 

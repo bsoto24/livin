@@ -48,7 +48,7 @@ Mantener este repo privado y crear otro, público, que contenga solo `poc/`, pub
 
 ## Decision
 
-**We chose Option A** porque cumple el costo de $0 y la ausencia de cuentas nuevas pedidos en el PRD, y el responsable del producto aceptó que el repo completo sea público (incluidos el correo del autor y `docs/`). El workflow de Actions resuelve que la PoC esté en `poc/`, y permite que la suite de 459 pruebas actúe como compuerta antes de publicar. Se descartaron B y C porque añaden una cuenta y un servicio sin que ninguna de sus ventajas (repo privado, cabeceras reales) sea un requisito de esta feature, y D porque duplica el mantenimiento.
+**We chose Option A** porque cumple el costo de $0 y la ausencia de cuentas nuevas pedidos en el PRD, y el responsable del producto aceptó que el repo completo sea público (incluidos el correo del autor y `docs/`). El workflow de Actions resuelve que la PoC esté en `poc/`, y permite que la suite de 463 pruebas actúe como compuerta antes de publicar. Se descartaron B y C porque añaden una cuenta y un servicio sin que ninguna de sus ventajas (repo privado, cabeceras reales) sea un requisito de esta feature, y D porque duplica el mantenimiento.
 
 ## Consequences
 

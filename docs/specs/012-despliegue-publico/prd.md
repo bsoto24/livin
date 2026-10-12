@@ -19,7 +19,7 @@ Hasta ahora el proyecto no tenía infraestructura: el steering dice «Infraestru
 - La PoC es **100 % estática**: `poc/index.html`, módulos ES en `poc/src/`, una fuente local en `poc/assets/` (≈ 316 KB en total) y Phaser 3.80.1 desde cdnjs. No hay servidor de aplicación ni base de datos.
 - Los datos de cada jugador viven en el `localStorage` de **su propio navegador**; lo que juega una persona no lo ve nadie más, y no hay datos de usuarios en el servidor.
 - Todas las rutas son relativas, así que la PoC funciona bajo un subdirectorio.
-- El repo `bsoto24/livin` es privado; la PoC está en `poc/`, no en la raíz. El código tiene 459 pruebas automáticas (`npm test` en `poc/`, sin dependencias, unos segundos).
+- El repo `bsoto24/livin` es privado; la PoC está en `poc/`, no en la raíz. El código tiene 463 pruebas automáticas (`npm test` en `poc/`, sin dependencias, unos segundos).
 
 **Decisiones del brainstorm (responsable del producto):**
 - Acceso **público con el enlace**, sin autenticación.

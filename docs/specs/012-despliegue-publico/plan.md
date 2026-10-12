@@ -29,7 +29,7 @@ Lo que dice el código y la red hoy (verificado el 2026-10-12):
 - **Flujo (FR-3):** se dispara con push a `main` y a mano (`workflow_dispatch`); publica solo si pasan todas las pruebas y solo desde `main`; permisos mínimos (`contents: read` global; `pages: write` e `id-token: write` solo en el trabajo que publica); solo acciones `actions/*` fijadas a una versión mayor; `persist-credentials: false` en cada checkout; Node 22.
 - **Integridad (FR-4):** Phaser 3.80.1 desde cdnjs con `integrity="sha512-zQK11u7QyhUWLmhK+Kyn4Oac0n2d5+AcuEiCagfm2YrGa2wMrdbj5EJammEmGU7bGnckmRoNTUT29Dl+DaRSlg=="` y `crossorigin="anonymous"`; ningún otro script de terceros.
 - **Política de contenido (FR-5):** `<meta http-equiv="Content-Security-Policy">` antes de cualquier `<style>` o `<script>`, con exactamente: `default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com 'sha256-OVaPb1Xg4e319UWloNbKPvLAsSeTGHPmO8K4zzIRlHk='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'`. Sin `unsafe-eval` ni `unsafe-inline` en scripts; ningún `*`.
-- **El juego no cambia (FR-8):** documento `version: 7`, clave `livin:datos:v1`; no cambian `catalogo.js`, `hogar.js`, `almacen.js`, `distribucion.js`, `posicion.js` ni ningún otro módulo de `src/`; en `poc/` solo cambia `index.html` (dos líneas) y se agrega `test/despliegue.test.js`. Las 459 pruebas anteriores no se modifican.
+- **El juego no cambia (FR-8):** documento `version: 7`, clave `livin:datos:v1`; no cambian `catalogo.js`, `hogar.js`, `almacen.js`, `distribucion.js`, `posicion.js` ni ningún otro módulo de `src/`; en `poc/` solo cambia `index.html` (dos líneas) y se agrega `test/despliegue.test.js`. Las 463 pruebas anteriores no se modifican.
 - **Costo:** $0; ningún servicio fuera de GitHub; ninguna credencial guardada en el repo ni en el flujo.
 - **Rendimiento (NFR):** 60 fps o más en el teléfono; primera carga ≤ 2 MB transferidos.
 - **Commits:** `<tipo>(012-despliegue-publico): <mensaje>` en inglés, como el historial; rama `feat/012-despliegue-publico`.
@@ -190,7 +190,7 @@ test('012 AC-4.2: git no sigue archivos de claves ni credenciales y .gitignore l
 ```
 
 - [ ] Run: `cd poc && node --test test/despliegue.test.js` — expect: 1 pass (AC-1.6) y 9 fail (falta la `<meta>`, la `integrity`, `publicar.yml` y los patrones de `.gitignore`).
-- [ ] Run: `cd poc && npm test` — expect: las 459 anteriores en verde y las 9 de arriba en rojo.
+- [ ] Run: `cd poc && npm test` — expect: las 463 anteriores en verde y las 9 de arriba en rojo.
 - [ ] Commit: `test(012-despliegue-publico): fix the contract of the CSP, the Phaser SRI and the publish workflow`
 
 ---
@@ -223,7 +223,7 @@ por:
 
   El script en línea del respaldo de 4 s (`<script>setTimeout(function () { document.body.classList.remove('preparando'); }, 4000);</script>`) no se toca: su hash ya está en `script-src`.
 - [ ] Run: `cd poc && node --test test/despliegue.test.js` — expect: pasan los 5 casos de `index.html` (AC-1.6, los dos de AC-3.1, AC-3.3, AC-3.3 y AC-3.8); siguen en rojo los 5 del flujo y de `.gitignore`.
-- [ ] Run: `cd poc && npm test` — expect: las 459 anteriores en verde (incluida `interfaz-estatica.test.js`, AC-3.8).
+- [ ] Run: `cd poc && npm test` — expect: las 463 anteriores en verde (incluida `interfaz-estatica.test.js`, AC-3.8).
 - [ ] AC-3.2 [manual]: comparar los tres valores y anotarlos para `verification.md`:
 
 ```bash
@@ -322,7 +322,7 @@ jobs:
 ```
 
 - [ ] Run: `cd poc && node --test test/despliegue.test.js` — expect: 10 pass.
-- [ ] Run: `cd poc && npm test` — expect: 469 pass (459 + 10), 0 fail.
+- [ ] Run: `cd poc && npm test` — expect: 473 pass (463 + 10), 0 fail.
 - [ ] Commit: `feat(012-despliegue-publico): add the GitHub Pages workflow gated by the tests`
 
 ---
@@ -409,11 +409,11 @@ curl -sf https://cdnjs.cloudflare.com/ajax/libs/phaser/<versión>/phaser.min.js 
 Static hosting on GitHub Pages at https://bsoto24.github.io/livin/ (feature 012, ADR `012-hosting-estatico-github-pages`): the public repo's `.github/workflows/publicar.yml` runs `npm test` in `poc/` and, only on `main`, publishes `poc/index.html`, `poc/src/` and `poc/assets/`. No application server, database or authentication; game data stays in each browser's local storage. Target: Android phone browser, portrait. Phaser loads with SRI and `index.html` carries a CSP `<meta>` (ADR `012-seguridad-sin-cabeceras-sri-y-csp`).
 ```
 
-- [ ] En `CLAUDE.md`, sección «Project state»: cambiar «features 001 to 011 are implemented and merged into `main` (001 to 011 pushed), with 459 automated tests» por «features 001 to 012 are implemented and merged into `main`, with 469 automated tests», y agregar al final del párrafo de features: «Feature 012 (`012-despliegue-publico`) publishes the PoC at https://bsoto24.github.io/livin/ from the public repo with a GitHub Actions workflow (`.github/workflows/publicar.yml`) gated by the tests; Phaser loads with SRI (SHA-512) and `index.html` has a CSP `<meta>`; see `docs/specs/012-despliegue-publico/quickstart.md`.» En «Commands»: cambiar «(459 passing tests as of feature 011)» por «(469 passing tests as of feature 012)».
+- [ ] En `CLAUDE.md`, sección «Project state»: cambiar «features 001 to 011 are implemented and merged into `main` (001 to 011 pushed), with 463 automated tests» por «features 001 to 012 are implemented and merged into `main`, with 473 automated tests», y agregar al final del párrafo de features: «Feature 012 (`012-despliegue-publico`) publishes the PoC at https://bsoto24.github.io/livin/ from the public repo with a GitHub Actions workflow (`.github/workflows/publicar.yml`) gated by the tests; Phaser loads with SRI (SHA-512) and `index.html` has a CSP `<meta>`; see `docs/specs/012-despliegue-publico/quickstart.md`.» En «Commands»: cambiar «(463 passing tests as of feature 011)» por «(473 passing tests as of feature 012)».
 - [ ] En `.claude/rules/phaser.md`, reemplazar «- ✓ Load Phaser pinned at 3.80.1 from cdnjs; do not bump without updating the plan.» por «- ✓ Load Phaser pinned at 3.80.1 from cdnjs with `integrity` (SHA-512, the value cdnjs publishes) and `crossorigin="anonymous"`; do not bump without updating the plan, the hash and `test/despliegue.test.js`.»
 - [ ] En `.claude/rules/javascript.md`, agregar después de la regla de `index.html`: «- ✓ `index.html` keeps its CSP `<meta>` before any style or script: scripts only from the own origin, cdnjs and the `'sha256-…'` hash of each inline script (no `unsafe-inline`/`unsafe-eval` for scripts); any new origin needs a justification and a test.»
 - [ ] En `.claude/rules/testing.md`, agregar: «- ✓ `test/despliegue.test.js` checks statically the Phaser SRI, the CSP `<meta>` (and the hash of each inline script), that no path is root-absolute, the publish workflow (triggers, `needs: pruebas`, main only, minimal permissions, official pinned actions, only `index.html`, `src/` and `assets/` published) and that git tracks no key or credential files.»
-- [ ] Run: `cd poc && npm test` — expect: 469 pass.
+- [ ] Run: `cd poc && npm test` — expect: 473 pass.
 - [ ] Commit: `docs(012-despliegue-publico): add the deployment guide and update the steering, CLAUDE.md and rules`
 
 ---
@@ -466,7 +466,7 @@ for u in livin/ livin/poc/ livin/poc/package.json livin/poc/test/hogar.test.js l
 **Files:** `docs/specs/012-despliegue-publico/verification.md` (nuevo)
 **Interfaces:** Consumes: el sitio publicado de la Fase 4. Produces: la evidencia de cierre.
 
-- [ ] AC-6.1: `cd poc && npm test` — expect: 469 pass, 0 fail.
+- [ ] AC-6.1: `cd poc && npm test` — expect: 473 pass, 0 fail.
 - [ ] AC-6.2 [manual]: revisar el diff de la feature sobre `poc/`:
 
 ```bash
@@ -520,7 +520,7 @@ git switch main && git branch -D test/012-compuerta-roja && git push origin --de
 
 ## Quickstart Validation
 
-1. `cd poc && npm test` → 469 pass.
+1. `cd poc && npm test` → 473 pass.
 2. `gh run list --workflow publicar.yml --limit 1` → la última ejecución en `main` terminó en `success`.
 3. Abrir `https://bsoto24.github.io/livin/` en el teléfono Android en vertical → se ve el hogar y se camina con la cruceta.
 4. En escritorio, la consola del sitio no muestra violaciones de CSP ni errores de integridad.
