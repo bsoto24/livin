@@ -55,7 +55,7 @@ La PoC publicada en `https://bsoto24.github.io/livin/` por un flujo que solo pub
 **Files:** `poc/test/despliegue.test.js` (nuevo)
 **Interfaces:** Consumes: `poc/index.html`, `poc/src/**/*.js`, `.gitignore` y `git ls-files` tal como están. Produces: fija el contrato que cumplen las Fases 1 y 2: la etiqueta exacta de Phaser con `integrity`, la `<meta>` de CSP con las directivas de Global Constraints, el archivo `.github/workflows/publicar.yml` con los trabajos `pruebas` y `publicar`, y los patrones `.env`, `.env.*`, `*.pem`, `*.key` en `.gitignore`.
 
-Una prueba estática, sin red ni Phaser, que falla hoy en los 10 casos salvo AC-1.6 (las rutas ya son relativas; queda como guarda).
+Una prueba estática, sin red ni Phaser, con 10 casos; hoy fallan 8 y pasan 2, que quedan como guarda: AC-1.6 (las rutas ya son relativas) y «el único script de terceros es Phaser».
 
 - [ ] Crear `poc/test/despliegue.test.js`:
 
@@ -189,8 +189,8 @@ test('012 AC-4.2: git no sigue archivos de claves ni credenciales y .gitignore l
 });
 ```
 
-- [ ] Run: `cd poc && node --test test/despliegue.test.js` — expect: 1 pass (AC-1.6) y 9 fail (falta la `<meta>`, la `integrity`, `publicar.yml` y los patrones de `.gitignore`).
-- [ ] Run: `cd poc && npm test` — expect: las 463 anteriores en verde y las 9 de arriba en rojo.
+- [ ] Run: `cd poc && node --test test/despliegue.test.js` — expect: 2 pass (AC-1.6 y el único script de terceros) y 8 fail (falta la `<meta>`, la `integrity`, `publicar.yml` y los patrones de `.gitignore`).
+- [ ] Run: `cd poc && npm test` — expect: las 463 anteriores en verde y las 8 de arriba en rojo.
 - [ ] Commit: `test(012-despliegue-publico): fix the contract of the CSP, the Phaser SRI and the publish workflow`
 
 ---
@@ -222,7 +222,7 @@ por:
 ```
 
   El script en línea del respaldo de 4 s (`<script>setTimeout(function () { document.body.classList.remove('preparando'); }, 4000);</script>`) no se toca: su hash ya está en `script-src`.
-- [ ] Run: `cd poc && node --test test/despliegue.test.js` — expect: pasan los 5 casos de `index.html` (AC-1.6, los dos de AC-3.1, AC-3.3, AC-3.3 y AC-3.8); siguen en rojo los 5 del flujo y de `.gitignore`.
+- [ ] Run: `cd poc && node --test test/despliegue.test.js` — expect: pasan los 5 casos de `index.html` (AC-1.6, los dos de AC-3.1, el de la política y el del hash del script en línea); siguen en rojo los 5 del flujo y de `.gitignore`.
 - [ ] Run: `cd poc && npm test` — expect: las 463 anteriores en verde (incluida `interfaz-estatica.test.js`, AC-3.8).
 - [ ] AC-3.2 [manual]: comparar los tres valores y anotarlos para `verification.md`:
 
