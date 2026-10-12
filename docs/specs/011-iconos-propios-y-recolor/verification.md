@@ -88,9 +88,20 @@ localStorage.removeItem('livin:posicion:v1');
 location.reload();
 ```
 
+## Tercera pasada de escritorio (2026-10-11): cartel, estrellas y pasillo
+
+Hogar de carga completa con dos familiares con un bloque de rutina «Fuera de casa» todo el día, en el navegador de la app (viewport de teléfono):
+
+| Paso | Resultado |
+|---|---|
+| Cartel «n fuera» (AC-4.7) | En exploración, junto a la entrada se ve el cartel «2 FUERA» en Silkscreen, texto claro sobre fondo oscuro de la paleta; al tocarlo se abre la hoja «Fuera de casa» con las 2 personas. |
+| Estrellas desactivadas (AC-6.2) | En el historial de la carga completa, 120 de las 1.000 estrellas están desactivadas (las de calificaciones propias) con opacidad 0,45 frente a 1 de las activas, y las otras 880 siguen activas. |
+| Pasillo sin insignia (AC-4.6) | En edición, el pasillo del hogar de prueba `desastre` se ve sin etiqueta ni icono de estado, mientras todos los espacios sí los tienen (captura de la primera pasada). |
+| Cruceta (AC-6.4) | Botones semitransparentes de esquinas redondeadas con los símbolos ▲ ◀ ▶ ▼, como en la 010. |
+
 ## Sin evidencia explícita en el teléfono
 
-No se reportó de forma específica y queda sin registrar (el usuario no hizo observaciones): el reconocimiento de los iconos a ×2 sobre crema y morado (AC-1.9), las áreas táctiles (AC-8.5), la lectura de las burbujas con el zoom bajo de la edición, el ancho de la letra de los botones en Silkscreen, el cartel «n fuera» (AC-4.7), las estrellas desactivadas (AC-6.2) y la ausencia de insignia en el pasillo (AC-4.6).
+Solo en el teléfono, y no se reportó de forma específica: el reconocimiento de los iconos a ×2 sobre crema y morado (AC-1.9), las áreas táctiles (AC-8.5), la lectura de las burbujas con el zoom bajo de la edición y el ancho de la letra de los botones en Silkscreen. El cartel «n fuera», las estrellas desactivadas y el pasillo sin insignia se comprobaron en el escritorio (ver arriba).
 
 ## Límites conocidos
 
