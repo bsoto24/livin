@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-10
 **Rama:** `feat/011-iconos-propios-y-recolor`
-**Estado:** automática y escritorio completas; teléfono Android verificado por el usuario el 2026-10-11 (ver más abajo); queda pendiente lo que el usuario no reportó (ver «Pendiente»).
+**Estado:** automática, escritorio y teléfono Android verificados (el teléfono el 2026-10-11, con y sin carga completa); solo quedan sin evidencia explícita algunos puntos visuales menores (ver «Sin evidencia explícita en el teléfono»).
 
 ## Pruebas automáticas
 
@@ -61,17 +61,36 @@ Siguen sin evidencia de escritorio y pasan a la prueba del teléfono: el rótulo
 
 ## Teléfono Android (el usuario, 2026-10-11)
 
-Resumen del usuario sobre la versión servida desde la rama: **70 fps de promedio, `regen` 0,0 ms y sin observaciones** (modelo del teléfono y valores de `arte` y `ui` no indicados).
+Resumen del usuario sobre la versión servida desde la rama: **70 fps de promedio, `regen` 0,0 ms y sin observaciones** sobre la cruceta corregida (modelo del teléfono no indicado).
 
 **Hallazgo y corrección (spec 2.0.0, Fase 8).** Al mantener pulsada una flecha de la cruceta para caminar, el navegador del teléfono trataba la flecha como una imagen: selección y opción de guardarla. Además la cruceta con marco quedaba más recargada que la anterior. Se revirtió la cruceta a la de la 010 (símbolos ▲ ◀ ▶ ▼ como texto, fondo semitransparente de la paleta, esquinas redondeadas de 8 px, sin marco ni sombra), se quitaron los 4 iconos de flecha (19 iconos) y todas las imágenes de la interfaz pasaron a no ser seleccionables, arrastrables ni guardables, con el toque pasando a su contenedor (AC-9.6). El usuario confirmó en el teléfono que la cruceta funciona bien (70 fps, `regen` 0,0 ms, sin observaciones).
 
-## Pendiente en el teléfono Android (lo que no se reportó)
+## Teléfono Android: arranque, barra y carga completa (el usuario, 2026-10-11)
 
-Repetir los pasos de arriba con el hogar de prueba y con la carga completa (8 familiares, 4 mascotas, 50 pendientes, 200 entradas y todos los espacios en desastre). Servir en `0.0.0.0:8080` solo mientras dura la prueba, con el servidor sin caché, y apagarlo después. Anotar:
-- fps, `regen`, `arte` y `ui` (criterios: 60 fps o más; `regen` sin superar los 24,9 ms de la 010 y por debajo de 100 ms; `arte` + `ui` por debajo de 300 ms).
-- Que la barra de 68 px acepte el rótulo de dos líneas de «Intercambios (n)» sin tapar el icono; si no, subir `--base`.
-- Que los iconos de actividad se reconozcan a ×2, que las listas de 50 y 200 filas se desplacen sin tirones y que las áreas táctiles no se hayan encogido (AC-8.5).
-- Si las burbujas (20×20 px, 30 con el «+») se leen con el zoom de edición, y si la letra de los botones en Silkscreen queda demasiado ancha (lección del 2026-10-10).
+Versión servida desde `main` (sin caché, por la red local). Modelo del teléfono no indicado; resumen del usuario.
+
+| Paso | Resultado |
+|---|---|
+| Arranque (AC-9.2, AC-9.4) | 70 fps, `regen` 2,1 ms, `arte` 20 ms, `ui` 77 ms (97 ms en total, por debajo de 300). |
+| Barra con «Intercambios (n)» (AC-2.3) | Con una propuesta recibida, el rótulo con su contador se ve bien en la barra de 68 px, sin tapar el icono ni observaciones. |
+| Carga completa (AC-9.2, AC-9.4, AC-3.5) | Con `hogarDeCargaCompleta` (8 familiares, 4 mascotas, 50 pendientes, 200 entradas y todos los espacios en desastre): **79 fps, `regen` 0,0 ms, `arte` 19 ms, `ui` 109 ms** (128 ms en total, por debajo de 300). El desplazamiento de las listas de 50 y de 200 filas fue fluido, sin tirones. |
+| Pulsación larga (AC-9.6) | Mantener pulsada una imagen (icono, avatar o estrella) ya no ofrece guardarla ni seleccionarla. |
+
+Cumplen los criterios de rendimiento de la spec: 60 fps o más, `regen` por debajo de los 24,9 ms de la 010 y de 100 ms, y `arte` + `ui` por debajo de 300 ms.
+
+**Cómo se cargó.** `chrome://inspect` solo ve el teléfono por cable USB, no por wifi; se usó una página temporal (`carga-prueba.html`, no incluida en el repositorio) que guardaba un respaldo del hogar del teléfono, cargaba `hogarDeCargaCompleta(hoy)` desde `test/hogares-de-prueba.js` y permitía restaurar. Para repetirlo hace falta esa página o la consola del navegador:
+
+```js
+const { hogarDeCargaCompleta } = await import('/test/hogares-de-prueba.js');
+const { fechaLocal } = await import('/src/fechas.js');
+localStorage.setItem('livin:datos:v1', JSON.stringify(hogarDeCargaCompleta(fechaLocal(new Date()))));
+localStorage.removeItem('livin:posicion:v1');
+location.reload();
+```
+
+## Sin evidencia explícita en el teléfono
+
+No se reportó de forma específica y queda sin registrar (el usuario no hizo observaciones): el reconocimiento de los iconos a ×2 sobre crema y morado (AC-1.9), las áreas táctiles (AC-8.5), la lectura de las burbujas con el zoom bajo de la edición, el ancho de la letra de los botones en Silkscreen, el cartel «n fuera» (AC-4.7), las estrellas desactivadas (AC-6.2) y la ausencia de insignia en el pasillo (AC-4.6).
 
 ## Límites conocidos
 
