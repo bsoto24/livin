@@ -558,7 +558,6 @@ const escena = () => juego.scene.getScene('principal');
 // ---------- Cruceta ----------
 for (const boton of document.querySelectorAll('#cruceta button')) {
   const dir = boton.dataset.dir;
-  boton.append(imagen(`flecha:${dir}`, 2)); // la flecha dibujada (AC-6.4); el nombre accesible sigue en aria-label
   boton.addEventListener('pointerdown', (ev) => { ev.preventDefault(); direccionTactil = dir; escena().mover(dir); });
   for (const fin of ['pointerup', 'pointerleave', 'pointercancel']) {
     boton.addEventListener(fin, () => { if (direccionTactil === dir) direccionTactil = null; });

@@ -1,7 +1,7 @@
 # Feature 011: Iconos propios y recolor de la interfaz
 
 **Status:** Approved
-**Version:** 1.0.1
+**Version:** 2.0.0
 **Created:** 2026-10-10
 **Last Updated:** 2026-10-11
 **Branch:** `feat/011-iconos-propios-y-recolor`
@@ -17,6 +17,7 @@ Los criterios llevan al final la forma de comprobarlos: **[auto]** (prueba autom
 |---------|------|--------|
 | 1.0.0 | 2026-10-10 | Spec inicial aprobada |
 | 1.0.1 | 2026-10-11 | PATCH, solo aclaraciones tras la revisión de la implementación (sin cambio de comportamiento): FR-7 añade el rol `separador` (clave `A`) que ya usaba el plan, y aclara que `opacity` y `transparent` no son colores propios; FR-8 y AC-8.3 aclaran que los chips y los círculos de responsable conservan la fuente del sistema porque llevan texto del usuario; FR-6 recoge el respaldo de 4 s si el módulo no llega a cargar; AC-7.4 recoge la excepción aceptada del «★» del resumen del historial. Motivo: lo construido y validado en pantalla ya hacía esto; la spec no lo decía. Confirmado por el usuario el 2026-10-11. |
+| 2.0.0 | 2026-10-11 | MAJOR, reescribe AC-6.4 y toca FR-1, FR-2, FR-5, FR-7, FR-8, AC-1.1, AC-1.9, AC-7.3, AC-8.5: la cruceta de movimiento vuelve a su versión de la 010 (botones con los símbolos ▲ ◀ ▶ ▼ como texto, fondo semitransparente de la paleta, esquinas redondeadas, sin marco grueso ni sombra dura) y se quitan los 4 iconos de flecha (el catálogo pasa de 23 a 19 iconos). Se añade AC-9.6: ningún icono, avatar ni estrella ofrece guardar o seleccionar la imagen al mantenerlos pulsados. Motivo: la prueba en el teléfono mostró que mantener pulsada una flecha para caminar activaba la selección y descarga de la imagen del navegador, y la cruceta con marco quedaba demasiado recargada. Confirmado por el usuario el 2026-10-11. |
 
 ---
 
@@ -26,7 +27,7 @@ Tras las features 008 a 010 el mapa del hogar se ve como un videojuego de GBA en
 
 ## Goals
 
-- Un **juego de 23 iconos propios** de 16×16 con la paleta única, a color y con contorno oscuro, que reemplazan a todos los emoji y símbolos-icono de la interfaz y del mapa.
+- Un **juego de 19 iconos propios** de 16×16 con la paleta única, a color y con contorno oscuro, que reemplazan a todos los emoji y símbolos-icono de la interfaz y del mapa.
 - Que los **familiares y las mascotas** se vean con el cuadro de frente de su personaje de la 009 donde hoy hay un emoji (lista de Familia y selector de aspecto y especie).
 - Que **toda la interfaz HTML y el texto del mapa (etiquetas, cartel y resalte) usen solo colores de la paleta**, con un solo lugar donde se definen, y tenga aspecto de **marco de videojuego**: esquinas cuadradas, borde oscuro grueso, sombra dura, relieve en los botones y Silkscreen en títulos y botones.
 - Que los dibujos se **preparen una sola vez** al arrancar y que, si alguno falla, la interfaz siga funcionando con un respaldo.
@@ -73,7 +74,7 @@ El resto de las specs 001 a 010 sigue vigente sin cambios.
 
 **Acceptance criteria:**
 
-- [ ] **AC-1.1** Dado el catálogo de iconos, Cuando se listan sus claves, Entonces son exactamente las 23 de FR-1 (4 de pestañas, 9 de actividades, 3 de estados, 2 de estrellas, 1 de fecha y 4 de flechas), sin repetidas. **[auto]**
+- [ ] **AC-1.1** Dado el catálogo de iconos, Cuando se listan sus claves, Entonces son exactamente las 19 de FR-1 (4 de pestañas, 9 de actividades, 3 de estados, 2 de estrellas y 1 de fecha), sin repetidas. **[auto]**
 - [ ] **AC-1.2** Dado cualquier icono, Cuando se mide, Entonces tiene exactamente 16 píxeles de ancho y 16 de alto. **[auto]**
 - [ ] **AC-1.3** Dado cualquier icono, Cuando se examinan sus píxeles, Entonces cada píxel es transparente o es un color de la paleta de la 008, y ninguno usa un color que no esté en ella. **[auto]**
 - [ ] **AC-1.4** Dado cualquier icono, Cuando se examinan sus píxeles, Entonces tiene al menos un píxel de color y al menos un píxel con el color de contorno oscuro de la paleta. **[auto]**
@@ -81,7 +82,7 @@ El resto de las specs 001 a 010 sigue vigente sin cambios.
 - [ ] **AC-1.6** Dadas las claves de `ICONOS` de `catalogo.js` (las 9 que se guardan en las actividades, incluida la genérica `otra`), Cuando se busca el icono de cada una, Entonces todas lo tienen. **[auto]**
 - [ ] **AC-1.7** Dados los tres estados de limpieza (`limpio`, `desordenado`, `desastre`), Cuando se busca el icono de cada uno, Entonces los tres lo tienen y son distintos entre sí. **[auto]**
 - [ ] **AC-1.8** Dado el catálogo de iconos, Cuando se piden dos veces, Entonces las cuadrículas son idénticas (el arte es determinista y no se modifica al leerlo). **[auto]**
-- [ ] **AC-1.9** Dados los 23 iconos mostrados a ×2 sobre el crema y sobre el morado oscuro de la interfaz, Cuando se miran, Entonces se reconoce cada uno (los de actividades se distinguen entre sí) sin leer su rótulo. **[nav]**
+- [ ] **AC-1.9** Dados los 19 iconos mostrados a ×2 sobre el crema y sobre el morado oscuro de la interfaz, Cuando se miran, Entonces se reconoce cada uno (los de actividades se distinguen entre sí) sin leer su rótulo. **[nav]**
 
 ### Story 2: La barra inferior con iconos propios
 
@@ -141,18 +142,18 @@ El resto de las specs 001 a 010 sigue vigente sin cambios.
 - [ ] **AC-5.5** Dado el selector de aspecto de un familiar o de especie de una mascota, Cuando se abre, Entonces cada opción muestra el avatar de ese aspecto o especie a ×2 con su rótulo, con el actual marcado, y el botón de icono de la ficha del habitante muestra el avatar del elegido. **[nav]**
 - [ ] **AC-5.6** Dado cualquier otro lugar que hoy muestra a un miembro (círculos de responsable, «¿Quién juega?», intercambios, historial), Cuando se muestra, Entonces conserva lo que muestra hoy (inicial con su color, o el nombre), sin avatar. **[nav]**
 
-### Story 6: Estrellas, fecha y cruceta dibujadas
+### Story 6: Estrellas y fecha dibujadas, y cruceta sutil
 
 **As a** persona que califica, elige una fecha o mueve al personaje
-**I want** que estos controles usen dibujos del juego
-**So that** no haya símbolos de texto sueltos en la interfaz
+**I want** que las estrellas y la fecha usen dibujos del juego y que la cruceta de movimiento siga sutil y sin imágenes
+**So that** no haya símbolos de texto sueltos salvo las flechas de la cruceta, y que caminar con el dedo sostenido no active nada del navegador
 
 **Acceptance criteria:**
 
 - [ ] **AC-6.1** Dada una calificación de n estrellas de 5, Cuando se pinta la fila del historial, Entonces las primeras n muestran la estrella llena y las demás la vacía, a ×2 (32 px), y el comportamiento (quién puede calificar, cambiar o quitar) es el de la 006. **[nav]**
 - [ ] **AC-6.2** Dada una estrella de una calificación propia o bloqueada, Cuando se pinta, Entonces está desactivada como hoy y se distingue de una activa. **[nav]**
 - [ ] **AC-6.3** Dada la línea-resumen de la ficha de actividad, Cuando se pinta, Entonces el icono de fecha (a ×1) va antes del texto, y el texto del resumen ya no lleva ningún símbolo al comienzo: devuelve «Hoy · Una vez · Sin lugar» y variantes. **[auto]**
-- [ ] **AC-6.4** Dada la cruceta, Cuando se muestra, Entonces cada botón dibuja la flecha de su dirección a ×2 (32 px) en lugar del símbolo de texto, conserva su nombre accesible («Arriba», «Izquierda», «Derecha», «Abajo») y los huecos entre botones siguen dejando pasar el toque al mapa. **[nav]**
+- [ ] **AC-6.4** Dada la cruceta, Cuando se muestra, Entonces cada botón muestra como texto el símbolo de su dirección (▲ ◀ ▶ ▼), sobre un fondo semitransparente de la paleta y con esquinas redondeadas, sin borde grueso ni sombra dura (el aspecto de la 010), conserva su nombre accesible («Arriba», «Izquierda», «Derecha», «Abajo»), y los huecos entre botones siguen dejando pasar el toque al mapa. **[nav]**
 
 ### Story 7: Los colores de la interfaz salen de la paleta
 
@@ -164,7 +165,7 @@ El resto de las specs 001 a 010 sigue vigente sin cambios.
 
 - [ ] **AC-7.1** Dada la paleta de 32 colores, Cuando se calculan las variables de color de la interfaz, Entonces hay una por clave de la paleta, con exactamente el valor de su color, y la función es pura (mismo resultado en cada llamada). **[auto]**
 - [ ] **AC-7.2** Dada la hoja de estilos de `index.html`, Cuando se examina su texto, Entonces no contiene ningún color escrito a mano (`#hex`, `rgb(`, `hsl(` ni nombres de color) salvo las variables de FR-7, y `rgba` solo aparece con una variable de la paleta con alfa. **[auto]**
-- [ ] **AC-7.3** Dado `index.html`, Cuando se examina, Entonces tampoco quedan emoji ni símbolos-icono (🏠 👨‍👩‍👧 📋 🔄 🍽️ 📅 ★ ☆ ▲ ◀ ▶ ▼ ✓…) en su contenido. **[auto]**
+- [ ] **AC-7.3** Dado `index.html`, Cuando se examina, Entonces tampoco quedan emoji ni símbolos-icono (🏠 👨‍👩‍👧 📋 🔄 🍽️ 📅 ★ ☆ ✓…) en su contenido; la única excepción son los cuatro símbolos de la cruceta (▲ ◀ ▶ ▼), que siguen como texto de sus botones. **[auto]**
 - [ ] **AC-7.4** Dados `juego.js`, `secciones.js`, `formularios.js` y el módulo de presentación nuevo, Cuando se examina su texto, Entonces no contienen emoji ni símbolos-icono; quedan fuera de esta comprobación `catalogo.js` y `aspecto.js` (`INSIGNIAS`). Excepción aceptada: el resumen del historial (`textoResumen` de `historial.js`, p. ej. «Diana: 4,3 ★ (4 calificadas)») sigue mostrando el símbolo ★ como texto, porque esta feature no toca `historial.js` y las pruebas de la 006 lo fijan. **[auto]**
 - [ ] **AC-7.5** Dado que `juego.js` ya no usa los emoji de `DATOS_ASPECTO`, `DATOS_ESPECIE` ni `INSIGNIAS`, Cuando se examina, Entonces no los importa ni los usa. **[auto]**
 - [ ] **AC-7.6** Dada cada pantalla de la interfaz (barra, drawers, hoja de lugar, fichas, selectores, modales, avisos, botones y cruceta), Cuando se muestra, Entonces solo se ven colores de la paleta, con el texto legible sobre su fondo (los pares de FR-7). **[nav]**
@@ -181,10 +182,10 @@ El resto de las specs 001 a 010 sigue vigente sin cambios.
 **Acceptance criteria:**
 
 - [ ] **AC-8.1** Dados la barra, el drawer, la hoja de lugar, las fichas y los modales, Cuando se muestran, Entonces tienen esquinas cuadradas, un borde oscuro de 3 px y una sombra dura sin desenfoque, según FR-8. **[nav]**
-- [ ] **AC-8.2** Dados los botones, Cuando se muestran, Entonces tienen borde oscuro y sombra dura, y al pulsarlos se hunden (sin sombra); activo, pulsado, desactivado y peligro se distinguen entre sí por los colores de la paleta. **[nav]**
+- [ ] **AC-8.2** Dados los botones (salvo los de la cruceta, que conservan el aspecto sutil de la 010), Cuando se muestran, Entonces tienen borde oscuro y sombra dura, y al pulsarlos se hunden (sin sombra); activo, pulsado, desactivado y peligro se distinguen entre sí por los colores de la paleta. **[nav]**
 - [ ] **AC-8.3** Dados los títulos de los drawers, el rótulo de las pestañas y el texto de los botones, Cuando se muestran, Entonces usan Silkscreen; los campos de texto, las listas, la ficha de actividad y el historial siguen con la fuente del sistema. Los chips y los círculos de responsable, aunque son botones, conservan la fuente del sistema. **[nav]**
 - [ ] **AC-8.4** Dado un error de formulario, Cuando se muestra, Entonces usa el color de peligro de la paleta con contraste suficiente. **[nav]**
-- [ ] **AC-8.5** Dados todos los controles que se tocan (botones, pestañas, chips, filas, estrellas, flechas), Cuando se miden, Entonces su área táctil es la misma o mayor que la de la 010 (no se encogen). **[nav]**
+- [ ] **AC-8.5** Dados todos los controles que se tocan (botones, pestañas, chips, filas, estrellas y botones de la cruceta), Cuando se miden, Entonces su área táctil es la misma o mayor que la de la 010 (no se encogen). **[nav]**
 - [ ] **AC-8.6** Dada cada pantalla, Cuando se compara su disposición con la de la 010, Entonces los controles están en el mismo orden y con las mismas funciones: solo cambia el aspecto. **[nav]**
 
 ### Story 9: Preparación una sola vez, respaldo y rendimiento
@@ -200,6 +201,7 @@ El resto de las specs 001 a 010 sigue vigente sin cambios.
 - [ ] **AC-9.3** Dado un icono o un avatar que no se puede dibujar (por ejemplo, por un error al preparar la imagen), Cuando se muestra la interfaz, Entonces esta sigue funcionando y en su lugar se muestra el respaldo (el icono `actividad:otra` en actividades y el avatar `neutro` en habitantes), sin errores en la consola y sin romper el resto. **[nav]**
 - [ ] **AC-9.4** Dado el hogar completo (8 familiares, 4 mascotas, 50 pendientes, 200 entradas y todos los espacios en desastre), Cuando se juega en el teléfono, Entonces el movimiento se mantiene a 60 cuadros por segundo o más y el indicador `regen` no empeora lo medido en la 010 (24,9 ms) y queda por debajo de 100 ms. **[nav]**
 - [ ] **AC-9.5** Dada la interfaz sin colores ni imágenes preparados todavía, Cuando se abre la página, Entonces no se ve un instante de interfaz sin estilo: la barra y los paneles aparecen ya con sus colores. **[nav]**
+- [ ] **AC-9.6** Dado un icono, un avatar o una estrella de la interfaz, Cuando se mantiene pulsado con el dedo o el ratón, Entonces el navegador no ofrece guardar, arrastrar ni seleccionar la imagen, y el toque llega al elemento que la contiene (la fila, el botón o la opción). **[nav]**
 
 ### Story 10: Lo demás sigue funcionando
 
@@ -216,9 +218,9 @@ El resto de las specs 001 a 010 sigue vigente sin cambios.
 
 ## Functional Requirements
 
-### FR-1: El juego de 23 iconos
+### FR-1: El juego de 19 iconos
 
-Los iconos son cuadrículas de 16×16 con claves de la paleta única, a color y con contorno oscuro. Sus claves son estas 23 (una sola lista, la fuente de la que parten las pruebas de cobertura):
+Los iconos son cuadrículas de 16×16 con claves de la paleta única, a color y con contorno oscuro. Sus claves son estas 19 (una sola lista, la fuente de la que parten las pruebas de cobertura):
 
 | Grupo | Claves | Cantidad |
 |---|---|---|
@@ -227,7 +229,6 @@ Los iconos son cuadrículas de 16×16 con claves de la paleta única, a color y 
 | Estados de limpieza | `estado:limpio`, `estado:desordenado`, `estado:desastre` | 3 |
 | Estrellas | `estrella:llena`, `estrella:vacia` | 2 |
 | Fecha | `fecha` | 1 |
-| Flechas de la cruceta | `flecha:arriba`, `flecha:izquierda`, `flecha:derecha`, `flecha:abajo` | 4 |
 
 **Must:**
 - Cada clave de `ICONOS` de `catalogo.js` tiene su `actividad:<clave>`; una clave desconocida cae en `actividad:otra`.
@@ -244,7 +245,7 @@ Los iconos se muestran sin suavizado y a un tamaño entero múltiplo de 16 px:
 
 | Lugar | Tamaño |
 |---|---|
-| Pestañas de la barra, filas de listas (actividades, historial, Familia), botón de icono de las fichas, estrellas, flechas de la cruceta, opciones del selector de aspecto y especie | ×2 (32 px) |
+| Pestañas de la barra, filas de listas (actividades, historial, Familia), botón de icono de las fichas, estrellas, opciones del selector de aspecto y especie | ×2 (32 px) |
 | Opciones del selector de iconos de actividad | ×3 (48 px) |
 | Chips de sugerencias, icono de fecha de la línea-resumen | ×1 (16 px) |
 | Burbujas e iconos de estado del mapa | 16 px en pantalla, sin importar el zoom |
@@ -283,7 +284,7 @@ El avatar de un familiar o una mascota es el cuadro de frente en reposo (vista `
 **Must:**
 - Las pestañas de la barra usan los iconos `pestana:*`; `SECCIONES` guarda en cada una la clave de su icono y no un emoji.
 - La línea-resumen de la ficha de actividad (`resumenDeFicha`) devuelve solo el texto («<fecha> · <recurrencia> · <lugares>») sin prefijo; la presentación dibuja `fecha` antes de él.
-- Las estrellas del historial usan `estrella:llena` y `estrella:vacia`; la cruceta usa `flecha:*`.
+- Las estrellas del historial usan `estrella:llena` y `estrella:vacia`; la cruceta conserva los símbolos de texto ▲ ◀ ▶ ▼ en sus botones (decisión del 2026-10-11: una imagen se puede seleccionar y descargar al mantenerla pulsada).
 
 **Must not:**
 - No cambiar los textos de fecha, recurrencia y lugares, ni las reglas de las estrellas.
@@ -292,6 +293,7 @@ El avatar de un familiar o una mascota es el cuadro de frente en reposo (vista `
 
 **Must:**
 - Preparar cada icono y cada avatar una sola vez al arrancar y reutilizarlo en cada pantalla.
+- Que las imágenes de la interfaz no sean seleccionables, arrastrables ni ofrezcan guardarse al mantenerlas pulsadas, y que el toque pase a su contenedor (AC-9.6).
 - Si una imagen no se puede preparar, mostrar el respaldo (`actividad:otra` en actividades, el avatar `neutro` en habitantes) o, si ni eso es posible, nada, sin lanzar errores.
 - Que la interfaz no se vea sin estilo mientras se preparan los colores y las imágenes. Si el módulo no llega a cargar, a los 4 segundos la página se muestra de todos modos (sin colores ni imágenes de la paleta) en lugar de quedar oculta.
 
@@ -320,13 +322,14 @@ Toda la interfaz HTML usa variables de color derivadas de la paleta, una por cla
 | Campos de texto (fondo y borde) | `j` y `k` | `#f4f1ea` y `#2e2233` |
 | Texto del indicador de depuración | `p` | `#8bc27d` |
 | Separadores de fila (líneas finas entre filas de listas) | `A` | `#d4c3a8` |
+| Botones de la cruceta (fondo y símbolo) | `z` con alfa 0,85 y `k` | `#eadfcf` al 85 % y `#2e2233` |
 | Etiquetas de nombre del mapa (fondo y texto) | `z` y `k` | `#eadfcf` y `#2e2233` |
 | Cartel «n fuera» (fondo y texto) | `k` y `j` | `#2e2233` y `#f4f1ea` |
 | Resalte de la etiqueta de quien juega | `r` | `#f2c14e` |
 
 **Must:**
 - Que el texto de cada par de la tabla tenga un contraste de al menos 4,5 a 1 sobre su fondo (AC-7.7); si un par no lo cumple, se elige otra clave de la paleta para ese rol y se corrige esta tabla.
-- Que la transparencia de un color solo exista como una variable de la paleta con alfa (la propiedad `opacity`, que atenúa el texto secundario y los controles desactivados, y el valor `transparent`, que quita un fondo, no son colores propios y se permiten); los botones de la cruceta pasan a ser opacos.
+- Que la transparencia de un color solo exista como una variable de la paleta con alfa (la propiedad `opacity`, que atenúa el texto secundario y los controles desactivados, y el valor `transparent`, que quita un fondo, no son colores propios y se permiten); el fondo de los botones de la cruceta es la clave `z` con alfa 0,85 (variable `--cruceta-fondo`), como en la 010, y su símbolo es `k`.
 - Que `index.html` solo use esas variables para colorear (fondo, texto, borde, sombra y relleno).
 
 **Must not:**
@@ -336,7 +339,7 @@ Toda la interfaz HTML usa variables de color derivadas de la paleta, una por cla
 ### FR-8: Marco de videojuego
 
 **Must:**
-- Esquinas cuadradas (sin redondeo) en barra, drawer, hoja, fichas, modales, botones, chips, selectores y campos.
+- Esquinas cuadradas (sin redondeo) en barra, drawer, hoja, fichas, modales, botones, chips, selectores y campos. Excepción: los botones de la cruceta conservan su aspecto de la 010 (esquinas redondeadas de 8 px, sin borde grueso ni sombra dura y sin hundirse), por ser sutil sobre el mapa.
 - Borde oscuro de 3 px en paneles y de 2 px en botones, chips y campos, y sombra dura (sin desenfoque) de 3 px en paneles y de 2 px en botones.
 - Botones con relieve: sombra dura en reposo y sin sombra, desplazados, al pulsarlos.
 - Silkscreen en títulos de drawers, rótulos de pestañas y texto de botones; los campos de texto, las listas, la ficha de actividad y el historial siguen con la fuente del sistema. Los chips (sugerencias y lugares) y los círculos de responsable también conservan la fuente del sistema, aunque sean botones, porque llevan texto del usuario (nombres de actividades, lugares y personas).

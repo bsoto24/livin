@@ -15,7 +15,7 @@
     body.preparando > * { visibility: hidden; } /* hasta que juego.js fija los colores y prepara las imágenes (AC-9.5) */
     html, body { margin: 0; height: 100%; background: var(--fondo); overflow: hidden; font-family: system-ui, sans-serif; touch-action: none; }
     #juego { position: fixed; inset: 0; }
-    .px { image-rendering: pixelated; display: block; flex: none; }
+    .px { image-rendering: pixelated; display: block; flex: none; pointer-events: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
     button { font: inherit; font-family: var(--letra-juego); font-size: 12px; border: var(--borde-fino); border-radius: 0; background: var(--suave); color: var(--suave-tx);
       box-shadow: var(--sombra-fina); }
     button:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
@@ -23,8 +23,10 @@
     #juega { position: fixed; top: calc(12px + env(safe-area-inset-top)); right: 12px; padding: 10px 14px; max-width: 62vw;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--panel); color: var(--tx); }
     #cruceta { position: fixed; left: 16px; bottom: calc(24px + var(--base)); display: grid; grid-template: repeat(3, 52px) / repeat(3, 52px);
-      gap: 4px; user-select: none; pointer-events: none; } /* los huecos de la cruceta dejan pasar el toque al mapa: cartel y burbujas (AC-5.4) */
-    #cruceta button { padding: 0; display: flex; align-items: center; justify-content: center; pointer-events: auto; }
+      gap: 4px; user-select: none; -webkit-touch-callout: none; pointer-events: none; } /* los huecos de la cruceta dejan pasar el toque al mapa: cartel y burbujas (AC-5.4) */
+    #cruceta button { padding: 0; display: flex; align-items: center; justify-content: center; pointer-events: auto; font-family: system-ui, sans-serif; font-size: 20px;
+      background: var(--cruceta-fondo); color: var(--tx); border: 0; border-radius: 8px; box-shadow: none; }
+    #cruceta button:active:not(:disabled) { transform: none; }
     #cruceta [data-dir="arriba"] { grid-area: 1 / 2; } #cruceta [data-dir="izquierda"] { grid-area: 2 / 1; }
     #cruceta [data-dir="derecha"] { grid-area: 2 / 3; } #cruceta [data-dir="abajo"] { grid-area: 3 / 2; }
     #barra { position: fixed; left: 0; right: 0; bottom: 0; height: var(--base); padding-bottom: env(safe-area-inset-bottom); box-sizing: border-box;
@@ -136,10 +138,10 @@
   <div id="depuracion"></div>
   <button id="juega">Juega</button>
   <div id="cruceta">
-    <button data-dir="arriba" aria-label="Arriba"></button>
-    <button data-dir="izquierda" aria-label="Izquierda"></button>
-    <button data-dir="derecha" aria-label="Derecha"></button>
-    <button data-dir="abajo" aria-label="Abajo"></button>
+    <button data-dir="arriba" aria-label="Arriba">▲</button>
+    <button data-dir="izquierda" aria-label="Izquierda">◀</button>
+    <button data-dir="derecha" aria-label="Derecha">▶</button>
+    <button data-dir="abajo" aria-label="Abajo">▼</button>
   </div>
   <section id="drawer" aria-label="Sección abierta">
     <header><strong id="drawer-titulo"></strong><button type="button" id="listo">Listo</button></header>

@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-10
 **Rama:** `feat/011-iconos-propios-y-recolor`
-**Estado:** automática y escritorio completas; **teléfono Android pendiente** (la hace el usuario).
+**Estado:** automática y escritorio completas; teléfono Android verificado por el usuario el 2026-10-11 (ver más abajo); queda pendiente lo que el usuario no reportó (ver «Pendiente»).
 
 ## Pruebas automáticas
 
@@ -59,7 +59,13 @@ Siguen sin evidencia de escritorio y pasan a la prueba del teléfono: el rótulo
 
 **Hallazgo y corrección.** En el historial, el icono quedaba encima del nombre porque el contenedor del icono es un bloque flex (rompía AC-8.6). Se corrigió con una fila flex para el título (`.titulo-historial`) y se comprobó de nuevo: icono y nombre en la misma fila, el icono a la izquierda.
 
-## Pendiente en el teléfono Android (la hace el usuario)
+## Teléfono Android (el usuario, 2026-10-11)
+
+Resumen del usuario sobre la versión servida desde la rama: **70 fps de promedio, `regen` 0,0 ms y sin observaciones** (modelo del teléfono y valores de `arte` y `ui` no indicados).
+
+**Hallazgo y corrección (spec 2.0.0, Fase 8).** Al mantener pulsada una flecha de la cruceta para caminar, el navegador del teléfono trataba la flecha como una imagen: selección y opción de guardarla. Además la cruceta con marco quedaba más recargada que la anterior. Se revirtió la cruceta a la de la 010 (símbolos ▲ ◀ ▶ ▼ como texto, fondo semitransparente de la paleta, esquinas redondeadas de 8 px, sin marco ni sombra), se quitaron los 4 iconos de flecha (19 iconos) y todas las imágenes de la interfaz pasaron a no ser seleccionables, arrastrables ni guardables, con el toque pasando a su contenedor (AC-9.6). El usuario confirmó en el teléfono que la cruceta funciona bien (70 fps, `regen` 0,0 ms, sin observaciones).
+
+## Pendiente en el teléfono Android (lo que no se reportó)
 
 Repetir los pasos de arriba con el hogar de prueba y con la carga completa (8 familiares, 4 mascotas, 50 pendientes, 200 entradas y todos los espacios en desastre). Servir en `0.0.0.0:8080` solo mientras dura la prueba, con el servidor sin caché, y apagarlo después. Anotar:
 - fps, `regen`, `arte` y `ui` (criterios: 60 fps o más; `regen` sin superar los 24,9 ms de la 010 y por debajo de 100 ms; `arte` + `ui` por debajo de 300 ms).

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PALETA } from '../src/arte/paleta.js';
 import {
-  ROLES, VELO, variablesDeColor, contraste, PARES_DE_TEXTO, COLORES_DEL_MAPA, numeroDeColor,
+  ROLES, VELO, CRUCETA, variablesDeColor, contraste, PARES_DE_TEXTO, COLORES_DEL_MAPA, numeroDeColor,
 } from '../src/arte/colores.js';
 
 test('AC-7.1: hay una variable por clave de la paleta, con exactamente su color', () => {
@@ -62,4 +62,10 @@ test('AC-7.8: los colores del mapa son los de la paleta y no los marrones de ant
   });
   for (const color of Object.values(COLORES_DEL_MAPA)) assert.ok(Object.values(PALETA).includes(color), color);
   assert.equal(numeroDeColor('#2e2233'), 0x2e2233);
+});
+
+test('AC-6.4 y FR-7: el fondo de la cruceta es la clave z de la paleta con alfa 0,85, como en la 010', () => {
+  assert.deepEqual(CRUCETA, { clave: 'z', alfa: 0.85 });
+  assert.equal(variablesDeColor()['--cruceta-fondo'], 'rgba(234, 223, 207, 0.85)');
+  assert.equal(variablesDeColor({ ...PALETA, z: '#000000' })['--cruceta-fondo'], 'rgba(0, 0, 0, 0.85)');
 });

@@ -34,8 +34,30 @@ test('AC-7.2: cada variable que usa index.html la define la paleta o la propia h
   for (const nombre of usadas) assert.ok(definidas.has(nombre), `${nombre} no está definida`);
 });
 
-test('AC-7.3: index.html no contiene emoji ni símbolos-icono', () => {
-  assert.doesNotMatch(leer('index.html'), SIMBOLO);
+test('AC-7.3: index.html no contiene emoji ni símbolos-icono, salvo los cuatro símbolos de la cruceta', () => {
+  const html = leer('index.html');
+  const sinCruceta = html.replace(/(<button data-dir="[a-z]+" aria-label="[A-Za-z]+">)[▲◀▶▼](<\/button>)/g, '$1$2');
+  assert.doesNotMatch(sinCruceta, SIMBOLO);
+  assert.equal([...html.matchAll(/<button data-dir="[a-z]+" aria-label="[A-Za-z]+">[▲◀▶▼]<\/button>/g)].length, 4);
+});
+
+test('AC-6.4: la cruceta usa símbolos de texto y su fondo semitransparente sale de la paleta, sin marco ni sombra', () => {
+  const html = leer('index.html');
+  const regla = html.match(/#cruceta button\s*\{([^}]*)\}/)[1];
+  assert.match(regla, /background:\s*var\(--cruceta-fondo\)/);
+  assert.match(regla, /border-radius:\s*8px/);
+  assert.match(regla, /border:\s*0/);
+  assert.match(regla, /box-shadow:\s*none/);
+  assert.doesNotMatch(leer('src/juego.js'), /flecha:/);
+});
+
+test('AC-9.6: las imágenes de la interfaz no se seleccionan ni se arrastran y pasan el toque a su contenedor', () => {
+  const html = leer('index.html');
+  const regla = html.match(/\.px\s*\{([^}]*)\}/)[1];
+  assert.match(regla, /pointer-events:\s*none/);
+  assert.match(regla, /user-select:\s*none/);
+  assert.match(regla, /-webkit-touch-callout:\s*none/);
+  assert.match(leer('src/imagenes.js'), /img\.draggable = false/);
 });
 
 test('AC-7.4: juego.js, secciones.js, formularios.js e imagenes.js no contienen emoji ni símbolos-icono', () => {

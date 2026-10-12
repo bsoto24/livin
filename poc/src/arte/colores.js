@@ -11,18 +11,20 @@ export const ROLES = {
   peligro: 'q', 'peligro-tx': 'j', depuracion: 'p',
   'etiqueta-fondo': 'z', 'etiqueta-tx': 'k', 'cartel-fondo': 'k', 'cartel-tx': 'j', resalte: 'r',
 };
-// El velo de los modales: el color de contorno con alfa; es la única transparencia de la interfaz.
+// Transparencias de la interfaz: un color de la paleta con alfa. El velo de los modales y el fondo de los botones de la cruceta (FR-7).
 export const VELO = { clave: 'k', alfa: 0.55 };
+export const CRUCETA = { clave: 'z', alfa: 0.85 };
 
 const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+const conAlfa = (hex, alfa) => { const [r, g, b] = rgb(hex); return `rgba(${r}, ${g}, ${b}, ${alfa})`; };
 
-// Variables CSS: una por clave de la paleta (`--c-k`), una por rol (`--barra`) y `--velo`. Pura: mismo resultado en cada llamada.
+// Variables CSS: una por clave de la paleta (`--c-k`), una por rol (`--barra`), `--velo` y `--cruceta-fondo`. Pura: mismo resultado en cada llamada.
 export function variablesDeColor(paleta = PALETA) {
   const v = {};
   for (const [clave, color] of Object.entries(paleta)) v[`--c-${clave}`] = color;
   for (const [rol, clave] of Object.entries(ROLES)) v[`--${rol}`] = paleta[clave];
-  const [r, g, b] = rgb(paleta[VELO.clave]);
-  v['--velo'] = `rgba(${r}, ${g}, ${b}, ${VELO.alfa})`;
+  v['--velo'] = conAlfa(paleta[VELO.clave], VELO.alfa);
+  v['--cruceta-fondo'] = conAlfa(paleta[CRUCETA.clave], CRUCETA.alfa);
   return v;
 }
 

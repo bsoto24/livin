@@ -3,30 +3,10 @@ import { TAM } from './paleta.js';
 import { lienzo, rect, caja, cuadricula } from './lienzo.js';
 import { CUADROS_DE_PERSONAJES, PERSONAJES, claveDeCuadro, personajeDe } from './personajes.js';
 
-// Iconos propios de la interfaz (FR-1 de la 011, ADR-011): 23 cuadrículas de 16×16 con claves de la paleta, a color y con contorno oscuro
+// Iconos propios de la interfaz (FR-1 de la 011, ADR-011): 19 cuadrículas de 16×16 con claves de la paleta, a color y con contorno oscuro
 // ('k'), como los muebles del mundo. Son datos puros: los pinta la hoja de texturas del mapa y el módulo de imágenes de la interfaz.
 const dibujar = (f) => { const l = lienzo(); f(l); return cuadricula(l); };
 const puntos = (l, lista, c) => { for (const [x, y] of lista) l[y][x] = c; };
-
-// Giro de 90° en sentido horario de un lienzo: de la flecha hacia arriba salen las otras tres.
-const girar = (l) => l.map((_, y) => l.map((__, x) => l[TAM - 1 - x][y]));
-
-function flechaArriba() {
-  const l = lienzo();
-  for (let f = 0; f < 6; f++) { // la cabeza: seis filas que se ensanchan
-    const y = 1 + f;
-    l[y][7 - f] = 'k';
-    l[y][8 + f] = 'k';
-    rect(l, 8 - f, y, 7 + f, y, 'g');
-  }
-  rect(l, 2, 7, 13, 7, 'k'); // la base de la cabeza
-  caja(l, 5, 7, 10, 14, 'g'); // el tallo
-  return l;
-}
-const ARRIBA = flechaArriba();
-const DERECHA = girar(ARRIBA);
-const ABAJO = girar(DERECHA);
-const IZQUIERDA = girar(ABAJO);
 
 const ESTRELLA = [
   [7, 1], [8, 1], [7, 2], [8, 2], [6, 3], [7, 3], [8, 3], [9, 3],
@@ -133,7 +113,7 @@ export const ICONOS_DE_INTERFAZ = {
     caja(l, 2, 2, 13, 13, 'q');
     rect(l, 5, 4, 6, 9, 'j'); rect(l, 5, 11, 6, 11, 'j'); rect(l, 9, 4, 10, 9, 'j'); rect(l, 9, 11, 10, 11, 'j');
   }),
-  // Estrellas del historial, fecha de la ficha y flechas de la cruceta
+  // Estrellas del historial, y fecha de la ficha
   'estrella:llena': estrella('r'),
   'estrella:vacia': estrella('l'),
   fecha: dibujar((l) => {
@@ -141,10 +121,6 @@ export const ICONOS_DE_INTERFAZ = {
     rect(l, 4, 1, 4, 4, 'k'); rect(l, 11, 1, 11, 4, 'k');
     for (const y of [8, 11]) for (const x of [3, 6, 9, 12]) rect(l, x, y, x + 1, y + 1, 's');
   }),
-  'flecha:arriba': cuadricula(ARRIBA),
-  'flecha:derecha': cuadricula(DERECHA),
-  'flecha:abajo': cuadricula(ABAJO),
-  'flecha:izquierda': cuadricula(IZQUIERDA),
 };
 export const CLAVES_DE_ICONOS = Object.keys(ICONOS_DE_INTERFAZ);
 
